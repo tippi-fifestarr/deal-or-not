@@ -1,0 +1,8 @@
+{
+  "0x78dA752e9dBD73a9b0C0F5ddD15e854D2B879524": "DealOrNoDealFactory",
+  "0xB98E0Fb673e5a0C6e15F1D0a9f36E7dA954A0D5E": "DealOrNoDeal_Implementation",
+  "0xC36E784E1dff616bDae4EAc7B310F0934FaF04a4": "ZKGameVerifier",
+  "0xD2BD10D3f2e3a057F0040663B1EEbf4d1874fEAB": "BriefcaseNFT_Implementation",
+  "0xFF196F1e3a895404d073b8611252cF97388773A7": "MockGroth16Verifier",
+  "networkName": "base-sepolia"
+}
