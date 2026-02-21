@@ -10,6 +10,8 @@ type LotteryEntryProps = {
   gameAddress: `0x${string}`;
   entryFee: bigint;
   gameState: number;
+  lotteryEndTime?: bigint;
+  revealEndTime?: bigint;
 };
 
 const STORAGE_PREFIX = "dond-secret-";
@@ -24,13 +26,34 @@ function storeSecret(gameAddress: string, player: string, secret: string) {
   localStorage.setItem(`${STORAGE_PREFIX}${gameAddress}-${player}`, secret);
 }
 
-export const LotteryEntry = ({ gameAddress, entryFee, gameState }: LotteryEntryProps) => {
+// Stepper steps for the lottery flow
+const LOTTERY_STEPS = [
+  { label: "Enter", icon: "🎟️", description: "Pay entry fee & commit" },
+  { label: "Wait", icon: "⏳", description: "Lottery window closes" },
+  { label: "Reveal", icon: "🔓", description: "Reveal your secret" },
+  { label: "Draw", icon: "🎲", description: "Winner is drawn" },
+];
+
+export const LotteryEntry = ({
+  gameAddress,
+  entryFee,
+  gameState,
+  lotteryEndTime,
+  revealEndTime,
+}: LotteryEntryProps) => {
   const { address: connectedAddress } = useAccount();
   const { writeAsync, isPending } = useGameWrite();
   const [secret, setSecret] = useState<string>("");
   const [hasEntered, setHasEntered] = useState(false);
   const [hasRevealed, setHasRevealed] = useState(false);
   const [error, setError] = useState<string>("");
+  const [now, setNow] = useState(Math.floor(Date.now() / 1000));
+
+  // Update clock for countdowns
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Check if user already entered
   const { data: entryIndex } = useGameRead({
@@ -146,42 +169,71 @@ export const LotteryEntry = ({ gameAddress, entryFee, gameState }: LotteryEntryP
   const isLotteryOpen = gameState === GameState.LotteryOpen;
   const isRevealPhase = gameState === GameState.LotteryReveal;
 
+  // Determine current step
+  let currentStep = 0;
+  if (hasEntered && !isRevealPhase) currentStep = 1;
+  if (isRevealPhase && hasEntered && !hasRevealed) currentStep = 2;
+  if (isRevealPhase && hasRevealed) currentStep = 3;
+  if (gameState > GameState.LotteryReveal) currentStep = 3;
+
+  // Countdown helpers
+  const lotteryRemaining = lotteryEndTime ? Math.max(0, Number(lotteryEndTime) - now) : 0;
+  const revealRemaining = revealEndTime ? Math.max(0, Number(revealEndTime) - now) : 0;
+
+  const formatCountdown = (seconds: number) => {
+    if (seconds <= 0) return "0:00";
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
   return (
     <div className="card bg-base-200 shadow-lg">
       <div className="card-body p-4">
-        <h3 className="card-title text-sm">Lottery Entry</h3>
+        <h3 className="card-title text-sm">🎟️ Lottery Entry</h3>
 
-        {/* Status indicator */}
-        <div className="flex items-center gap-2">
-          {hasEntered && hasRevealed && (
-            <div className="badge badge-success gap-1">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                className="w-4 h-4 stroke-current"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-              </svg>
-              Entered & Revealed
-            </div>
-          )}
-          {hasEntered && !hasRevealed && <div className="badge badge-warning gap-1">Entered - Reveal Pending</div>}
-          {!hasEntered && <div className="badge badge-neutral">Not entered</div>}
-        </div>
+        {/* Step progress bar */}
+        <ul className="steps steps-horizontal w-full text-xs mb-3">
+          {LOTTERY_STEPS.map((step, i) => (
+            <li
+              key={step.label}
+              className={`step ${i <= currentStep ? "step-primary" : ""}`}
+              data-content={i < currentStep ? "✓" : step.icon}
+            >
+              {step.label}
+            </li>
+          ))}
+        </ul>
 
-        {/* Entry fee display */}
-        <div className="text-sm">
+        {/* Countdown timers */}
+        {isLotteryOpen && lotteryEndTime && (
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <span className="text-xs opacity-60">Entries close in</span>
+            <span className={`font-mono font-bold text-lg ${lotteryRemaining < 30 ? "text-error animate-pulse" : "text-warning"}`}>
+              {formatCountdown(lotteryRemaining)}
+            </span>
+          </div>
+        )}
+        {isRevealPhase && revealEndTime && (
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <span className="text-xs opacity-60">Reveal deadline in</span>
+            <span className={`font-mono font-bold text-lg ${revealRemaining < 30 ? "text-error animate-pulse" : "text-warning"}`}>
+              {formatCountdown(revealRemaining)}
+            </span>
+          </div>
+        )}
+
+        {/* Entry fee */}
+        <div className="text-center text-sm mb-2">
           <span className="opacity-70">Entry Fee: </span>
           <span className="font-mono font-bold">{feeEth.toFixed(4)} ETH</span>
         </div>
 
-        {/* Enter button */}
+        {/* STEP 1: Enter Lottery */}
         {isLotteryOpen && !hasEntered && (
-          <div className="mt-2">
+          <div className="bg-base-300 rounded-lg p-3">
             <p className="text-xs opacity-70 mb-2">
-              A secret will be auto-generated and stored in your browser. You must reveal it during the reveal phase
-              from the same browser.
+              🔐 A secret is auto-generated and saved in your browser. You&apos;ll reveal it in the next phase.
             </p>
             <button
               className="btn btn-primary w-full"
@@ -191,47 +243,75 @@ export const LotteryEntry = ({ gameAddress, entryFee, gameState }: LotteryEntryP
               {isPending ? (
                 <span className="loading loading-spinner loading-sm" />
               ) : (
-                `Enter Lottery (${feeEth.toFixed(4)} ETH)`
+                <>🎟️ Enter Lottery ({feeEth.toFixed(4)} ETH)</>
               )}
             </button>
           </div>
         )}
 
-        {/* Reveal button */}
+        {/* STEP 2: Waiting for lottery to close */}
+        {isLotteryOpen && hasEntered && (
+          <div className="bg-base-300 rounded-lg p-3 text-center">
+            <div className="text-2xl mb-1">⏳</div>
+            <p className="text-sm font-semibold">You&apos;re in!</p>
+            <p className="text-xs opacity-60">
+              Waiting for the lottery window to close. Other players can still enter.
+              {lotteryRemaining > 0 && ` ${formatCountdown(lotteryRemaining)} remaining.`}
+            </p>
+          </div>
+        )}
+
+        {/* STEP 3: Reveal Secret */}
         {isRevealPhase && hasEntered && !hasRevealed && (
-          <div className="mt-2">
-            <p className="text-xs opacity-70 mb-2">
-              Reveal your secret to be eligible for the drawing. Unrevealed entries are excluded.
+          <div className="bg-warning/10 border border-warning rounded-lg p-3">
+            <p className="text-xs mb-2 font-semibold text-warning">
+              ⚠️ You MUST reveal now or you&apos;ll be excluded from the drawing!
             </p>
             {secret ? (
               <button className="btn btn-warning w-full" onClick={handleRevealSecret} disabled={isPending}>
-                {isPending ? <span className="loading loading-spinner loading-sm" /> : "Reveal Secret"}
+                {isPending ? <span className="loading loading-spinner loading-sm" /> : "🔓 Reveal My Secret"}
               </button>
             ) : (
-              <div className="alert alert-error">
-                <span>Secret not found in this browser. You cannot reveal from a different device.</span>
+              <div className="alert alert-error text-sm">
+                <span>❌ Secret not found in this browser. You must reveal from the same device you entered from.</span>
               </div>
             )}
           </div>
         )}
 
-        {/* Already entered during lottery */}
-        {isLotteryOpen && hasEntered && (
-          <div className="alert alert-info mt-2">
-            <span>You have entered! Wait for the reveal phase.</span>
+        {/* STEP 4: Revealed, waiting for draw */}
+        {isRevealPhase && hasRevealed && (
+          <div className="bg-success/10 border border-success rounded-lg p-3 text-center">
+            <div className="text-2xl mb-1">✅</div>
+            <p className="text-sm font-semibold text-success">Secret revealed!</p>
+            <p className="text-xs opacity-60">
+              Waiting for the reveal window to close and the winner to be drawn.
+              {revealRemaining > 0 && ` ${formatCountdown(revealRemaining)} remaining.`}
+            </p>
           </div>
         )}
 
-        {/* Lottery closed, waiting for results */}
+        {/* Post-lottery status */}
         {gameState > GameState.LotteryReveal && hasEntered && (
-          <div className="text-xs opacity-70 mt-1">
-            Lottery is complete. {hasRevealed ? "Your entry was revealed." : "Your entry was not revealed (excluded)."}
+          <div className="text-center text-sm">
+            {hasRevealed ? (
+              <span className="badge badge-success gap-1">✓ Entry complete</span>
+            ) : (
+              <span className="badge badge-error gap-1">✗ Not revealed (excluded)</span>
+            )}
+          </div>
+        )}
+
+        {/* Not entered state */}
+        {!hasEntered && !isLotteryOpen && !isRevealPhase && gameState <= GameState.LotteryReveal && (
+          <div className="text-center text-sm opacity-50">
+            Lottery not open yet
           </div>
         )}
 
         {/* Error display */}
         {error && (
-          <div className="alert alert-error mt-2 text-sm">
+          <div className="alert alert-error mt-2 text-xs">
             <span>{error.slice(0, 200)}</span>
           </div>
         )}

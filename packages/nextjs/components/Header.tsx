@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useRef } from "react";
-import Image from "next/image";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { hardhat } from "viem/chains";
 import { Bars3Icon, BugAntIcon } from "@heroicons/react/24/outline";
 import { FaucetButton, RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
 import { useOutsideClick, useTargetNetwork } from "~~/hooks/scaffold-eth";
+import { PresentationSlides } from "~~/components/PresentationSlides";
 
 type HeaderMenuLink = {
   label: string;
@@ -21,11 +21,15 @@ export const menuLinks: HeaderMenuLink[] = [
     href: "/",
   },
   {
-    label: "Game Lobby",
+    label: "Play",
     href: "/game",
   },
   {
-    label: "Debug Contracts",
+    label: "Browse Games",
+    href: "/browse",
+  },
+  {
+    label: "Debug",
     href: "/debug",
     icon: <BugAntIcon className="h-4 w-4" />,
   },
@@ -63,6 +67,7 @@ export const HeaderMenuLinks = () => {
 export const Header = () => {
   const { targetNetwork } = useTargetNetwork();
   const isLocalNetwork = targetNetwork.id === hardhat.id;
+  const [showSlides, setShowSlides] = useState(false);
 
   const burgerMenuRef = useRef<HTMLDetailsElement>(null);
   useOutsideClick(burgerMenuRef, () => {
@@ -70,38 +75,57 @@ export const Header = () => {
   });
 
   return (
-    <div className="sticky lg:static top-0 navbar bg-base-100 min-h-0 shrink-0 justify-between z-20 shadow-md shadow-secondary px-0 sm:px-2">
-      <div className="navbar-start w-auto lg:w-1/2">
-        <details className="dropdown" ref={burgerMenuRef}>
-          <summary className="ml-1 btn btn-ghost lg:hidden hover:bg-transparent">
-            <Bars3Icon className="h-1/2" />
-          </summary>
-          <ul
-            className="menu menu-compact dropdown-content mt-3 p-2 shadow-sm bg-base-100 rounded-box w-52"
-            onClick={() => {
-              burgerMenuRef?.current?.removeAttribute("open");
-            }}
-          >
+    <>
+      <div className="sticky lg:static top-0 navbar bg-base-100 min-h-0 shrink-0 justify-between z-20 shadow-md shadow-secondary px-0 sm:px-2">
+        <div className="navbar-start w-auto lg:w-1/3">
+          <details className="dropdown" ref={burgerMenuRef}>
+            <summary className="ml-1 btn btn-ghost lg:hidden hover:bg-transparent">
+              <Bars3Icon className="h-1/2" />
+            </summary>
+            <ul
+              className="menu menu-compact dropdown-content mt-3 p-2 shadow-sm bg-base-100 rounded-box w-52"
+              onClick={() => {
+                burgerMenuRef?.current?.removeAttribute("open");
+              }}
+            >
+              <HeaderMenuLinks />
+              <li>
+                <button onClick={() => setShowSlides(true)} className="py-1.5 px-3 text-sm">
+                  📊 About
+                </button>
+              </li>
+            </ul>
+          </details>
+          <Link href="/" passHref className="hidden lg:flex items-center gap-2 ml-4 mr-6 shrink-0">
+            <span className="text-2xl">💼</span>
+            <div className="flex flex-col">
+              <span className="font-bold leading-tight">Deal or NOT!</span>
+              <span className="text-xs opacity-70">Cash Case</span>
+            </div>
+          </Link>
+          <ul className="hidden lg:flex lg:flex-nowrap menu menu-horizontal px-1 gap-2">
             <HeaderMenuLinks />
           </ul>
-        </details>
-        <Link href="/" passHref className="hidden lg:flex items-center gap-2 ml-4 mr-6 shrink-0">
-          <div className="flex relative w-10 h-10">
-            <Image alt="SE2 logo" className="cursor-pointer" fill src="/logo.svg" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-bold leading-tight">Scaffold-ETH</span>
-            <span className="text-xs">Ethereum dev stack</span>
-          </div>
-        </Link>
-        <ul className="hidden lg:flex lg:flex-nowrap menu menu-horizontal px-1 gap-2">
-          <HeaderMenuLinks />
-        </ul>
+        </div>
+
+        {/* Center — About button */}
+        <div className="navbar-center hidden lg:flex">
+          <button
+            onClick={() => setShowSlides(true)}
+            className="btn btn-sm btn-primary btn-outline gap-1.5 rounded-full px-5 font-semibold"
+          >
+            📊 About
+          </button>
+        </div>
+
+        <div className="navbar-end w-auto lg:w-1/3 grow mr-4">
+          <RainbowKitCustomConnectButton />
+          {isLocalNetwork && <FaucetButton />}
+        </div>
       </div>
-      <div className="navbar-end grow mr-4">
-        <RainbowKitCustomConnectButton />
-        {isLocalNetwork && <FaucetButton />}
-      </div>
-    </div>
+
+      {/* Presentation slides modal */}
+      <PresentationSlides open={showSlides} onClose={() => setShowSlides(false)} />
+    </>
   );
 };

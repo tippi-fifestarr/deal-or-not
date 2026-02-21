@@ -376,6 +376,12 @@ export default function GamePage() {
 
   return (
     <div className="flex flex-col items-center grow pt-4 px-4 pb-8">
+      {/* Mode badge */}
+      <div className="w-full max-w-6xl mb-2 flex items-center gap-2">
+        <span className="badge badge-primary gap-1">🔐 ZK Mode</span>
+        <span className="text-xs opacity-50">Groth16 proof verification on each case reveal</span>
+      </div>
+
       {/* Game Status Bar */}
       <div className="w-full max-w-6xl mb-4">
         <GameStatus
@@ -437,7 +443,13 @@ export default function GamePage() {
       {/* Lottery phase */}
       {showLottery && gameData && (
         <div className="w-full max-w-md mb-4">
-          <LotteryEntry gameAddress={gameAddress} entryFee={gameData.config.entryFee} gameState={state} />
+          <LotteryEntry
+            gameAddress={gameAddress}
+            entryFee={gameData.config.entryFee}
+            gameState={state}
+            lotteryEndTime={gameData.lotteryEndTime}
+            revealEndTime={gameData.revealEndTime}
+          />
         </div>
       )}
 

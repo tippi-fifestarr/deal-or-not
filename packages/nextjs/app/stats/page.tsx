@@ -65,7 +65,7 @@ export default function StatsPage() {
   return (
     <div className="flex flex-col items-center grow pt-10 px-4">
       <div className="w-full max-w-6xl">
-        <h1 className="text-4xl font-bold mb-8 text-center">Deal or No Deal Stats</h1>
+        <h1 className="text-4xl font-bold mb-8 text-center">Deal or NOT! Stats</h1>
 
         {/* Global Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
