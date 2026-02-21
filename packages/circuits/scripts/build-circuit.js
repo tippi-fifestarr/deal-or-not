@@ -78,9 +78,11 @@ async function main() {
 
   // Step 1: Compile circuit
   console.log("\n=== Compiling circuit ===");
+  const CIRCOMLIB_PATH = path.join(__dirname, "..", "..", "..", "node_modules", "circomlib", "circuits");
   run(
     `circom ${CIRCUITS_DIR}/${CIRCUIT_NAME}.circom ` +
-      `--r1cs --wasm --sym --output ${BUILD_DIR}`
+      `--r1cs --wasm --sym --output ${BUILD_DIR} ` +
+      `-l ${CIRCOMLIB_PATH}`
   );
 
   // Step 2: Groth16 setup

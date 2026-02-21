@@ -1,7 +1,7 @@
 pragma circom 2.1.6;
 
-include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/mux1.circom";
+include "poseidon.circom";
+include "mux1.circom";
 
 /// @title MerkleProof
 /// @notice Verifies a Poseidon Merkle proof for a given leaf and root
