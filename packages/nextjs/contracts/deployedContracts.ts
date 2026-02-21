@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   84532: {
     ZKGameVerifier: {
-      address: "0xc36e784e1dff616bdae4eac7b310f0934faf04a4",
+      address: "0x818eb96a58772618af646750764fba39baa807d2",
       abi: [
         {
           type: "constructor",
@@ -82,7 +82,7 @@ const deployedContracts = {
       deployedOnBlock: 37885553,
     },
     DealOrNoDeal: {
-      address: "0xb98e0fb673e5a0c6e15f1d0a9f36e7da954a0d5e",
+      address: "0xb8ded079fcbd2afc8a549c976f70f764e5b85362",
       abi: [
         {
           type: "receive",
@@ -1333,7 +1333,7 @@ const deployedContracts = {
       deployedOnBlock: 37885553,
     },
     BriefcaseNFT: {
-      address: "0xd2bd10d3f2e3a057f0040663b1eebf4d1874feab",
+      address: "0x9dbb9bcc02b0f20f9ab4882ab8724b837c8bf74a",
       abi: [
         {
           type: "constructor",
@@ -1950,7 +1950,7 @@ const deployedContracts = {
       deployedOnBlock: 37885552,
     },
     DealOrNoDealFactory: {
-      address: "0x78da752e9dbd73a9b0c0f5ddd15e854d2b879524",
+      address: "0x0b9c8d4211720b73a445eca6d9de95263f60d2a9",
       abi: [
         {
           type: "constructor",

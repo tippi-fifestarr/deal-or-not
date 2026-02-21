@@ -1,8 +1,8 @@
 {
-  "0x0D3e0e3Bf83953276a069F2205e913c6eff08047": "DealOrNoDeal_Implementation",
-  "0xDD3bdA020A1b55BfdFCAf928CA38a0be71B74042": "DealOrNoDealFactory",
-  "0xF500c6Bf0DCb87185b52836B4Ee342f935d15bd9": "BriefcaseNFT_Implementation",
-  "0xF674b554CB74331935c2395b16071CD856907003": "ZKGameVerifier",
-  "0xb248Fd9B962d260B0b060578aeD6B3A4261a2130": "CaseRevealVerifier",
+  "0x0B9C8d4211720B73A445eCa6D9DE95263f60D2A9": "DealOrNoDealFactory",
+  "0x358b9e0Cf9C92B50841DFf5bA6CAd0C709707738": "CaseRevealVerifier",
+  "0x818eb96a58772618af646750764fBA39BAa807D2": "ZKGameVerifier",
+  "0x9dBB9Bcc02b0f20f9Ab4882AB8724B837c8bf74A": "BriefcaseNFT_Implementation",
+  "0xb8DEd079FCbd2AFc8a549C976F70f764E5b85362": "DealOrNoDeal_Implementation",
   "networkName": "base-sepolia"
 }
