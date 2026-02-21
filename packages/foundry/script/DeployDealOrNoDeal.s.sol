@@ -6,15 +6,16 @@ import {DealOrNoDeal} from "../contracts/DealOrNoDeal.sol";
 import {DealOrNoDealFactory} from "../contracts/DealOrNoDealFactory.sol";
 import {BriefcaseNFT} from "../contracts/BriefcaseNFT.sol";
 import {ZKGameVerifier} from "../contracts/ZKGameVerifier.sol";
+import {CaseRevealVerifier} from "../contracts/CaseRevealVerifier.sol";
 
 contract DeployDealOrNoDeal is ScaffoldETHDeploy {
     function run() external ScaffoldEthDeployerRunner {
-        // 1. Use existing CaseRevealVerifier deployed at 0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00
-        address caseRevealVerifier = 0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00;
-        deployments.push(Deployment("CaseRevealVerifier", caseRevealVerifier));
+        // 1. Deploy real Groth16 verifier (auto-generated from circuit)
+        CaseRevealVerifier caseRevealVerifier = new CaseRevealVerifier();
+        deployments.push(Deployment("CaseRevealVerifier", address(caseRevealVerifier)));
 
         // 2. Deploy ZK wrapper
-        ZKGameVerifier zkVerifier = new ZKGameVerifier(caseRevealVerifier);
+        ZKGameVerifier zkVerifier = new ZKGameVerifier(address(caseRevealVerifier));
         deployments.push(Deployment("ZKGameVerifier", address(zkVerifier)));
 
         // 3. Deploy implementation contracts (not used directly, only as clone templates)

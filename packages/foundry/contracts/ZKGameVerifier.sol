@@ -39,13 +39,14 @@ contract ZKGameVerifier {
         uint256 merkleRoot,
         uint256 value
     ) external view returns (bool valid) {
-        // Public signals: [caseIndex, merkleRoot, value, revealedValue]
+        // IMPORTANT: Public signals order in Circom is [outputs, then inputs]
+        // Public signals: [revealedValue, caseIndex, merkleRoot, value]
         // revealedValue == value (circuit constraint)
         uint256[4] memory pubSignals;
-        pubSignals[0] = caseIndex;
-        pubSignals[1] = merkleRoot;
-        pubSignals[2] = value;
-        pubSignals[3] = value; // revealedValue output matches value input
+        pubSignals[0] = value;       // revealedValue (output signal, comes first!)
+        pubSignals[1] = caseIndex;   // caseIndex (public input)
+        pubSignals[2] = merkleRoot;  // merkleRoot (public input)
+        pubSignals[3] = value;       // value (public input)
 
         valid = groth16Verifier.verifyProof(pA, pB, pC, pubSignals);
     }

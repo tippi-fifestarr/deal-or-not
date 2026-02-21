@@ -100,19 +100,28 @@ publicSignals[3] = value          (public input)
 - **Poseidon implementation**: circomlibjs (matches circomlib)
 - **Proof format**: Groth16 (pi_a, pi_b, pi_c)
 
-### ⚠️ Solidity (Partial)
+### ✅ Solidity (Complete)
 
 **Current State**:
-- ✅ Verifier contract generated: `CaseRevealVerifier.sol`
-- ✅ Mock verifier deployed: `ZKGameVerifier.sol` (accepts any proof)
-- ❌ Real verifier NOT yet deployed
-- ❌ DealOrNoDeal.sol still uses mock
+- ✅ Verifier contract generated: `CaseRevealVerifier.sol` (auto-generated Groth16)
+- ✅ Wrapper deployed: `ZKGameVerifier.sol` (with correct public signals order)
+- ✅ Real verifier deployed to local chain
+- ✅ Deployment script updated
+- ✅ Foundry tests passing (gas: ~218k per verification)
+- ⏭️ Frontend integration (fetch proofs from API)
 
-**Required Changes** (see ZK_INTEGRATION_PLAN.md):
-1. Deploy `CaseRevealVerifier.sol` to network
-2. Update `ZKGameVerifier.sol` to call real verifier
-3. Update `DealOrNoDeal.openCase()` to enforce real proofs
-4. Update frontend to fetch proofs from host API
+**Deployed Addresses** (Local Anvil):
+- CaseRevealVerifier: `0xb7278A61aa25c888815aFC32Ad3cC52fF24fE575`
+- ZKGameVerifier: `0xCD8a1C3ba11CF5ECfa6267617243239504a98d90`
+- Factory: `0x7969c5eD335650692Bc04293B07F5BF2e7A673C0`
+
+**Public Signals Order** (CRITICAL):
+```solidity
+pubSignals[0] = value;       // revealedValue (output, comes first!)
+pubSignals[1] = caseIndex;   // input
+pubSignals[2] = merkleRoot;  // input
+pubSignals[3] = value;       // input (same as [0], circuit constraint)
+```
 
 ### 🚧 Host API (Not Started)
 
