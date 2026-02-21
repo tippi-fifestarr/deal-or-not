@@ -1,83 +1,270 @@
-# 🏗 Scaffold-ETH 2
+# 💼 Deal or NOT! — Cash Case
 
-<h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
-</h4>
+**Fully onchain Deal or No Deal with two cryptographic game modes.**
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+ETHDenver 2026 Hackathon — Built by ryan & tippi fifestarr
 
-> [!NOTE]
-> 🤖 Scaffold-ETH 2 is AI-ready! It has everything agents need to build on Ethereum. Check `.agents/`, `.claude/`, `.opencode` or `.cursor/` for more info.
+## What is this?
 
-⚙️ Built using NextJS, RainbowKit, Foundry, Wagmi, Viem, and Typescript.
+Deal or NOT! is an onchain recreation of the classic game show "Deal or No Deal" — but with cryptographic guarantees that make the game provably fair. Players enter a commit-reveal lottery, the winner picks a briefcase, opens cases round by round, and faces the banker's offer: **Deal… or NOT!**
 
-- ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
-- 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
-- 🧱 [**Components**](https://docs.scaffoldeth.io/components/): Collection of common web3 components to quickly build your frontend.
-- 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
-- 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
+The twist: you get to **choose your cryptography**.
 
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
+### 🔐 ZK Mode (Groth16 Proofs)
 
-## Requirements
+The host pre-assigns all 26 case values and commits a **Merkle root** onchain. When a case is opened, a **Groth16 ZK proof** proves the value was committed at game creation — without revealing the host's salt or other case values.
 
-Before you begin, you need to install the following tools:
+- Circom circuit: `leaf = Poseidon(caseIndex, value, salt)`
+- Merkle tree depth 5 (32 leaves, 26 used)
+- Onchain verification via `ZKGameVerifier.sol`
+- Trust model: *"I committed to this beforehand"*
 
-- [Node (>= v20.18.3)](https://nodejs.org/en/download/)
-- Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
-- [Git](https://git-scm.com/downloads)
+### 🐱 Schrödinger's Case (Quantum Collapse)
 
-## Quickstart
+Values **don't exist** until a case is opened. Chainlink VRF provides a seed at game start, and each case "collapses" into a value using **commit-reveal + blockhash entropy**. The player commits which cases to open, waits a block, then reveals — the blockhash from the commit block becomes the entropy.
 
-To get started with Scaffold-ETH 2, follow the steps below:
+- `value = hash(vrfSeed, caseIndex, totalOpened, blockhash) % remaining`
+- Commit-reveal prevents MEV/bot precomputation
+- Chainlink Price Feed converts values to real USD
+- Trust model: *"No one could have known"*
 
-1. Install dependencies if it was skipped in CLI:
+## Deployed Contracts (Base Sepolia)
+
+| Contract | Address |
+|---|---|
+| DealOrNoDealFactory | [`0x78da752e9dbd73a9b0c0f5ddd15e854d2b879524`](https://sepolia.basescan.org/address/0x78da752e9dbd73a9b0c0f5ddd15e854d2b879524) |
+| DealOrNoDeal (impl) | [`0xb98e0fb673e5a0c6e15f1d0a9f36e7da954a0d5e`](https://sepolia.basescan.org/address/0xb98e0fb673e5a0c6e15f1d0a9f36e7da954a0d5e) |
+| BriefcaseNFT (impl) | [`0xd2bd10d3f2e3a057f0040663b1eebf4d1874feab`](https://sepolia.basescan.org/address/0xd2bd10d3f2e3a057f0040663b1eebf4d1874feab) |
+| ZKGameVerifier | [`0xc36e784e1dff616bdae4eac7b310f0934faf04a4`](https://sepolia.basescan.org/address/0xc36e784e1dff616bdae4eac7b310f0934faf04a4) |
+| MockGroth16Verifier | [`0xff196f1e3a895404d073b8611252cf97388773a7`](https://sepolia.basescan.org/address/0xff196f1e3a895404d073b8611252cf97388773a7) |
+
+## Architecture
 
 ```
-cd my-dapp-example
+┌──────────────────────────────────────────────────────┐
+│                    Frontend (Next.js)                 │
+│  Scaffold-ETH 2 · wagmi · viem · RainbowKit          │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│  ┌──────────────┐    ┌─────────────────────────────┐ │
+│  │  ZK Mode     │    │  Schrödinger's Case Mode    │ │
+│  │  (Circom)    │    │  (Chainlink VRF + blockhash)│ │
+│  └──────┬───────┘    └──────────┬──────────────────┘ │
+│         │                       │                    │
+├─────────┴───────────────────────┴────────────────────┤
+│                Smart Contracts (Solidity)             │
+│                                                      │
+│  DealOrNoDealFactory ─── creates game clones (1167)  │
+│  DealOrNoDeal ────────── game logic, lottery, banker  │
+│  BankerAlgorithm ─────── EV-based offer calculation  │
+│  BriefcaseNFT ────────── ERC-721 with onchain SVG    │
+│  ZKGameVerifier ──────── Groth16 proof wrapper        │
+│  CashCase.sol ────────── Schrödinger's Case variant   │
+│                                                      │
+├──────────────────────────────────────────────────────┤
+│                   Base Sepolia (L2)                   │
+└──────────────────────────────────────────────────────┘
+```
+
+## Game Flow
+
+```
+1. Create Game ─── Host deploys a game clone via factory
+2. Open Lottery ── Commit-reveal lottery for fair contestant selection
+3. Enter Lottery ─ Players commit hash(secret), pay entry fee
+4. Reveal Secrets ─ Players reveal, combined entropy selects winner
+5. Select Case ─── Winner picks 1 of 26 briefcases
+6. Play Rounds ─── Open cases each round (6, 5, 4, 3, 2, 1, 1, 1, 1, 1)
+7. Banker Offer ── Algorithm offers based on EV + variance + context
+8. DEAL or NOT! ── Accept the offer or keep playing
+9. Final Reveal ── Last two cases opened, payout settled
+```
+
+## Quick Start
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) >= v20
+- [Yarn](https://yarnpkg.com/) v4+
+- [Foundry](https://book.getfoundry.sh/getting-started/installation) (for ZK Mode contracts)
+- [Hardhat](https://hardhat.org/) (for Schrödinger's Case contracts — in `deal/`)
+
+### Environment Setup
+
+```bash
+cp .env.example .env.local
+```
+
+The `.env.example` includes a **burner wallet** for Claude (Player 3) that can enter the lottery via CLI. Send it some Base Sepolia ETH and it's ready to go.
+
+### Run Locally (Foundry / Scaffold-ETH 2)
+
+```bash
+# Clone and install
+git clone <repo-url>
+cd deal-or-not
 yarn install
-```
 
-2. Run a local network in the first terminal:
-
-```
+# Terminal 1: Start local chain
 yarn chain
-```
 
-This command starts a local Ethereum network using Foundry. The network runs on your local machine and can be used for testing and development. You can customize the network configuration in `packages/foundry/foundry.toml`.
-
-3. On a second terminal, deploy the test contract:
-
-```
+# Terminal 2: Deploy contracts
 yarn deploy
-```
 
-This command deploys a test smart contract to the local network. The contract is located in `packages/foundry/contracts` and can be modified to suit your needs. The `yarn deploy` command uses the deploy script located in `packages/foundry/script` to deploy the contract to the network. You can also customize the deploy script.
-
-4. On a third terminal, start your NextJS app:
-
-```
+# Terminal 3: Start frontend
 yarn start
 ```
 
-Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
+Visit `http://localhost:3000`
 
-Run smart contract test with `yarn foundry:test`
+### Demo with 3 Players (ZK Mode)
 
-- Edit your smart contracts in `packages/foundry/contracts`
-- Edit your frontend homepage at `packages/nextjs/app/page.tsx`. For guidance on [routing](https://nextjs.org/docs/app/building-your-application/routing/defining-routes) and configuring [pages/layouts](https://nextjs.org/docs/app/building-your-application/routing/pages-and-layouts) checkout the Next.js documentation.
-- Edit your deployment scripts in `packages/foundry/script`
+ZK Mode requires a lottery with at least 2 players + 1 host. For the demo:
 
+1. **Ryan (browser)** — Creates game, opens lottery
+2. **Tippi (incognito browser)** — Enters lottery via frontend
+3. **Claude (terminal)** — Enters lottery via CLI script:
 
-## Documentation
+```bash
+# Source the burner key from .env
+source .env.local
 
-Visit our [docs](https://docs.scaffoldeth.io) to learn how to start building with Scaffold-ETH 2.
+# Auto-enter + auto-reveal (polls and waits)
+PRIVATE_KEY=$CLAUDE_PRIVATE_KEY ./scripts/claude-auto-player.sh <game-address> 0.0001
 
-To know more about its features, check out our [website](https://scaffoldeth.io).
+# Or step-by-step:
+PRIVATE_KEY=$CLAUDE_PRIVATE_KEY ./scripts/claude-player3.sh <game-address> 0.0001
+# ... wait for lottery to close ...
+PRIVATE_KEY=$CLAUDE_PRIVATE_KEY ./scripts/claude-reveal.sh <game-address>
+```
 
-## Contributing to Scaffold-ETH 2
+> ⚠️ The Claude wallet is a **burner** — testnet only, never put real funds in it.
+> Address: `0xC96Bcb1EACE35d09189a6e52758255b8951a7587`
 
-We welcome contributions to Scaffold-ETH 2!
+### Run Tests (Foundry)
 
-Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
+```bash
+cd packages/foundry
+forge test -vvv
+```
+
+### Run Tests (Hardhat — Schrödinger's Case)
+
+The Schrödinger's Case contracts live in the `deal/` directory and use Hardhat:
+
+```bash
+cd deal
+npm install
+npx hardhat compile
+npx hardhat test
+```
+
+Key test files:
+- `deal/test/CashCase.test.ts` — Full game flow with VRF
+- `deal/test/BrodingerCase.test.ts` — Quantum collapse mechanics
+- `deal/test/BrodingerCheatProof.test.ts` — Cheat resistance proofs
+
+### Build ZK Circuits
+
+```bash
+cd packages/circuits
+npm install
+npm run build    # Compiles Circom → WASM + R1CS
+npm run setup    # Generates proving/verification keys
+```
+
+## Key Contracts
+
+### `DealOrNoDeal.sol` (ZK Mode)
+The main game contract. Uses EIP-1167 minimal proxy clones for gas-efficient game creation. Each game is its own contract instance with:
+- Commit-reveal lottery system
+- 26 briefcases with ZK-verified values
+- Sophisticated banker algorithm (EV + variance + context adjustments)
+- Progressive jackpot integration
+- BriefcaseNFT minting on case reveals
+
+### `CashCase.sol` (Schrödinger's Case)
+Alternative game contract where case values don't exist until opened:
+- Chainlink VRF v2.5 for seed randomness
+- Chainlink Price Feed for USD-denominated values
+- Commit-reveal per round (commit cases → wait block → reveal with blockhash)
+- Game tiers: Micro ($0.01-$5), Standard ($0.01-$10), High ($0.10-$50)
+- AI agent integration support
+
+### `BankerAlgorithm.sol`
+Pure library implementing the banker's offer logic:
+- Expected value calculation from remaining cases
+- Discount curve that increases as rounds progress
+- Random variance to make offers less predictable
+- Context adjustments (streak detection, endgame psychology)
+
+### `BriefcaseNFT.sol`
+ERC-721 NFTs minted for each briefcase:
+- Onchain SVG metadata
+- Sealed/revealed states
+- Transferable collectibles from each game
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 15, React 19, Tailwind CSS, DaisyUI |
+| Web3 | wagmi v2, viem, RainbowKit |
+| Scaffold | Scaffold-ETH 2 |
+| Smart Contracts | Solidity 0.8.x |
+| ZK Proofs | Circom 2.1, snarkjs, Groth16 |
+| Randomness | Chainlink VRF v2.5 |
+| Price Feed | Chainlink ETH/USD |
+| Contract Framework | Foundry (ZK Mode), Hardhat (Schrödinger's) |
+| Chain | Base Sepolia (primary), localhost |
+| NFTs | ERC-721 with onchain SVG |
+| Deployment | EIP-1167 Minimal Proxy Clones |
+
+## Project Structure
+
+```
+deal-or-not/
+├── packages/
+│   ├── foundry/           # ZK Mode smart contracts
+│   │   ├── contracts/
+│   │   │   ├── DealOrNoDeal.sol
+│   │   │   ├── DealOrNoDealFactory.sol
+│   │   │   ├── BankerAlgorithm.sol
+│   │   │   ├── BriefcaseNFT.sol
+│   │   │   ├── ZKGameVerifier.sol
+│   │   │   └── GameTypes.sol
+│   │   ├── script/         # Deployment scripts
+│   │   └── test/           # Foundry tests
+│   ├── circuits/           # ZK circuits (Circom)
+│   │   ├── src/
+│   │   │   ├── case_reveal.circom
+│   │   │   └── merkle_tree.circom
+│   │   └── build/          # Compiled artifacts
+│   ├── nextjs/             # Frontend
+│   │   ├── app/
+│   │   │   ├── page.tsx        # Landing page
+│   │   │   ├── game/           # Game lobby + game pages
+│   │   │   └── browse/         # Browse all games
+│   │   ├── components/game/    # Game UI components
+│   │   ├── contracts/          # ABI definitions
+│   │   └── hooks/              # Custom wagmi hooks
+│   └── api/                # Backend API
+│
+deal/                       # Schrödinger's Case contracts (Hardhat)
+├── contracts/
+│   ├── CashCase.sol
+│   └── DealOrNoDeal.sol
+├── test/                   # Hardhat tests
+├── scripts/                # Deployment + AI agent runner
+└── frontend/               # Original Schrödinger's Case frontend
+```
+
+## Sponsor Technologies
+
+- **Base** — Primary deployment chain (Base Sepolia)
+- **Chainlink** — VRF v2.5 for provably fair randomness, Price Feeds for USD values
+- **Scaffold-ETH 2** — Development framework and UI components
+
+## License
+
+MIT

@@ -103,7 +103,7 @@ export const GameStatus = ({ gameData, remainingCount, casesLeftThisRound, conne
       return isContestant ? "Your turn (select a case)" : "Waiting for contestant";
     if (state === GameState.RoundPlay) return isContestant ? "Your turn (open cases)" : "Contestant is playing";
     if (state === GameState.BankerOffer)
-      return isContestant ? "Your decision: Deal or No Deal?" : "Waiting for contestant";
+      return isContestant ? "Your decision: Deal… or NOT?" : "Waiting for contestant";
     if (state === GameState.GameOver) return GAME_OUTCOME_LABELS[gameData.outcome] ?? "Game Over";
     return "";
   };

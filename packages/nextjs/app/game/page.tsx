@@ -23,8 +23,8 @@ const GameLobby: NextPage = () => {
 
   return (
     <div className="flex flex-col items-center grow pt-6 px-4">
-      <h1 className="text-3xl font-bold mb-2">Deal or No Deal</h1>
-      <p className="text-sm opacity-70 mb-6">Onchain game show with commit-reveal lottery and ZK proofs</p>
+      <h1 className="text-3xl font-bold mb-2">Deal or NOT!</h1>
+      <p className="text-sm opacity-70 mb-6">Cash Case — onchain game show with commit-reveal lottery and ZK proofs</p>
 
       {/* Progressive Jackpot Banner */}
       <JackpotBanner />
@@ -189,10 +189,10 @@ const GameListItemDetails = ({
 /** Panel for creating a new game */
 const CreateGamePanel = ({ connectedAddress }: { connectedAddress: string | undefined }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [entryFee, setEntryFee] = useState("0.001");
-  const [lotteryDuration, setLotteryDuration] = useState("3600"); // 1 hour
-  const [revealDuration, setRevealDuration] = useState("1800"); // 30 min
-  const [turnTimeout, setTurnTimeout] = useState("3600"); // 1 hour
+  const [entryFee, setEntryFee] = useState("0.0001");
+  const [lotteryDuration, setLotteryDuration] = useState("120"); // 2 minutes — good for demos
+  const [revealDuration, setRevealDuration] = useState("60"); // 1 minute
+  const [turnTimeout, setTurnTimeout] = useState("300"); // 5 minutes
   const [minPlayers, setMinPlayers] = useState("2");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState("");
@@ -260,7 +260,38 @@ const CreateGamePanel = ({ connectedAddress }: { connectedAddress: string | unde
       ) : (
         <div className="card bg-base-200 shadow-lg">
           <div className="card-body">
-            <h3 className="card-title">Create New Game</h3>
+            <h3 className="card-title">Create New Game (ZK Mode)</h3>
+            <p className="text-xs opacity-60 -mt-2">
+              Commit-reveal lottery → ZK proof case reveals → Banker offers
+            </p>
+
+            {/* Quick presets */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              <button
+                className="btn btn-xs btn-outline btn-accent"
+                onClick={() => {
+                  setEntryFee("0.0001");
+                  setLotteryDuration("120");
+                  setRevealDuration("60");
+                  setTurnTimeout("300");
+                  setMinPlayers("2");
+                }}
+              >
+                ⚡ Quick Demo (2 min lottery)
+              </button>
+              <button
+                className="btn btn-xs btn-outline"
+                onClick={() => {
+                  setEntryFee("0.001");
+                  setLotteryDuration("3600");
+                  setRevealDuration("1800");
+                  setTurnTimeout("3600");
+                  setMinPlayers("2");
+                }}
+              >
+                🎮 Standard (1 hr lottery)
+              </button>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="form-control">
@@ -274,7 +305,7 @@ const CreateGamePanel = ({ connectedAddress }: { connectedAddress: string | unde
                   value={entryFee}
                   onChange={e => setEntryFee(e.target.value)}
                   className="input input-bordered"
-                  placeholder="0.001"
+                  placeholder="0.0001"
                 />
               </div>
 
@@ -291,11 +322,14 @@ const CreateGamePanel = ({ connectedAddress }: { connectedAddress: string | unde
                   className="input input-bordered"
                   placeholder="2"
                 />
+                <label className="label">
+                  <span className="label-text-alt">Need {minPlayers} entries to proceed (host doesn&apos;t count)</span>
+                </label>
               </div>
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text">Lottery Duration (seconds)</span>
+                  <span className="label-text">⏱ Lottery Window</span>
                 </label>
                 <input
                   type="number"
@@ -303,16 +337,23 @@ const CreateGamePanel = ({ connectedAddress }: { connectedAddress: string | unde
                   value={lotteryDuration}
                   onChange={e => setLotteryDuration(e.target.value)}
                   className="input input-bordered"
-                  placeholder="3600"
+                  placeholder="120"
                 />
                 <label className="label">
-                  <span className="label-text-alt">{Math.round(Number(lotteryDuration) / 60)} minutes</span>
+                  <span className="label-text-alt">
+                    {Number(lotteryDuration) < 60
+                      ? `${lotteryDuration}s`
+                      : Number(lotteryDuration) < 3600
+                        ? `${Math.round(Number(lotteryDuration) / 60)} min`
+                        : `${(Number(lotteryDuration) / 3600).toFixed(1)} hr`}
+                    {" — "}players enter during this window
+                  </span>
                 </label>
               </div>
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text">Reveal Duration (seconds)</span>
+                  <span className="label-text">⏱ Reveal Window</span>
                 </label>
                 <input
                   type="number"
@@ -320,16 +361,21 @@ const CreateGamePanel = ({ connectedAddress }: { connectedAddress: string | unde
                   value={revealDuration}
                   onChange={e => setRevealDuration(e.target.value)}
                   className="input input-bordered"
-                  placeholder="1800"
+                  placeholder="60"
                 />
                 <label className="label">
-                  <span className="label-text-alt">{Math.round(Number(revealDuration) / 60)} minutes</span>
+                  <span className="label-text-alt">
+                    {Number(revealDuration) < 60
+                      ? `${revealDuration}s`
+                      : `${Math.round(Number(revealDuration) / 60)} min`}
+                    {" — "}players reveal secrets, then winner drawn
+                  </span>
                 </label>
               </div>
 
               <div className="form-control md:col-span-2">
                 <label className="label">
-                  <span className="label-text">Turn Timeout (seconds)</span>
+                  <span className="label-text">⏱ Turn Timeout</span>
                 </label>
                 <input
                   type="number"
@@ -337,10 +383,15 @@ const CreateGamePanel = ({ connectedAddress }: { connectedAddress: string | unde
                   value={turnTimeout}
                   onChange={e => setTurnTimeout(e.target.value)}
                   className="input input-bordered"
-                  placeholder="3600"
+                  placeholder="300"
                 />
                 <label className="label">
-                  <span className="label-text-alt">{Math.round(Number(turnTimeout) / 60)} minutes</span>
+                  <span className="label-text-alt">
+                    {Number(turnTimeout) < 60
+                      ? `${turnTimeout}s`
+                      : `${Math.round(Number(turnTimeout) / 60)} min`}
+                    {" — "}max idle time before timeout forfeit
+                  </span>
                 </label>
               </div>
             </div>

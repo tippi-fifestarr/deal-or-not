@@ -39,7 +39,7 @@ export const useGameNotifications = ({
 
     // Lottery closed - time to reveal
     if (prevState === GameState.LotteryOpen && gameState === GameState.LotteryReveal) {
-      new Notification("Deal or No Deal", {
+      new Notification("Deal or NOT!", {
         body: "Lottery closed! Reveal your secret now.",
         icon: "/favicon.ico",
         tag: "lottery-reveal",
@@ -49,13 +49,13 @@ export const useGameNotifications = ({
     // Winner drawn - game starting
     if (prevState === GameState.LotteryReveal && gameState === GameState.LotteryComplete) {
       if (isContestant) {
-        new Notification("Deal or No Deal - YOU WON!", {
+        new Notification("Deal or NOT! - YOU WON!", {
           body: "You won the lottery! Select your briefcase.",
           icon: "/favicon.ico",
           tag: "winner",
         });
       } else {
-        new Notification("Deal or No Deal", {
+        new Notification("Deal or NOT!", {
           body: "Winner has been drawn. Game is starting!",
           icon: "/favicon.ico",
           tag: "game-start",
@@ -65,8 +65,8 @@ export const useGameNotifications = ({
 
     // Banker offer
     if (gameState === GameState.BankerOffer && isContestant) {
-      new Notification("Deal or No Deal - Banker Calling!", {
-        body: "The banker has made an offer. Deal or No Deal?",
+      new Notification("Deal or NOT! - Banker Calling!", {
+        body: "The banker has made an offer. Deal… or NOT?",
         icon: "/favicon.ico",
         tag: "banker-offer",
       });
@@ -86,7 +86,7 @@ export const useGameNotifications = ({
         const secondsLeft = Number(lotteryEndTime) - now;
         if (secondsLeft <= 60 && secondsLeft > 0) {
           notifiedLotteryClose.current = true;
-          new Notification("Deal or No Deal", {
+          new Notification("Deal or NOT!", {
             body: "Lottery closing in 1 minute! Enter now or miss out.",
             icon: "/favicon.ico",
             tag: "lottery-closing",
@@ -99,7 +99,7 @@ export const useGameNotifications = ({
         const secondsLeft = Number(revealEndTime) - now;
         if (secondsLeft <= 60 && secondsLeft > 0) {
           notifiedRevealClose.current = true;
-          new Notification("Deal or No Deal", {
+          new Notification("Deal or NOT!", {
             body: "Reveal window closing in 1 minute! Reveal your secret now.",
             icon: "/favicon.ico",
             tag: "reveal-closing",
