@@ -526,6 +526,7 @@ export default function GamePage() {
                   remainingCount={Number(remainingCount ?? 0n)}
                   currentRound={Number(gameData.currentRound)}
                   prizePool={gameData.prizePool}
+                  gameAddress={gameAddress}
                 />
               </div>
             )}

@@ -2,6 +2,7 @@
 
 import { formatEther } from "viem";
 import { useEthPrice } from "~~/hooks/useEthPrice";
+import { useGameRead } from "~~/hooks/useGameContract";
 
 type EVDashboardProps = {
   currentEV: bigint;
@@ -9,13 +10,28 @@ type EVDashboardProps = {
   remainingCount: number;
   currentRound: number;
   prizePool: bigint;
+  gameAddress?: `0x${string}`;
 };
 
 /**
  * Statistics panel showing Expected Value analytics.
  */
-export const EVDashboard = ({ currentEV, bankerOffer, remainingCount, currentRound, prizePool }: EVDashboardProps) => {
+export const EVDashboard = ({
+  currentEV,
+  bankerOffer,
+  remainingCount,
+  currentRound,
+  prizePool,
+  gameAddress,
+}: EVDashboardProps) => {
   const { ethPrice } = useEthPrice();
+
+  // Fetch advanced stats (offer range) - only when we have an offer
+  const { data: offerPreview } = useGameRead({
+    gameAddress,
+    functionName: "previewBankerOffer",
+    enabled: !!gameAddress && bankerOffer > 0n,
+  });
 
   const evEth = parseFloat(formatEther(currentEV));
   const offerEth = parseFloat(formatEther(bankerOffer));
@@ -37,6 +53,44 @@ export const EVDashboard = ({ currentEV, bankerOffer, remainingCount, currentRou
   };
 
   const quality = getQualityIndicator();
+
+  // Parse offer range from preview (if available)
+  const offerRange = offerPreview as [bigint, bigint, bigint] | undefined;
+  const minOffer = offerRange ? parseFloat(formatEther(offerRange[0])) : 0;
+  const avgOffer = offerRange ? parseFloat(formatEther(offerRange[1])) : 0;
+  const maxOffer = offerRange ? parseFloat(formatEther(offerRange[2])) : 0;
+
+  // Calculate where current offer falls in the range
+  const getOfferPositionLabel = (): string => {
+    if (!offerRange || maxOffer === minOffer) return "N/A";
+    const position = ((offerEth - minOffer) / (maxOffer - minOffer)) * 100;
+    if (position < 33) return "Low end";
+    if (position < 67) return "Mid-range";
+    return "High end";
+  };
+
+  // Calculate variance components (approximation for display)
+  const getVarianceBreakdown = () => {
+    if (!hasOffer || evEth === 0) return null;
+
+    // Base discount for round (from BankerAlgorithm)
+    const baseDiscounts = [27, 37, 46, 56, 65, 75, 80, 84, 89, 95];
+    const baseDiscount = currentRound < baseDiscounts.length ? baseDiscounts[currentRound] : 95;
+    const baseOffer = (evEth * baseDiscount) / 100;
+
+    // Random variance + context adjustment
+    const variance = offerEth - baseOffer;
+    const variancePercent = ((variance / evEth) * 100).toFixed(1);
+
+    return {
+      baseDiscount,
+      baseOffer: baseOffer.toFixed(4),
+      variance: variancePercent,
+      total: dealQuality.toFixed(1),
+    };
+  };
+
+  const variance = getVarianceBreakdown();
 
   return (
     <div className="card bg-base-200 shadow-lg">
@@ -144,6 +198,59 @@ export const EVDashboard = ({ currentEV, bankerOffer, remainingCount, currentRou
               </span>
             </div>
           </div>
+        )}
+
+        {/* Advanced Statistics - Collapsible */}
+        {hasOffer && offerRange && (
+          <details className="collapse collapse-arrow bg-base-100 mt-3">
+            <summary className="collapse-title text-xs font-medium min-h-0 py-2 cursor-pointer">
+              📊 Advanced Statistics
+            </summary>
+            <div className="collapse-content">
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                {/* Offer Range */}
+                <div className="text-xs">
+                  <p className="opacity-60 mb-1">Offer Range (This Round)</p>
+                  {ethPrice > 0 ? (
+                    <>
+                      <p className="font-mono">
+                        Min: ${(minOffer * ethPrice).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      </p>
+                      <p className="font-mono">
+                        Avg: ${(avgOffer * ethPrice).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      </p>
+                      <p className="font-mono">
+                        Max: ${(maxOffer * ethPrice).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-mono">Min: {minOffer.toFixed(4)} ETH</p>
+                      <p className="font-mono">Avg: {avgOffer.toFixed(4)} ETH</p>
+                      <p className="font-mono">Max: {maxOffer.toFixed(4)} ETH</p>
+                    </>
+                  )}
+                  <p className="opacity-60 mt-1">Position: {getOfferPositionLabel()}</p>
+                </div>
+
+                {/* Variance Breakdown */}
+                {variance && (
+                  <div className="text-xs">
+                    <p className="opacity-60 mb-1">Variance Breakdown</p>
+                    <p className="font-mono">Base: {variance.baseDiscount}% EV (Round {currentRound + 1})</p>
+                    <p className="font-mono">
+                      Variance: {variance.variance > "0" ? "+" : ""}
+                      {variance.variance}%
+                    </p>
+                    <p className="font-mono font-bold mt-1">= {variance.total}% of EV</p>
+                    <p className="opacity-60 mt-1 text-[10px]">
+                      Includes random (±5-12%) + context adjustment (±3%)
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </details>
         )}
       </div>
     </div>
