@@ -94,6 +94,9 @@ contract DealOrNoDeal is ReentrancyGuard {
     // Jackpot
     uint256 public maxCaseValue;
 
+    // Variance tracking
+    uint256 public initialEV; // EV at game start (for context-aware offers)
+
     // ============ Modifiers ============
 
     modifier onlyHost() {
@@ -478,7 +481,12 @@ contract DealOrNoDeal is ReentrancyGuard {
     /// @notice Get current banker offer calculation (doesn't change state)
     function previewBankerOffer() external view returns (uint256 offer, uint256 ev) {
         ev = _remainingValues.expectedValue();
-        offer = _remainingValues.calculateOffer(game.currentRound);
+        offer = BankerAlgorithm.calculateOfferWithVariance(
+            _remainingValues,
+            game.currentRound,
+            initialEV,
+            game.merkleRoot
+        );
     }
 
     /// @notice Get the number of lottery entries
@@ -547,6 +555,9 @@ contract DealOrNoDeal is ReentrancyGuard {
             if (values[i] > maxVal) maxVal = values[i];
         }
         maxCaseValue = maxVal;
+
+        // Store initial EV for variance calculations
+        initialEV = BankerAlgorithm.expectedValue(_remainingValues);
     }
 
     function _removeValue(uint256 value) internal {
@@ -560,7 +571,14 @@ contract DealOrNoDeal is ReentrancyGuard {
     }
 
     function _makeBankerOffer() internal {
-        uint256 offer = _remainingValues.calculateOffer(game.currentRound);
+        // Use variance-enabled banker algorithm
+        uint256 offer = BankerAlgorithm.calculateOfferWithVariance(
+            _remainingValues,
+            game.currentRound,
+            initialEV,
+            game.merkleRoot // Use merkle root as randomness source
+        );
+
         game.bankerOffer = offer;
         game.state = GameState.BankerOffer;
 
