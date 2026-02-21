@@ -15,12 +15,12 @@ const path = require("path");
  */
 
 const buildPath = path.join(__dirname, "../build");
-const wasmFile = path.join(buildPath, "case_reveal_js/case_reveal.wasm");
-const zkeyFile = path.join(buildPath, "case_reveal_final.zkey");
+const wasmFile = path.join(buildPath, "case-reveal_js/case-reveal.wasm");
+const zkeyFile = path.join(buildPath, "case-reveal_final.zkey");
 const vkeyFile = path.join(buildPath, "verification_key.json");
 
-// Poseidon hash function (matching circomlib)
-const poseidon = require("circomlibjs").poseidon;
+// Poseidon hash function (matching circomlib) - will be loaded async
+let poseidon;
 
 // ═══════════════════════════════════════════════════════
 // Helper: Build Merkle Tree
@@ -79,6 +79,16 @@ async function testProofGeneration() {
     console.log("═══════════════════════════════════════════════════════");
     console.log("  Testing Case Reveal Proof Generation");
     console.log("═══════════════════════════════════════════════════════\n");
+
+    // Load poseidon hash
+    const circomlibjs = await import("circomlibjs");
+    const poseidonHash = await circomlibjs.buildPoseidon();
+
+    // Wrap poseidon to return BigInt instead of Uint8Array
+    poseidon = (inputs) => {
+        const hash = poseidonHash(inputs);
+        return poseidonHash.F.toObject(hash);
+    };
 
     // Check files exist
     if (!fs.existsSync(wasmFile)) {
@@ -144,7 +154,7 @@ async function testProofGeneration() {
     const tree = buildMerkleTree(leaves);
     const root = tree[tree.length - 1][0];
 
-    console.log(`✓ Merkle root: ${root.toString()}`);
+    console.log(`✓ Merkle root: ${typeof root === 'bigint' ? root.toString() : root}`);
     console.log(`✓ Tree depth: 5 levels, 32 leaves\n`);
 
     // ═══════════════════════════════════════════════════════
@@ -161,8 +171,8 @@ async function testProofGeneration() {
         merkleRoot: root.toString(),
         value: values[caseToReveal].toString(),
         salt: salt.toString(),
-        merkleProof: proof.map(p => p.toString()),
-        merkleIndices: indices.map(i => i.toString()),
+        pathElements: proof.map(p => p.toString()),
+        pathIndices: indices.map(i => i.toString()),
     };
 
     console.log(`✓ Case index: ${caseToReveal}`);
@@ -170,18 +180,10 @@ async function testProofGeneration() {
     console.log(`✓ Input prepared\n`);
 
     // ═══════════════════════════════════════════════════════
-    // Step 3: Calculate witness
+    // Step 3: Generate proof (includes witness calculation)
     // ═══════════════════════════════════════════════════════
 
-    console.log("Step 3/5: Calculating witness...");
-    const { witness } = await snarkjs.wtns.calculate(input, wasmFile);
-    console.log("✓ Witness calculated\n");
-
-    // ═══════════════════════════════════════════════════════
-    // Step 4: Generate proof
-    // ═══════════════════════════════════════════════════════
-
-    console.log("Step 4/5: Generating ZK proof (Groth16)...");
+    console.log("Step 3/4: Generating ZK proof (Groth16)...");
     console.log("⏳ This may take 10-30 seconds...");
 
     const startTime = Date.now();
@@ -193,7 +195,11 @@ async function testProofGeneration() {
     const proofTime = Date.now() - startTime;
 
     console.log(`✓ Proof generated in ${proofTime}ms`);
-    console.log(`✓ Public signals: [caseIndex=${publicSignals[0]}, merkleRoot=${publicSignals[1]}, value=${publicSignals[2]}]\n`);
+    console.log(`✓ Public signals (outputs first, then inputs):`);
+    console.log(`  - revealedValue: ${publicSignals[0]}`);
+    console.log(`  - caseIndex: ${publicSignals[1]}`);
+    console.log(`  - merkleRoot: ${publicSignals[2]}`);
+    console.log(`  - value: ${publicSignals[3]}\n`);
 
     // ═══════════════════════════════════════════════════════
     // Step 5: Verify proof
