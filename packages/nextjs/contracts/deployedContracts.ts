@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   84532: {
     ZKGameVerifier: {
-      address: "0xf674b554cb74331935c2395b16071cd856907003",
+      address: "0xc36e784e1dff616bdae4eac7b310f0934faf04a4",
       abi: [
         {
           type: "constructor",
@@ -79,10 +79,10 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 429,
+      deployedOnBlock: 37885553,
     },
     DealOrNoDeal: {
-      address: "0xfdbda51a027e55e42155e48ab318ffcc12444cd9",
+      address: "0xb98e0fb673e5a0c6e15f1d0a9f36e7da954a0d5e",
       abi: [
         {
           type: "receive",
@@ -1330,10 +1330,10 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 430,
+      deployedOnBlock: 37885553,
     },
     BriefcaseNFT: {
-      address: "0x0b88ffca9f2f088bfdb11efaf72e2af49afc763b",
+      address: "0xd2bd10d3f2e3a057f0040663b1eebf4d1874feab",
       abi: [
         {
           type: "constructor",
@@ -1947,10 +1947,10 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 429,
+      deployedOnBlock: 37885552,
     },
     DealOrNoDealFactory: {
-      address: "0xdd3bda020a1b55bfdfcaf928ca38a0be71b74042",
+      address: "0x78da752e9dbd73a9b0c0f5ddd15e854d2b879524",
       abi: [
         {
           type: "constructor",
@@ -2653,7 +2653,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 430,
+      deployedOnBlock: 37885553,
     },
   },
 } as const;

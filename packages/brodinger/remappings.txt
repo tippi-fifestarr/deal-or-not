@@ -1,0 +1,4 @@
+@openzeppelin/contracts@5.0.2/=node_modules/@openzeppelin/contracts/
+@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/
+@chainlink/contracts/=node_modules/@chainlink/contracts/
+@chainlink/contracts-ccip/=node_modules/@chainlink/contracts-ccip/

@@ -19,13 +19,15 @@ The host pre-assigns all 26 case values and commits a **Merkle root** onchain. W
 - Onchain verification via `ZKGameVerifier.sol`
 - Trust model: *"I committed to this beforehand"*
 
-### 🐱 Schrödinger's Case (Quantum Collapse)
+### 🐱 Brodinger's Case (Quantum Collapse)
 
 Values **don't exist** until a case is opened. Chainlink VRF provides a seed at game start, and each case "collapses" into a value using **commit-reveal + blockhash entropy**. The player commits which cases to open, waits a block, then reveals — the blockhash from the commit block becomes the entropy.
 
 - `value = hash(vrfSeed, caseIndex, totalOpened, blockhash) % remaining`
 - Commit-reveal prevents MEV/bot precomputation
 - Chainlink Price Feed converts values to real USD
+- 12 briefcases with 3 tiers (Micro / Standard / High)
+- AI-generated video interstitials during commit-reveal waits
 - Trust model: *"No one could have known"*
 
 ## Deployed Contracts (Base Sepolia)
@@ -37,6 +39,13 @@ Values **don't exist** until a case is opened. Chainlink VRF provides a seed at 
 | BriefcaseNFT (impl) | [`0xd2bd10d3f2e3a057f0040663b1eebf4d1874feab`](https://sepolia.basescan.org/address/0xd2bd10d3f2e3a057f0040663b1eebf4d1874feab) |
 | ZKGameVerifier | [`0xc36e784e1dff616bdae4eac7b310f0934faf04a4`](https://sepolia.basescan.org/address/0xc36e784e1dff616bdae4eac7b310f0934faf04a4) |
 | MockGroth16Verifier | [`0xff196f1e3a895404d073b8611252cf97388773a7`](https://sepolia.basescan.org/address/0xff196f1e3a895404d073b8611252cf97388773a7) |
+| CashCase (Brodinger's) | [`0x2Db0a160BE59Aea46f33F900651FE819699beb52`](https://sepolia.basescan.org/address/0x2Db0a160BE59Aea46f33F900651FE819699beb52) |
+
+**CashCase VRF Config (Base Sepolia):**
+- VRF Coordinator: `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE`
+- Key Hash: `0x9e1344a1247c8a1785d0a4681a27152bffdb43666ae5bf7d14d24a5efd44bf71`
+- Subscription ID: `100504477510181305958562641443496083821442665835157827344882238351295570091170`
+- Price Feed (ETH/USD): `0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1`
 
 ## Architecture
 

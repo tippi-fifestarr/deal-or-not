@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface Slide {
   title: string;
@@ -42,7 +42,7 @@ const SLIDES: Slide[] = [
     subtitle: "Choose your cryptography",
     bullets: [
       "🔐 ZK Mode — Groth16 proofs verify pre-committed case values",
-      "🐱 Brodinger's Case — Values collapse from VRF seed at open time",
+      "🐱 Brödinger's Case — Values collapse from VRF seed at open time",
       "Both are provably fair, but use fundamentally different approaches",
       "Players pick their mode before entering — great for teaching ZK vs commit-reveal",
     ],
@@ -63,7 +63,7 @@ const SLIDES: Slide[] = [
   },
   {
     emoji: "🐱",
-    title: "Brodinger's Case",
+    title: "Brödinger's Case",
     subtitle: "Schrödinger meets Chainlink VRF",
     bullets: [
       "Case values don't exist until opened — quantum collapse!",
@@ -143,21 +143,15 @@ const SLIDES: Slide[] = [
   },
 ];
 
-export const PresentationSlides = ({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) => {
+export const PresentationSlides = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const next = useCallback(() => {
-    setCurrentSlide((s) => Math.min(s + 1, SLIDES.length - 1));
+    setCurrentSlide(s => Math.min(s + 1, SLIDES.length - 1));
   }, []);
 
   const prev = useCallback(() => {
-    setCurrentSlide((s) => Math.max(s - 1, 0));
+    setCurrentSlide(s => Math.max(s - 1, 0));
   }, []);
 
   // Keyboard navigation
@@ -190,18 +184,12 @@ export const PresentationSlides = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
       {/* Slide container */}
       <div className="relative z-10 w-full max-w-4xl mx-4 aspect-[16/10] bg-gradient-to-br from-base-300 to-base-100 rounded-2xl shadow-2xl border border-primary/20 flex flex-col overflow-hidden">
         {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 btn btn-sm btn-circle btn-ghost text-lg z-20"
-        >
+        <button onClick={onClose} className="absolute top-4 right-4 btn btn-sm btn-circle btn-ghost text-lg z-20">
           ✕
         </button>
 
@@ -212,26 +200,13 @@ export const PresentationSlides = ({
 
         {/* Slide content */}
         <div className="flex-1 flex flex-col items-center justify-center px-8 md:px-16 py-8 text-center">
-          {slide.emoji && (
-            <div className="text-5xl md:text-6xl mb-4 animate-bounce">
-              {slide.emoji}
-            </div>
-          )}
-          <h2 className="text-3xl md:text-5xl font-black mb-2 tracking-tight">
-            {slide.title}
-          </h2>
-          {slide.subtitle && (
-            <p className="text-lg md:text-xl opacity-70 mb-6 font-medium">
-              {slide.subtitle}
-            </p>
-          )}
+          {slide.emoji && <div className="text-5xl md:text-6xl mb-4 animate-bounce">{slide.emoji}</div>}
+          <h2 className="text-3xl md:text-5xl font-black mb-2 tracking-tight">{slide.title}</h2>
+          {slide.subtitle && <p className="text-lg md:text-xl opacity-70 mb-6 font-medium">{slide.subtitle}</p>}
           {slide.bullets && (
             <ul className="text-left space-y-2 max-w-2xl w-full">
               {slide.bullets.map((bullet, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-2 text-sm md:text-base opacity-80"
-                >
+                <li key={i} className="flex items-start gap-2 text-sm md:text-base opacity-80">
                   <span className="text-primary mt-0.5 shrink-0">▸</span>
                   <span>{bullet}</span>
                 </li>
@@ -243,11 +218,7 @@ export const PresentationSlides = ({
               {slide.highlight}
             </div>
           )}
-          {slide.footer && (
-            <p className="mt-6 text-xs md:text-sm opacity-40 italic">
-              {slide.footer}
-            </p>
-          )}
+          {slide.footer && <p className="mt-6 text-xs md:text-sm opacity-40 italic">{slide.footer}</p>}
         </div>
 
         {/* Navigation */}
@@ -267,9 +238,7 @@ export const PresentationSlides = ({
                 key={i}
                 onClick={() => setCurrentSlide(i)}
                 className={`w-2 h-2 rounded-full transition-all ${
-                  i === currentSlide
-                    ? "bg-primary w-6"
-                    : "bg-base-content/20 hover:bg-base-content/40"
+                  i === currentSlide ? "bg-primary w-6" : "bg-base-content/20 hover:bg-base-content/40"
                 }`}
               />
             ))}
