@@ -5,9 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { hardhat } from "viem/chains";
 import { Bars3Icon, BugAntIcon } from "@heroicons/react/24/outline";
+import { PresentationSlides } from "~~/components/PresentationSlides";
 import { FaucetButton, RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
 import { useOutsideClick, useTargetNetwork } from "~~/hooks/scaffold-eth";
-import { PresentationSlides } from "~~/components/PresentationSlides";
 
 type HeaderMenuLink = {
   label: string;
@@ -17,21 +17,12 @@ type HeaderMenuLink = {
 
 export const menuLinks: HeaderMenuLink[] = [
   {
-    label: "Home",
-    href: "/",
-  },
-  {
-    label: "Play",
+    label: "ZK Mode",
     href: "/game",
   },
   {
-    label: "Browse Games",
-    href: "/browse",
-  },
-  {
-    label: "Debug",
-    href: "/debug",
-    icon: <BugAntIcon className="h-4 w-4" />,
+    label: "Br\u00F6dinger's",
+    href: "/cashcase",
   },
 ];
 
@@ -77,7 +68,7 @@ export const Header = () => {
   return (
     <>
       <div className="sticky lg:static top-0 navbar bg-base-100 min-h-0 shrink-0 justify-between z-20 shadow-md shadow-secondary px-0 sm:px-2">
-        <div className="navbar-start w-auto lg:w-1/3">
+        <div className="navbar-start w-auto lg:w-1/2">
           <details className="dropdown" ref={burgerMenuRef}>
             <summary className="ml-1 btn btn-ghost lg:hidden hover:bg-transparent">
               <Bars3Icon className="h-1/2" />
@@ -91,8 +82,13 @@ export const Header = () => {
               <HeaderMenuLinks />
               <li>
                 <button onClick={() => setShowSlides(true)} className="py-1.5 px-3 text-sm">
-                  📊 About
+                  About
                 </button>
+              </li>
+              <li>
+                <Link href="/debug" className="py-1.5 px-3 text-sm">
+                  <BugAntIcon className="h-4 w-4" /> Debug
+                </Link>
               </li>
             </ul>
           </details>
@@ -105,20 +101,18 @@ export const Header = () => {
           </Link>
           <ul className="hidden lg:flex lg:flex-nowrap menu menu-horizontal px-1 gap-2">
             <HeaderMenuLinks />
+            <li>
+              <button
+                onClick={() => setShowSlides(true)}
+                className="py-1.5 px-3 text-sm rounded-full hover:bg-secondary hover:shadow-md"
+              >
+                About
+              </button>
+            </li>
           </ul>
         </div>
 
-        {/* Center — About button */}
-        <div className="navbar-center hidden lg:flex">
-          <button
-            onClick={() => setShowSlides(true)}
-            className="btn btn-sm btn-primary btn-outline gap-1.5 rounded-full px-5 font-semibold"
-          >
-            📊 About
-          </button>
-        </div>
-
-        <div className="navbar-end w-auto lg:w-1/3 grow mr-4">
+        <div className="navbar-end w-auto lg:w-1/2 grow mr-4">
           <RainbowKitCustomConnectButton />
           {isLocalNetwork && <FaucetButton />}
         </div>
