@@ -34,16 +34,38 @@ if (!gameFileArg || (!caseIndexArg && !verifyAll)) {
   process.exit(1);
 }
 
+/**
+ * Convert contract-format proof back to snarkjs format
+ * Contract: {pA: [x, y], pB: [[x1,y1], [x2,y2]], pC: [x, y]}
+ * Snarkjs: {pi_a: [x, y, 1], pi_b: [[y1,x1], [y2,x2], [1,0]], pi_c: [x, y, 1]}
+ */
+function contractProofToSnarkjs(contractProof) {
+  return {
+    pi_a: [contractProof.pA[0], contractProof.pA[1], "1"],
+    pi_b: [
+      [contractProof.pB[0][1], contractProof.pB[0][0]], // snarkjs reverses B coords
+      [contractProof.pB[1][1], contractProof.pB[1][0]],
+      ["1", "0"]
+    ],
+    pi_c: [contractProof.pC[0], contractProof.pC[1], "1"],
+    protocol: "groth16",
+    curve: "bn128"
+  };
+}
+
 async function verifyProof(caseIndex, proofData, vkey) {
   if (proofData.mock) {
     return { valid: false, reason: "MOCK proof (circuits not built)" };
   }
 
   try {
+    // Convert from contract format to snarkjs format
+    const snarkjsProof = contractProofToSnarkjs(proofData.proof);
+
     const valid = await snarkjs.groth16.verify(
       vkey,
       proofData.publicSignals,
-      proofData.proof
+      snarkjsProof
     );
 
     return { valid, reason: valid ? "OK" : "Invalid proof" };
