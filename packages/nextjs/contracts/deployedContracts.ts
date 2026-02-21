@@ -5,9 +5,9 @@
 import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 
 const deployedContracts = {
-  31337: {
+  84532: {
     ZKGameVerifier: {
-      address: "0xa57e01f9a42e6576d8af57fd6a7c0b59f326a700",
+      address: "0xf674b554cb74331935c2395b16071cd856907003",
       abi: [
         {
           type: "constructor",
@@ -1950,7 +1950,7 @@ const deployedContracts = {
       deployedOnBlock: 429,
     },
     DealOrNoDealFactory: {
-      address: "0x3c2d8336e9fb2c76cee9c0663f1c450f108ed03c",
+      address: "0xdd3bda020a1b55bfdfcaf928ca38a0be71b74042",
       abi: [
         {
           type: "constructor",
