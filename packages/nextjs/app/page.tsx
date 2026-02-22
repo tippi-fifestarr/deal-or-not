@@ -7,8 +7,7 @@ import { formatEther } from "viem";
 import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 
 const DEAL_VIDEOS = [
-  "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=1&controls=0&loop=1&playlist=dQw4w9WgXcQ",
-  // Add your AI-generated "Deal or NOT!" videos here
+  "https://www.youtube.com/embed/r-9VQk29MF8?autoplay=0&mute=0&controls=1",
 ];
 
 type GameMode = "zk" | "brodinger";
@@ -394,8 +393,8 @@ const Home: NextPage = () => {
       {/* Deal or NOT Video Section */}
       <div className="w-full max-w-4xl px-4 mt-12 mb-8">
         <div className="text-center mb-4">
-          <h2 className="text-2xl font-bold">🎬 Deal or NOT!</h2>
-          <p className="text-sm opacity-60">AI-generated moments of pure drama</p>
+          <h2 className="text-2xl font-bold">🎬 Welcome to Deal or NOT!</h2>
+          <p className="text-sm opacity-60">Watch the intro to see how it works</p>
         </div>
 
         <div className="card bg-base-200 shadow-xl overflow-hidden">
@@ -415,22 +414,13 @@ const Home: NextPage = () => {
               onClick={() => setShowVideo(true)}
             >
               <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">▶️</div>
-              <p className="text-lg font-bold">Watch a Random &quot;Deal or NOT!&quot; Clip</p>
-              <p className="text-sm opacity-50">Sponsored by AI</p>
+              <p className="text-lg font-bold">Watch the Intro Video</p>
+              <p className="text-sm opacity-50">Learn how Deal or NOT! works</p>
             </div>
           )}
           {showVideo && (
-            <div className="p-3 flex justify-between items-center">
-              <span className="text-sm opacity-60">🤖 AI-generated content</span>
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={() => {
-                  setShowVideo(false);
-                  setTimeout(() => setShowVideo(true), 100);
-                }}
-              >
-                🎲 Random Video
-              </button>
+            <div className="p-3 flex justify-center items-center">
+              <span className="text-sm opacity-60">Created for Deal or NOT! on Base Sepolia</span>
             </div>
           )}
         </div>
