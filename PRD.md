@@ -24,6 +24,7 @@
 13. [Implementation Phases](#13-implementation-phases)
 14. [Submission Checklist](#14-submission-checklist)
 15. [Resources](#15-resources)
+16. [Work Split (Decide Saturday)](#16-work-split-decide-saturday)
 
 ---
 
@@ -731,6 +732,78 @@ Per hackathon requirements — every track needs:
 - Base Sepolia Factory: `0x0B9C8d4211720B73A445eCa6D9DE95263f60D2A9`
 - Base Sepolia ZKVerifier: `0x818eb96a58772618af646750764fBA39BAa807D2`
 - Base Sepolia CaseRevealVerifier: `0x358b9e0Cf9C92B50841DFf5bA6CAd0C709707738`
+
+---
+
+## 16. Work Split (Decide Saturday)
+
+This section outlines the proposed work split for the Saturday meeting. Nothing here is locked in — we need to discuss and decide together.
+
+### The Two Workstreams
+
+The project naturally splits into **contracts** and **CRE + frontend**. These can run in parallel once we agree on the interface contract between them.
+
+**Workstream A: Contracts & On-Chain**
+- Unified `DealOrNot.sol` (new, 26-case, from scratch using existing code as reference)
+- `IReceiver` implementation — the `onReport()` function that accepts CRE workflow outputs via KeystoneForwarder
+- Factory updates for new game contract
+- BriefcaseNFT updates for 26-case unified contract
+- `PredictionMarket.sol` (new)
+- IBettingPool implementation for CCIP bridge
+- VRF v2.5 integration (request + fulfill)
+- Price Feed integration
+- All Foundry tests
+- Base Sepolia deployment
+
+**Workstream B: CRE Workflows + Frontend + Integrations**
+- All 5 CRE workflows (Banker AI, Case Oracle, Market Settlement, Agent Gateway, Cross-Chain Sync)
+- Port BankerAlgorithm.sol logic to TypeScript for CRE Banker
+- Unified Next.js frontend (one game, one flow)
+- Prediction market sidebar UI
+- Video interstitials during commit-reveal
+- AgentRegistry updates + agent dashboard UI
+- CCIP gateway contract updates
+- Confidential Compute integration
+- `cre workflow simulate` for all workflows
+
+### The Handshake: Interface Contract
+
+**This is the thing we MUST agree on Saturday before splitting up.** Both workstreams depend on this shared interface:
+
+```solidity
+// === Events the contracts emit (CRE workflows listen to these) ===
+event CaseRevealRequested(uint256 indexed gameId, uint256 caseIndex);
+event CaseOpened(uint256 indexed gameId, uint256 caseIndex, uint256 value);
+event RoundComplete(uint256 indexed gameId, uint256 round);
+event BankerOfferMade(uint256 indexed gameId, uint256 round, uint256 offer);
+event DealAccepted(uint256 indexed gameId, uint256 offer);
+event DealRejected(uint256 indexed gameId, uint256 round);
+event GameResolved(uint256 indexed gameId, GameOutcome outcome, uint256 payout);
+event FinalCaseRevealed(uint256 indexed gameId, uint256 caseIndex, uint256 value);
+
+// === Functions CRE workflows call (via KeystoneForwarder → IReceiver) ===
+function onReport(bytes calldata report) external;  // IReceiver interface
+// report types: BANKER_OFFER | CASE_VALUE | MARKET_SETTLEMENT
+
+// === View functions CRE workflows read ===
+function getGameState(uint256 gameId) external view returns (...);
+function getRemainingValues(uint256 gameId) external view returns (uint256[] memory);
+function getCurrentRound(uint256 gameId) external view returns (uint256);
+```
+
+### Questions for Saturday
+
+1. **Who takes which workstream?** Natural split based on v1: Ryan → A (contracts), Tippi → B (CRE/frontend). But maybe Ryan wants to touch CRE, or Tippi wants to co-own the unified contract. Discuss.
+
+2. **Do we start fresh or fork?** The PRD says write `DealOrNot.sol` from scratch using v1 as reference. Do we agree? Or does Ryan want to evolve the existing foundry `DealOrNoDeal.sol`?
+
+3. **Solo mode first or multiplayer first?** Phase 1 says solo mode (no lottery, player vs CRE Banker). This is simpler and gets us to a `cre workflow simulate` demo faster. But if Ryan is excited about the lottery/multiplayer flow, we could flip the order.
+
+4. **How do we handle the OZ dependency conflict?** Options: (a) Foundry remappings to isolate CCIP, (b) separate compilation units, (c) skip CCIP until Phase 5. Need to decide before anyone writes imports.
+
+5. **26 cases or 12?** PRD says 26 (show-accurate). But 12 is simpler, CashCase already has the pattern, and for a hackathon demo 12 cases plays faster. The banker algorithm and prize distribution work with either. Trade-off: authenticity vs. shipping speed.
+
+6. **Repo structure for v2?** Do we reorganize (e.g., `contracts/`, `cre/`, `frontend/`) or keep the existing package structure and add to it?
 
 ---
 
