@@ -34,6 +34,36 @@ Deal or NOT is the game show everyone knows — rebuilt as an on-chain, provably
 
 One game. Five Chainlink products. Zero trust assumptions.
 
+**The narrative hook:** On the real show, the open secret is that the host (Howie Mandel) knows what's in every case. The producers know. The banker knows. The only person who doesn't know is the contestant — and they're supposed to trust the game is fair? Deal or NOT flips this: **nobody** knows what's in the cases. Not the host. Not the banker. Not any single node. The case values are sealed inside Chainlink Confidential Compute — threshold-encrypted across the DON. Values only exist when a case is opened. The banker AI makes offers *without* knowing what's in your case, just like the audience. That's not a game show gimmick. That's provable fairness that the original show literally cannot offer.
+
+*Does Howie know what's in the box? Not anymore.*
+
+### The Name Is the Product
+
+**D**eal **O**r **N**ot. **DON**. Running on the Chainlink **DON** (Decentralized Oracle Network). The Banker IS the DON. The game IS the DON. This isn't a backronym — it's destiny.
+
+### Beyond the Hackathon: The On-Chain Game Show
+
+Deal or NOT isn't just a dApp. It's a **live on-chain game show** format.
+
+**The Stream:**
+- **Lottery** — live audience buys in from any chain via CCIP. Chat goes wild.
+- **Commercial breaks** — sponsor chains and ecosystem projects featured between rounds. Arbitrum sponsors Round 3. Optimism sponsors the Final Reveal. They pay for placement.
+- **The game** — live gameplay with real-time prediction market sidebar. Audience bets as cases open.
+- **Settlement** — everything resolves on-chain. Payouts via CCIP back to every chain the audience came from.
+
+**Revenue streams:**
+- Entry fees (lottery rake)
+- Prediction market fees
+- Sponsor placements (per-game, per-round, per-break — sponsor chains and ecosystem projects)
+- CCIP spoke chain partnerships ("Bet from Arbitrum — zero bridging, powered by CCIP")
+- Agent API fees via x402 (AI agents pay to play)
+- BriefcaseNFT secondary market royalties
+
+**This is why CCIP is not a stretch goal — it's core.** If sponsor chains want their users to participate natively, CCIP is the infrastructure. Every spoke chain is a distribution channel and a potential sponsor.
+
+**The DON-DAO:** Long-term, the show is governed by a DAO. Token holders vote on game parameters, approve sponsors, set prize tiers. The treasury is the progressive jackpot. But that's post-hackathon. For now, we ship the game and prove the format works.
+
 | Chainlink Product | Role in Deal or NOT |
 |---|---|
 | **CRE** | Banker AI, case value oracle, game orchestration, prediction market settlement, agent gateway |
@@ -59,7 +89,7 @@ We built two separate games at ETHDenver and merged late. Here is what exists, w
 | **BankerAlgorithm.sol** | `packages/foundry/contracts/BankerAlgorithm.sol` | Show-accurate EV-based offers with variance + psychology. Pure library. | Tests pass. **This is a pure library with no external dependencies — high confidence it works as designed.** Good reference for CRE Banker workflow logic. |
 | **BriefcaseNFT.sol** | `packages/foundry/contracts/BriefcaseNFT.sol` | On-chain SVG ERC-721, tier-based coloring | Tests pass. Deployed as implementation contract on Base Sepolia. Never minted in a real game. |
 | **DealOrNoDealFactory.sol** | `packages/foundry/contracts/DealOrNoDealFactory.sol` | EIP-1167 clone factory with progressive jackpot | Deployed to Base Sepolia. Creates clones. But since the underlying DealOrNoDeal.sol has Bug #003, cloned games don't work either. |
-| **GameTypes.sol** | `packages/foundry/contracts/GameTypes.sol` | 26-case show-accurate prize distribution, types, constants, events | **Solid reference.** Pure types/constants, no runtime behavior to break. Use this as the canonical game spec. |
+| **GameTypes.sol** | `packages/foundry/contracts/GameTypes.sol` | 26-case game-show-inspired prize distribution, types, constants, events | **Solid reference.** Pure types/constants, no runtime behavior to break. Use this as the canonical game spec. |
 | **AgentRegistry.sol** | `packages/brodinger/contracts/AgentRegistry.sol` | Agent registration, funding, leaderboard | 27 Hardhat tests pass. Never deployed or tested on-chain. |
 | **CCIP Bridge contracts** | `packages/brodinger/contracts/ccip/` | CCIPBridge.sol + CaseCashGateway.sol | 21 Hardhat tests pass with mocked CCIP router. **IBettingPool interface has no implementation.** Never tested with real CCIP. |
 | **ZK circuit pipeline** | `packages/circuits/` | Poseidon Merkle tree, Groth16 verifier, snarkjs proof generation | Circuit compiles. Test proofs generate. **Never used in a real game** — on-chain verifier is mocked. |
@@ -73,7 +103,7 @@ We built two separate games at ETHDenver and merged late. Here is what exists, w
 | Problem | Detail | v2 Plan |
 |---|---|---|
 | **ZK proofs are mocked** | `MockGroth16Verifier` returns true for everything. Frontend sends zero-filled proofs. | **Replace with Confidential Compute.** The DON holds case assignments in encrypted state. No ZK circuits needed — Confidential Compute provides the same guarantee (no single party knows values) without the complexity. |
-| **Two incompatible game contracts** | Foundry `DealOrNoDeal.sol` (26-case, ZK) vs Brodinger `CashCase.sol` (12-case, VRF quantum collapse). Different architectures, different case counts, different everything. | **Unify into one contract.** 26 cases (show-accurate). VRF for seed. Confidential Compute for hidden values. CRE for the banker. |
+| **Two incompatible game contracts** | Foundry `DealOrNoDeal.sol` (26-case, ZK) vs Brodinger `CashCase.sol` (12-case, VRF quantum collapse). Different architectures, different case counts, different everything. | **Unify into one contract.** 26 cases (game-show-inspired). VRF for seed. Confidential Compute for hidden values. CRE for the banker. |
 | **OpenZeppelin dependency conflict** | `@chainlink/contracts` needs OZ 4.9.6, `@chainlink/contracts-ccip` needs OZ 5.0.2. | **Isolate CCIP into its own compilation unit** or use Foundry remappings to resolve. |
 | **Bug #003 — briefcase selection** | Error `0x8ef7077e` on the foundry DealOrNoDeal. Core flow broken. | **Moot — we are rewriting the game contract.** But investigate the root cause for learning. |
 | **IBettingPool never implemented** | CCIP bridge calls an interface with no implementation. | **Implement it** — the bridge points to the unified game contract's betting pool. |
@@ -117,9 +147,23 @@ All tracks require:
 
 ## 4. Unified Game Design
 
-### Core Game: 26-Case Deal or No Deal
+### Core Game: Deal or NOT
 
-Show-accurate rules. 26 briefcases, 10 rounds, escalating banker offers.
+Inspired by the show. Not a replica — a streamlined, on-chain, dunk-on-the-original version built for fast games, maximum tension, and hackathon demos that slap.
+
+**Case count and round structure are open decisions for Saturday** (see Section 16). The two options:
+
+| | 12 Cases (Lean) | 26 Cases (Full) |
+|---|---|---|
+| Rounds | 5 | 10 |
+| Game length | ~3-5 min | ~10-15 min |
+| Contract complexity | Lower | Higher |
+| Gas cost per game | Lower | Higher |
+| Demo-ability | Better (faster, punchier) | Slower |
+| V1 reference | CashCase.sol (tested) | Foundry DealOrNoDeal.sol (broken) |
+| Drama per round | Higher (fewer cases, each matters more) | Diluted early, intense late |
+
+**Recommendation: 12 cases, 5 rounds.** Ship faster, demo better, every case opening matters. We can always add a "Classic 26" mode later. The Chainlink integration (CRE Banker, VRF, Confidential Compute, CCIP, prediction markets) is identical regardless of case count — that's what judges care about.
 
 #### Two Play Modes
 
@@ -138,23 +182,20 @@ Show-accurate rules. 26 briefcases, 10 rounds, escalating banker offers.
 - Cross-chain play via CCIP — enter the lottery or place bets from any chain
 - BriefcaseNFTs minted for every game
 
-#### Round Structure (Show-Accurate)
+#### Round Structure (12-Case Lean Version)
 
-| Round | Cases to Open | Banker Discount (base) |
+| Round | Cases to Open | Banker Offer % of EV |
 |---|---|---|
-| 1 | 6 | 27% of EV |
-| 2 | 5 | 37% |
-| 3 | 4 | 46% |
-| 4 | 3 | 56% |
-| 5 | 2 | 65% |
-| 6 | 1 | 75% |
-| 7 | 1 | 80% |
-| 8 | 1 | 84% |
-| 9 | 1 | 89% |
-| 10 | 1 (swap decision) | 95% |
+| 1 | 4 | 15% |
+| 2 | 3 | 30% |
+| 3 | 2 | 45% |
+| 4 | 1 | 65% |
+| 5 | 1 (swap decision) | 85% |
 
-After each round: banker offer. Player says DEAL or NO DEAL.
-After round 10: player can swap their case with the one remaining case.
+After each round: the CRE Banker calls. Player says **DEAL** or **NO DEAL**.
+After round 5: player can swap their case with the last remaining case.
+
+Fast, punchy, 5 decision points. Every case opening shifts the odds hard.
 
 #### Case Opening: Commit-Reveal Flow
 
@@ -255,11 +296,24 @@ The video interstitials are key to the UX. They make the blockchain wait times f
 - **Outbound messages** — payout distributions back to spoke chains
 - Existing CCIPBridge.sol + CaseCashGateway.sol architecture, with IBettingPool finally implemented
 
-### Confidential Compute
+### Confidential Compute + Quantum Case Technology
 
-- **Case value storage** — the DON holds the mapping of case index → prize value, encrypted via threshold encryption. No single node knows all values. No on-chain storage to peek at.
-- **Sealed banker offers** — banker offer computed in Confidential Compute, revealed to player only at decision time
-- **Confidential HTTP** — if banker AI calls external APIs (LLM for player psychology, market data), credentials stay private
+The game's fairness rests on three stacked trust layers. Each one alone would be an improvement over the real show. Together they make cheating mathematically impossible.
+
+**Layer 1: Player Commit-Reveal**
+Player commits to opening a specific case (sends hash on-chain) before any value is revealed. Prevents front-running and MEV extraction. This is the CashCase.sol pattern — proven in v1.
+
+**Layer 2: Confidential Compute (Threshold Encryption)**
+Case values are threshold-encrypted across the DON via Chainlink DKG. No single node holds the key. Values are reconstructed only inside a TEE (trusted execution environment / enclave) at the moment of reveal, then immediately discarded. There is nothing to read on-chain (unlike v1 where `CaseCheat.sol` proved you could read storage). There is nothing to read on any single server. The values literally do not exist in readable form until observed.
+
+**Layer 3: DON Consensus**
+Multiple independent nodes verify the case reveal. The result only goes on-chain if a Byzantine Fault Tolerant quorum agrees on the value. No single node can lie about what was in the case.
+
+**This is Quantum Case Technology.** Values don't exist until observed. The observation requires distributed consensus. The commitment to observe happens before anyone (including the DON) reveals the value. We're not joking — this is genuinely more fair than the actual TV show, where producers, the host, and the banker all know what's in every case.
+
+Additional Confidential Compute uses:
+- **Sealed banker offers** — banker offer computed inside the enclave, revealed to player only at decision time
+- **Confidential HTTP** — banker AI API calls (LLM, market data) keep credentials private
 
 ---
 
@@ -277,9 +331,7 @@ Combines the best of both existing contracts:
 - Game tiers (MICRO / STANDARD / HIGH)
 
 **From Foundry DealOrNoDeal.sol (Ryan):**
-- 26-case show-accurate design
-- 10-round structure with casesPerRound()
-- GameTypes.sol prize distribution
+- GameTypes.sol prize distribution pattern (adapt to chosen case count)
 - Lottery contestant selection (commit-reveal)
 - Host/contestant roles
 
@@ -300,7 +352,7 @@ EIP-1167 clone factory with progressive jackpot. Works as-is. May need minor upd
 
 ### Keep: `BriefcaseNFT.sol`
 
-On-chain SVG, tier-based coloring. Update to work with 26-case unified contract. Reveal happens when CRE Case Value Oracle writes the value.
+On-chain SVG, tier-based coloring. Update to work with unified contract (whatever case count we choose). Reveal happens when CRE Case Value Oracle writes the value.
 
 ### Keep: `AgentRegistry.sol`
 
@@ -340,7 +392,7 @@ Logic:
 4. Apply "banker psychology" adjustments:
    - If prediction market says 80% chance player takes deal → lower the offer
    - If player has rejected 3 offers in a row → raise it slightly (respect)
-   - Late rounds: approach fair value (show-accurate escalation)
+   - Late rounds: approach fair value (game-show-inspired escalation)
 5. Reach DON consensus on the offer amount
 6. Write offer on-chain via KeystoneForwarder → game.receiveBankerOffer()
 
@@ -448,7 +500,7 @@ Tech: Next.js + wagmi + Scaffold-ETH hooks + Tailwind
 ### 9.4 The Game (Core Loop)
 
 **The Briefcase Wall:**
-- 26 briefcases displayed in a 2-row arc (show-accurate layout)
+- 26 briefcases displayed in a 2-row arc (game-show-inspired layout)
 - Remaining prize values shown on a prize board (left side)
 - Player's selected case highlighted at center top
 - Banker phone icon pulses when offer is incoming
@@ -627,9 +679,19 @@ Cross-chain play via CCIP means:
 - [ ] Frontend sidebar for placing bets and viewing odds
 - [ ] `cre workflow simulate` passes for settlement workflow
 
-### Phase 3: Multiplayer + Lottery + NFTs (SHOW STOPPER — Days 8-10)
+### Phase 3: CCIP Cross-Chain Play (CORE — Days 8-10)
 
-**Goal:** Full game show experience
+**Goal:** Play and bet from any chain — this is core to the sponsor/revenue model, not a stretch goal
+
+- [ ] Implement IBettingPool — the missing piece from v1
+- [ ] Update CCIPBridge.sol to forward to both game contract (lottery) and PredictionMarket (bets)
+- [ ] Deploy CaseCashGateway to at least one spoke chain (Arbitrum Sepolia or Optimism Sepolia)
+- [ ] Cross-Chain Sync CRE workflow (process inbound CCIP messages, route to correct contracts)
+- [ ] Frontend: chain selector for cross-chain entry and betting
+
+### Phase 4: Multiplayer + Lottery + NFTs (THE SHOW — Days 10-12)
+
+**Goal:** Full game show experience, ready for livestream
 
 - [ ] Lottery system in unified contract (commit-reveal + VRF selection)
 - [ ] Multiplayer frontend flow (lobby → lottery → game)
@@ -637,22 +699,14 @@ Cross-chain play via CCIP means:
 - [ ] Video interstitials during case reveals
 - [ ] Progressive jackpot via Factory
 
-### Phase 4: Privacy Track (BONUS — Days 10-12)
+### Phase 5: Privacy + Agents (BONUS — Days 12-14)
 
-**Goal:** Confidential Compute for hidden case values
+**Goal:** Confidential Compute + AI agent API — two more tracks unlocked
 
-- [ ] Integrate Confidential Compute for case value storage/reveal
+- [ ] Integrate Confidential Compute for case value storage/reveal (Privacy track)
 - [ ] Confidential HTTP for banker API calls
 - [ ] Sealed banker offers (encrypted until player decision)
-
-### Phase 5: Cross-Chain + Agents (BONUS — Days 12-14)
-
-**Goal:** CCIP play + AI agent API
-
-- [ ] Implement IBettingPool in CCIPBridge
-- [ ] Deploy CaseCashGateway to second testnet
-- [ ] Agent Gateway CRE workflow with x402
-- [ ] Cross-Chain Sync CRE workflow
+- [ ] Agent Gateway CRE workflow with x402 (CRE & AI track bonus)
 - [ ] Agent dashboard in frontend
 
 ### Phase 6: Polish + Video (FINAL — Days 14-16)
@@ -801,7 +855,7 @@ function getCurrentRound(uint256 gameId) external view returns (uint256);
 
 4. **How do we handle the OZ dependency conflict?** Options: (a) Foundry remappings to isolate CCIP, (b) separate compilation units, (c) skip CCIP until Phase 5. Need to decide before anyone writes imports.
 
-5. **26 cases or 12?** PRD says 26 (show-accurate). But 12 is simpler, CashCase already has the pattern, and for a hackathon demo 12 cases plays faster. The banker algorithm and prize distribution work with either. Trade-off: authenticity vs. shipping speed.
+5. **26 cases or 12?** PRD recommends 12 (lean, fast, better demo). 26 is the show number but costs time and complexity for zero extra Chainlink integration points. Banker algorithm works with either. Trade-off: nostalgia vs. shipping speed.
 
 6. **Repo structure for v2?** Do we reorganize (e.g., `contracts/`, `cre/`, `frontend/`) or keep the existing package structure and add to it?
 
