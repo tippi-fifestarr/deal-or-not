@@ -3,6 +3,7 @@
 **Last Updated**: February 28, 2026
 **Branch**: `prototype-12boxupgrade-uni`
 **Status**: Phase 2 Complete
+**Strategy**: Product-First (Diverges from Hackathon-Optimized PRD)
 
 ---
 
@@ -11,6 +12,69 @@
 On-chain Deal or No Deal game show using Chainlink products for provably fair randomness, automated workflows, and future confidential compute integration.
 
 **Core Principle**: "Brodinger's Case" - Case values don't exist until observed (quantum superposition analogy)
+
+---
+
+## Strategic Approach: Product-First vs Hackathon-Optimized
+
+This development plan **intentionally diverges** from the original PRD ([PRD.md](https://github.com/rdobbeck/deal-or-not/blob/main/PRD.md)), which was optimized for the Chainlink Convergence Hackathon (Feb 6 – Mar 8, 2026).
+
+### Why Product-First?
+
+**PRD Strategy** (Hackathon):
+- Ship by March 8, 2026 deadline
+- Target 6 prize tracks simultaneously ($80K+ potential)
+- Maximize Chainlink product integration (all 5 products)
+- Multi-game platform from day one
+- Live game show format with audience/spectators
+
+**This Plan** (Product):
+- Ship incrementally, prioritize core gameplay quality
+- Focus on what makes the game fun and fair
+- Add Chainlink products as they improve UX (not for track points)
+- Single-player MVP first, scale to multi-player later
+- Build audience after game is proven, not before
+
+**Rationale**: The hackathon deadline has passed (if it was ever realistic). Building a **quality product that people actually want to play** is more valuable than a feature-complete demo that wins prizes but never ships.
+
+### What We're Excluding from PRD
+
+These features are in the PRD but **not in this roadmap** (see `GAP_ANALYSIS.md` for full comparison):
+
+#### Permanently Excluded
+- ❌ **AI Banker with LLM** - Adds complexity, API costs, black-box decisions. On-chain algorithm is transparent and verifiable.
+- ❌ **Live Game Show Format** - Streaming, sponsors, commercial breaks. Post-launch if there's demand.
+
+#### Deferred (May Add Later)
+- 🔶 **Factory Pattern (EIP-1167)** - Multiple concurrent games. Useful for scale but not needed for MVP.
+- 🔶 **BriefcaseNFT** - Tokenized game assets. Fun but not core to gameplay.
+- 🔶 **Lottery Contestant Selection** - Multi-player with audience participation. Phase 4 covers multi-player, but simpler approach.
+- 🔶 **World ID Integration** - Sybil-resistant entry. Adds complexity, questionable value for early users.
+- 🔶 **Progressive Jackpot** - Prize pool accumulation across games. Adds contract complexity, regulatory concerns.
+
+#### In Stretch Goals (PRD Had as Core)
+- 🎯 **Prediction Markets** - Spectator betting. Stretch goal here, core in PRD.
+- 🎯 **Agent Gameplay** - AI agents playing autonomously. Stretch goal here, core in PRD.
+- 🎯 **x402 Payments** - Agent API monetization. Stretch goal here, core in PRD.
+
+**Bottom Line**: We're building **Deal or NOT the game**, not **Deal or NOT the platform**. Platform features come after the game is proven.
+
+### What We're Keeping from PRD
+
+**Core Game Mechanics**:
+- ✅ Provably fair randomness (VRF v2.5)
+- ✅ Commit-reveal protocol
+- ✅ Quantum collapse engine ("Brodinger's Case")
+- ✅ On-chain banker algorithm
+- ✅ Price Feeds for USD conversion
+
+**Future Integrations** (High Priority):
+- ✅ **Confidential Compute** (Phase 3) - True hidden values, not pre-deterministic
+- ✅ **CRE Auto-Reveal** (Phase 2, done) - UX improvement, reduces player TX from 2→1
+- ✅ **CCIP Cross-Chain** (Phase 7) - Play from any chain, good for distribution
+- ✅ **Multi-Player Mode** (Phase 4) - Core to "game show" experience
+
+**Alignment**: We're still using Chainlink products extensively, but **because they make the game better**, not to check boxes for prize tracks.
 
 ---
 
