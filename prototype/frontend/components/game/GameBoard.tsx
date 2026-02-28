@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount, useConnect, useDisconnect, useBalance, usePublicClient } from "wagmi";
+import { useAccount, useConnect, useDisconnect, useBalance, usePublicClient, useSwitchChain } from "wagmi";
 import {
   useGameState,
   useNextGameId,
@@ -12,7 +12,7 @@ import {
 import { useCommitReveal } from "@/hooks/useCommitReveal";
 import { useWriteContract } from "wagmi";
 import { DEAL_OR_NOT_ABI } from "@/lib/abi";
-import { CONTRACT_ADDRESS } from "@/lib/config";
+import { CONTRACT_ADDRESS, CHAIN_ID } from "@/lib/config";
 import { Phase } from "@/types/game";
 import GameStatus from "./GameStatus";
 import BriefcaseRow from "./BriefcaseRow";
@@ -36,11 +36,13 @@ export default function GameBoard() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const { connectors, connect } = useConnect();
   const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
   const { data: balance } = useBalance({ address });
   const publicClient = usePublicClient();
+  const isWrongChain = isConnected && chainId !== CHAIN_ID;
 
   const [gameId, setGameId] = useState<bigint | undefined>(undefined);
   const [joinInput, setJoinInput] = useState("");
@@ -246,6 +248,29 @@ export default function GameBoard() {
           className="mx-auto bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-8 rounded-xl transition-colors"
         >
           Connect Wallet
+        </button>
+      </div>
+    );
+  }
+
+  if (isWrongChain) {
+    return (
+      <div className="text-center py-20 space-y-6">
+        <h1 className="text-5xl font-bold text-amber-400 tracking-tight">
+          Deal or NOT
+        </h1>
+        <p className="text-red-400">Wrong network — please switch to Base Sepolia</p>
+        <button
+          onClick={() => switchChain({ chainId: CHAIN_ID })}
+          className="mx-auto bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-8 rounded-xl transition-colors"
+        >
+          Switch to Base Sepolia
+        </button>
+        <button
+          onClick={() => disconnect()}
+          className="text-gray-600 text-xs hover:text-gray-400 transition-colors"
+        >
+          Disconnect
         </button>
       </div>
     );
