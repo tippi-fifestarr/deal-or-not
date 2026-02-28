@@ -1,17 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount, useConnect, useBalance } from "wagmi";
+import { useAccount, useConnect, useDisconnect, useBalance, usePublicClient } from "wagmi";
 import {
   useGameState,
-  useGameWrite,
   useNextGameId,
   useRemainingPool,
   useBankerOfferCalc,
   useCentsToWei,
 } from "@/hooks/useGameContract";
 import { useCommitReveal } from "@/hooks/useCommitReveal";
-import { Phase, CASE_VALUES_CENTS } from "@/types/game";
+import { useWriteContract } from "wagmi";
+import { DEAL_OR_NOT_ABI } from "@/lib/abi";
+import { CONTRACT_ADDRESS } from "@/lib/config";
+import { Phase } from "@/types/game";
 import GameStatus from "./GameStatus";
 import BriefcaseRow from "./BriefcaseRow";
 import ValueBoard from "./ValueBoard";
@@ -24,25 +26,30 @@ import { centsToUsd } from "@/lib/utils";
 const EMPTY_OPENED = [false, false, false, false, false] as const;
 const EMPTY_VALUES = [0n, 0n, 0n, 0n, 0n] as const;
 
+const contractConfig = {
+  address: CONTRACT_ADDRESS,
+  abi: DEAL_OR_NOT_ABI,
+} as const;
+
 export default function GameBoard() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
   const { address, isConnected } = useAccount();
   const { connectors, connect } = useConnect();
+  const { disconnect } = useDisconnect();
   const { data: balance } = useBalance({ address });
+  const publicClient = usePublicClient();
 
   const [gameId, setGameId] = useState<bigint | undefined>(undefined);
   const [joinInput, setJoinInput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [txPending, setTxPending] = useState(false);
 
-  const { gameState, isLoading, refetch } = useGameState(gameId);
+  const { gameState, refetch } = useGameState(gameId);
   const { nextGameId } = useNextGameId();
   const { remainingValues } = useRemainingPool(gameId);
-  const {
-    createGame, pickCase, commitCase, revealCase, setBankerOffer,
-    acceptDeal, rejectDeal, commitFinalDecision, revealFinalDecision, isPending,
-  } = useGameWrite();
+  const { writeContractAsync } = useWriteContract();
   const {
     commitCase: genCommitCase, commitFinal: genCommitFinal,
     getSalt, getStoredCaseIndex, getStoredSwap, clearCommit,
@@ -64,95 +71,140 @@ export default function GameBoard() {
     }
   }
 
-  const withError = async (fn: () => Promise<void>) => {
+  /** Write + wait for receipt + refetch game state */
+  const sendTx = async (
+    functionName: string,
+    args?: readonly unknown[],
+  ) => {
+    setError(null);
+    setTxPending(true);
     try {
-      setError(null);
-      await fn();
-      setTimeout(() => refetch(), 1500);
+      const hash = await writeContractAsync({
+        ...contractConfig,
+        functionName,
+        args,
+      } as Parameters<typeof writeContractAsync>[0]);
+      // Wait for receipt
+      if (publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
+      await refetch();
+      return hash;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Transaction failed";
-      setError(msg.slice(0, 150));
+      // Clean up common wagmi error messages
+      if (msg.includes("User rejected")) {
+        setError("Transaction rejected");
+      } else {
+        setError(msg.slice(0, 150));
+      }
+      throw e;
+    } finally {
+      setTxPending(false);
     }
   };
 
   // ── Handlers ──
 
-  const handleCreateGame = () =>
-    withError(async () => {
+  const handleCreateGame = async () => {
+    try {
       const currentNextId = nextGameId ?? 0n;
-      await createGame();
+      setError(null);
+      setTxPending(true);
+      const hash = await writeContractAsync({
+        ...contractConfig,
+        functionName: "createGame",
+      });
+      // Wait for receipt BEFORE setting gameId
+      if (publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
       setGameId(currentNextId);
-    });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Transaction failed";
+      if (msg.includes("User rejected")) {
+        setError("Transaction rejected");
+      } else {
+        setError(msg.slice(0, 150));
+      }
+    } finally {
+      setTxPending(false);
+    }
+  };
 
   const handleJoinGame = () => {
     if (!joinInput) return;
     setGameId(BigInt(joinInput));
   };
 
-  const handlePickCase = (index: number) =>
-    withError(async () => {
-      if (gameId === undefined) return;
-      await pickCase(gameId, index);
-    });
+  const handlePickCase = async (index: number) => {
+    if (gameId === undefined) return;
+    try {
+      await sendTx("pickCase", [gameId, index]);
+    } catch {}
+  };
 
-  const handleCommitCase = (caseIndex: number) =>
-    withError(async () => {
-      if (gameId === undefined || !gameState) return;
+  const handleCommitCase = async (caseIndex: number) => {
+    if (gameId === undefined || !gameState) return;
+    try {
       const { commitHash } = genCommitCase(gameId, gameState.currentRound, caseIndex);
-      await commitCase(gameId, commitHash);
-    });
+      await sendTx("commitCase", [gameId, commitHash]);
+    } catch {}
+  };
 
-  const handleRevealCase = () =>
-    withError(async () => {
-      if (gameId === undefined || !gameState) return;
-      const round = gameState.currentRound;
-      const salt = getSalt(gameId, round);
-      const caseIndex = getStoredCaseIndex(gameId, round);
-      if (salt === null || caseIndex === null) {
-        setError("Could not find stored commit. Did you clear localStorage?");
-        return;
-      }
-      await revealCase(gameId, caseIndex, salt);
+  const handleRevealCase = async () => {
+    if (gameId === undefined || !gameState) return;
+    const round = gameState.currentRound;
+    const salt = getSalt(gameId, round);
+    const caseIndex = getStoredCaseIndex(gameId, round);
+    if (salt === null || caseIndex === null) {
+      setError("Could not find stored commit. Did you clear localStorage?");
+      return;
+    }
+    try {
+      await sendTx("revealCase", [gameId, caseIndex, salt]);
       clearCommit(gameId, round);
-    });
+    } catch {}
+  };
 
-  const handleRingBanker = () =>
-    withError(async () => {
-      if (gameId === undefined || calculatedOffer === undefined) return;
-      await setBankerOffer(gameId, calculatedOffer);
-    });
+  const handleRingBanker = async () => {
+    if (gameId === undefined || calculatedOffer === undefined) return;
+    try {
+      await sendTx("setBankerOffer", [gameId, calculatedOffer]);
+    } catch {}
+  };
 
-  const handleAcceptDeal = () =>
-    withError(async () => {
-      if (gameId === undefined) return;
-      await acceptDeal(gameId);
-    });
+  const handleAcceptDeal = async () => {
+    if (gameId === undefined) return;
+    try { await sendTx("acceptDeal", [gameId]); } catch {}
+  };
 
-  const handleRejectDeal = () =>
-    withError(async () => {
-      if (gameId === undefined) return;
-      await rejectDeal(gameId);
-    });
+  const handleRejectDeal = async () => {
+    if (gameId === undefined) return;
+    try { await sendTx("rejectDeal", [gameId]); } catch {}
+  };
 
-  const handleCommitFinal = (swap: boolean) =>
-    withError(async () => {
-      if (gameId === undefined) return;
+  const handleCommitFinal = async (swap: boolean) => {
+    if (gameId === undefined) return;
+    try {
       const { commitHash } = genCommitFinal(gameId, swap);
-      await commitFinalDecision(gameId, commitHash);
-    });
+      await sendTx("commitFinalDecision", [gameId, commitHash]);
+    } catch {}
+  };
 
-  const handleRevealFinal = () =>
-    withError(async () => {
-      if (gameId === undefined) return;
-      const salt = getSalt(gameId, "final");
-      const swap = getStoredSwap(gameId);
-      if (salt === null || swap === null) {
-        setError("Could not find stored final commit. Did you clear localStorage?");
-        return;
-      }
-      await revealFinalDecision(gameId, swap, salt);
+  const handleRevealFinal = async () => {
+    if (gameId === undefined) return;
+    const salt = getSalt(gameId, "final");
+    const swap = getStoredSwap(gameId);
+    if (salt === null || swap === null) {
+      setError("Could not find stored final commit. Did you clear localStorage?");
+      return;
+    }
+    try {
+      await sendTx("revealFinalDecision", [gameId, swap, salt]);
       clearCommit(gameId, "final");
-    });
+    } catch {}
+  };
 
   const handlePlayAgain = () => {
     setGameId(undefined);
@@ -176,17 +228,12 @@ export default function GameBoard() {
           Deal or NOT
         </h1>
         <p className="text-gray-400">Quantum cases on Base Sepolia</p>
-        <div className="space-y-2">
-          {connectors.map((connector) => (
-            <button
-              key={connector.uid}
-              onClick={() => connect({ connector })}
-              className="block mx-auto bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-8 rounded-xl transition-colors"
-            >
-              Connect {connector.name}
-            </button>
-          ))}
-        </div>
+        <button
+          onClick={() => connect({ connector: connectors[0] })}
+          className="mx-auto bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-8 rounded-xl transition-colors"
+        >
+          Connect Wallet
+        </button>
       </div>
     );
   }
@@ -200,16 +247,17 @@ export default function GameBoard() {
             Deal or NOT
           </h1>
           <p className="text-gray-500 mt-2">
-            {balance && `${(Number(balance.value) / 1e18).toFixed(4)} ETH`}
+            {address && <span className="text-xs">{address.slice(0, 6)}...{address.slice(-4)}</span>}
+            {balance && <span> &middot; {(Number(balance.value) / 1e18).toFixed(4)} ETH</span>}
           </p>
         </div>
 
         <button
           className="w-full bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-white font-bold py-4 px-8 rounded-xl text-lg transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
           onClick={handleCreateGame}
-          disabled={isPending}
+          disabled={txPending}
         >
-          {isPending ? "Creating Game..." : "New Game"}
+          {txPending ? "Creating Game..." : "New Game"}
         </button>
 
         <div className="text-gray-600 text-sm">or join existing</div>
@@ -233,16 +281,22 @@ export default function GameBoard() {
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
 
-        {/* Salt warning */}
         <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-xl p-3 text-yellow-400/70 text-xs">
           Do not clear your browser data during an active game — your commit
           salts are stored in localStorage and are needed to reveal your choices.
         </div>
+
+        <button
+          onClick={() => disconnect()}
+          className="text-gray-600 text-xs hover:text-gray-400 transition-colors"
+        >
+          Disconnect
+        </button>
       </div>
     );
   }
 
-  // Loading
+  // Loading game state
   if (!gameState) {
     return (
       <div className="text-center py-20">
@@ -285,10 +339,10 @@ export default function GameBoard() {
             playerCase={-1}
             caseValues={EMPTY_VALUES}
             onCaseClick={handlePickCase}
-            disabled={isPending}
+            disabled={txPending}
             selectMode
           />
-          {isPending && (
+          {txPending && (
             <p className="text-amber-400 animate-pulse">Picking case...</p>
           )}
         </div>
@@ -304,7 +358,7 @@ export default function GameBoard() {
               gameId={gameId}
               onCommit={handleCommitCase}
               onReveal={handleRevealCase}
-              isPending={isPending}
+              isPending={txPending}
             />
           </div>
         </div>
@@ -333,9 +387,9 @@ export default function GameBoard() {
               <button
                 className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white font-bold py-4 px-10 rounded-xl text-lg transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50"
                 onClick={handleRingBanker}
-                disabled={isPending || calculatedOffer === undefined}
+                disabled={txPending || calculatedOffer === undefined}
               >
-                {isPending ? "Calling..." : "Ring the Banker"}
+                {txPending ? "Calling..." : "Ring the Banker"}
               </button>
             </div>
           </div>
@@ -362,7 +416,7 @@ export default function GameBoard() {
             remainingValues={remainingValues ?? []}
             onAccept={handleAcceptDeal}
             onReject={handleRejectDeal}
-            isPending={isPending}
+            isPending={txPending}
           />
         </>
       )}
@@ -377,7 +431,7 @@ export default function GameBoard() {
               gameId={gameId}
               onCommitFinal={handleCommitFinal}
               onRevealFinal={handleRevealFinal}
-              isPending={isPending}
+              isPending={txPending}
             />
           </div>
         </div>
@@ -400,7 +454,7 @@ export default function GameBoard() {
       )}
 
       {/* Pending indicator */}
-      {isPending && (
+      {txPending && (
         <p className="text-amber-400 text-sm text-center animate-pulse">
           Transaction pending...
         </p>
