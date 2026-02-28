@@ -554,6 +554,270 @@ npm run dev
 
 ---
 
+## 🎯 Stretch Goals (Post-Launch)
+
+These features are **not part of the core roadmap** but could be explored after successful launch if there's demand and resources.
+
+### AI Agent Players
+**Concept**: Autonomous AI agents compete against humans or other agents
+
+**Features**:
+- **AgentRegistry Contract**
+  - Agent registration with wallet address
+  - Agent metadata (name, strategy type, creator)
+  - Agent leaderboard (games played, win rate, total winnings)
+  - Agent reputation system
+
+- **Agent Gameplay**
+  - AI agents make decisions autonomously
+  - Agent-vs-human games
+  - Agent-vs-agent tournaments
+  - CRE workflows as agent brains
+
+- **Agent Strategies**
+  - Risk-averse (always take safe deals)
+  - Risk-seeking (hold out for big prize)
+  - EV-maximizing (mathematical optimal)
+  - Psychological (bluff, read patterns)
+
+**Implementation**:
+```solidity
+contract AgentRegistry {
+    struct Agent {
+        address wallet;
+        string name;
+        string strategyType;
+        uint256 gamesPlayed;
+        uint256 totalWinnings;
+        bool isActive;
+    }
+
+    mapping(address => Agent) public agents;
+
+    function registerAgent(string name, string strategy) external;
+    function getLeaderboard() external view returns (Agent[] memory);
+}
+```
+
+**Why It's a Stretch Goal**:
+- Adds complexity (agent authentication, anti-spam)
+- Requires agent SDK/API design
+- Testing agent strategies is time-consuming
+- Human-first approach for MVP
+
+**If We Build It**:
+- Launch agent SDK (TypeScript/Python)
+- Host agent hackathon
+- Agent tournament with prizes
+- Featured on Chainlink agent showcase
+
+---
+
+### x402 Micropayments for Agents
+**Concept**: Agents pay per API call to play games
+
+**Features**:
+- **HTTP 402 Payment Protocol**
+  - Agent sends HTTP request with x402 payment proof
+  - CRE workflow validates payment
+  - Agent gets access to make game move
+  - Pay-per-call (not subscription)
+
+- **Agent Gateway CRE Workflow**
+  ```typescript
+  // HTTP Trigger (x402 authenticated)
+  export async function agentGateway(request: HTTP402Request) {
+      // 1. Validate x402 payment
+      const payment = await validateX402(request.headers);
+      if (!payment.valid) return 402; // Payment Required
+
+      // 2. Parse agent move
+      const move = parseAgentMove(request.body);
+
+      // 3. Execute on-chain
+      const tx = await executeMove(move);
+
+      // 4. Return game state
+      return gameState(move.gameId);
+  }
+  ```
+
+- **Pricing Model**
+  - $0.01 per API call (reasonable for agents)
+  - Agents pre-fund wallet
+  - Auto-refund if game cancelled
+  - Bulk discounts for high-volume agents
+
+- **Use Cases**
+  - AI research labs testing strategies
+  - Agent-as-a-service platforms
+  - Educational AI competitions
+  - Autonomous trading bots playing for profit
+
+**Why It's a Stretch Goal**:
+- x402 is new protocol (Q1 2026 production)
+- Requires payment infrastructure setup
+- Small market initially (agents << humans)
+- Adds operational complexity
+
+**If We Build It**:
+- First game show using x402
+- Featured in Coinbase x402 showcase
+- Agent API revenue stream
+- Developer ecosystem growth
+
+---
+
+### Agent vs Agent Tournaments
+**Concept**: Fully autonomous agent competitions
+
+**Features**:
+- **Tournament Structure**
+  - Round-robin: Every agent plays every other agent
+  - Bracket: Single/double elimination
+  - League: Season-long point accumulation
+  - Blitz: 100+ games in 1 hour
+
+- **Prize Pools**
+  - Entry fees from agent creators
+  - Sponsored prizes (Base, Chainlink)
+  - NFT trophies for winners
+  - Leaderboard rankings
+
+- **Spectator Experience**
+  - Watch live agent battles
+  - Bet on outcomes (prediction markets)
+  - Real-time strategy analysis
+  - Post-game replays with commentary
+
+- **Agent Classes**
+  - **CRE Agents**: On-chain workflows (transparent)
+  - **External Agents**: HTTP API (black box)
+  - **Hybrid**: Mix of on-chain + off-chain logic
+
+**Why It's a Stretch Goal**:
+- Niche audience (developers, AI enthusiasts)
+- Requires robust anti-cheat system
+- Tournament infrastructure complex
+- Not revenue-generating short-term
+
+**If We Build It**:
+- Annual "Deal or NOT AI Cup"
+- $10K+ prize pool
+- Academic research papers
+- Agent strategy open-sourcing
+
+---
+
+### Prediction Markets on Games
+**Concept**: Spectators bet on game outcomes in real-time
+
+**Features**:
+- **Market Types (Human Games)**
+  - Will player accept deal in round X?
+  - Final payout over/under threshold?
+  - Player swaps case vs keeps?
+  - Total rounds before deal accepted?
+  - Specific case value predictions
+
+- **Market Types (Agent Games)**
+  - Will Agent A win?
+  - What round will deal be accepted?
+  - Final payout over/under $0.50?
+  - Head-to-head: Agent A vs Agent B
+
+- **Live Betting**
+  - Odds update after each case reveal
+  - Dynamic pricing based on remaining values
+  - Pause betting during reveal animations
+  - Instant settlement on game end
+
+- **Integration Options**
+  - **Option A**: Integrate existing platforms
+    - Polymarket-style AMM
+    - External oracle for settlement
+    - Less dev work, existing liquidity
+
+  - **Option B**: Custom prediction market
+    - Build own AMM (Uniswap v3 style)
+    - CRE settlement workflow
+    - Full control, revenue capture
+    - More dev work, cold start problem
+
+- **Market Mechanics**
+  ```solidity
+  contract GamePredictionMarket {
+      struct Market {
+          uint256 gameId;
+          string question;
+          uint256 yesShares;
+          uint256 noShares;
+          bool resolved;
+          bool outcome;
+      }
+
+      function createMarket(uint256 gameId, string question) external;
+      function buyShares(uint256 marketId, bool yes, uint256 amount) external;
+      function resolveMarket(uint256 marketId, bool outcome) external; // CRE calls this
+      function claimWinnings(uint256 marketId) external;
+  }
+  ```
+
+- **CRE Settlement Workflow**
+  ```typescript
+  // Triggered on GameResolved event
+  export async function settlePredictionMarkets(gameId: bigint) {
+      const markets = await getMarketsForGame(gameId);
+      const gameState = await getGameState(gameId);
+
+      for (const market of markets) {
+          const outcome = evaluateOutcome(market.question, gameState);
+          await contract.resolveMarket(market.id, outcome);
+      }
+  }
+  ```
+
+- **Revenue Model**
+  - 2-5% fee on all bets
+  - Liquidity provider rewards
+  - Market creator incentives
+  - Protocol-owned liquidity (POL)
+
+- **User Experience**
+  - Sidebar prediction markets during live games
+  - Quick bet buttons (1-click)
+  - Portfolio view (active bets)
+  - Historical P&L tracking
+  - Social sharing of big wins
+
+**Why It's a Stretch Goal**:
+- Regulatory complexity (betting/gambling)
+- Requires liquidity to be useful
+- Not core to game experience
+- Adds UI complexity
+- Settlement edge cases
+
+**If We Build It**:
+- First game show with integrated prediction markets
+- Spectator revenue stream
+- Viral social sharing ("I bet $100 on this!")
+- Featured on prediction market platforms
+
+**Risks**:
+- Legal issues (gambling laws vary by jurisdiction)
+- May need to geo-restrict
+- Market manipulation concerns
+- Low liquidity = bad UX
+- Oracle accuracy critical
+
+**Success Criteria**:
+- $10K+ daily betting volume
+- 100+ active prediction markets
+- < 0.1% settlement errors
+- Positive legal opinion from counsel
+
+---
+
 ## Open Questions
 
 ### Technical
