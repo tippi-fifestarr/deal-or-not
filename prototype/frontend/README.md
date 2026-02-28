@@ -16,7 +16,7 @@ Open http://localhost:3000, connect MetaMask to Base Sepolia.
 
 1. **Add contract as VRF consumer** on the Chainlink VRF subscription (requires the subscription owner wallet):
    - Go to https://vrf.chain.link on Base Sepolia
-   - Find subscription `100504477510181305958562641443496083821442665835157827344882238351295570091170`
+   - Find subscription `20136374336138753384898843390506225296052091906296406953567310616148092014984`
    - Add `0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124` as a consumer
 2. **Import a burner wallet** into MetaMask on Base Sepolia
    - Deployer PK: `0x671ea01f6ac1b2d53d49eea104c69e64680ddecc230e5faed864ecd055fbb6fd`
@@ -39,7 +39,7 @@ All addresses are hardcoded in `lib/config.ts` — no `.env` needed.
 | Deployer / Host | `0x75a32D24fd4EDB2C5895aCE905dA5Ee1fBD584A1` |
 | Player | `0xC96Bcb1EACE35d09189a6e52758255b8951a7587` |
 
-VRF Subscription ID: `100504477510181305958562641443496083821442665835157827344882238351295570091170`
+VRF Subscription ID: `20136374336138753384898843390506225296052091906296406953567310616148092014984`
 
 ## Game Flow
 
