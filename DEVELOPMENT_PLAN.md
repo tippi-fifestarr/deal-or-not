@@ -78,12 +78,6 @@ The following features are **excluded from the roadmap**:
 
 **Rationale**: Banker should be based on game state and EV, not external market speculation.
 
-### Cross-Chain via CCIP (Phase 5)
-- ~~CCIP bridge for cross-chain games~~
-- ~~Multi-chain prize pools~~
-
-**Rationale**: Single-chain focus for MVP. Multi-chain adds significant complexity.
-
 ---
 
 ## 🚀 Development Roadmap
@@ -259,7 +253,115 @@ The following features are **excluded from the roadmap**:
 
 ---
 
-### Phase 7: Deployment & Launch (Planned)
+### Phase 7: Cross-Chain via CCIP (Planned)
+**Goal**: Enable cross-chain games and prize pools
+
+**Status**: Not started
+**Priority**: Medium-Low
+**Complexity**: High
+
+#### Features
+- **Cross-Chain Game Creation**
+  - Create game on Base, play from Arbitrum/Optimism/Polygon
+  - CCIP messages for cross-chain state sync
+  - Unified game state across chains
+
+- **Cross-Chain Prize Pools**
+  - Pool funds from multiple chains
+  - Winner receives payout on their origin chain
+  - Automatic bridging via CCIP
+
+- **Multi-Chain Banker**
+  - Banker can be on different chain than game
+  - Offers sent via CCIP messages
+  - Real-time cross-chain communication
+
+- **Chain Agnostic UX**
+  - Players don't need to switch chains
+  - Frontend detects user's chain
+  - Automatic CCIP routing
+
+#### Contract Architecture
+```
+Base (Hub Chain)
+├── DealOrNot.sol (main game logic)
+├── CCIPSender.sol (outbound messages)
+└── CCIPReceiver.sol (inbound messages)
+
+Arbitrum/Optimism/Polygon (Spoke Chains)
+├── DealOrNotProxy.sol (local game interface)
+├── CCIPSender.sol (send to Base)
+└── CCIPReceiver.sol (receive from Base)
+```
+
+#### CCIP Message Types
+1. **CREATE_GAME**: Spoke → Base
+2. **GAME_CREATED**: Base → Spoke
+3. **COMMIT_CASE**: Spoke → Base
+4. **CASE_REVEALED**: Base → All Spokes
+5. **BANKER_OFFER**: Base → Spoke
+6. **DEAL_DECISION**: Spoke → Base
+7. **GAME_RESOLVED**: Base → All Spokes
+
+#### Security Considerations
+- CCIP lane security (verify sender/receiver)
+- Message replay protection
+- State synchronization guarantees
+- Bridge failure handling (timeouts, refunds)
+- Gas cost estimation (cross-chain TX expensive)
+
+#### Implementation Steps
+1. Research CCIP documentation and examples
+2. Design cross-chain message protocol
+3. Implement CCIPSender/Receiver contracts
+4. Deploy to Base + 2-3 spoke chains (testnet)
+5. Build cross-chain frontend routing
+6. Test message delivery and state sync
+7. Gas optimization (bundle messages)
+8. Security audit for bridge logic
+9. Mainnet deployment (Base + spokes)
+
+#### Cost Analysis
+- CCIP message: ~$0.10 - $1.00 (depending on destination)
+- Full cross-chain game: ~$2-5 in CCIP fees
+- Player pays: Entry fee + CCIP fee
+- Or: Protocol subsidizes CCIP for better UX
+
+#### User Experience
+**Without CCIP** (Single Chain):
+1. Player on Base creates game → plays on Base
+2. All players must be on same chain
+
+**With CCIP** (Cross-Chain):
+1. Player on Arbitrum creates game → sends CCIP message
+2. Base creates game state
+3. Player on Optimism joins → plays via CCIP
+4. Winner receives payout on their origin chain
+5. No manual bridging needed
+
+#### Why Add CCIP?
+- **Liquidity**: Aggregate players from multiple chains
+- **Accessibility**: Players stay on preferred chain
+- **Innovation**: First cross-chain game show
+- **Chainlink Showcase**: Demonstrate CCIP capabilities
+
+#### Risks
+- CCIP messages can fail (network congestion, gas)
+- State desync if message lost
+- Higher costs for players
+- Complexity in debugging
+- Multi-chain deployment overhead
+
+#### Success Criteria
+- [ ] 100+ cross-chain games played
+- [ ] < 1% CCIP message failure rate
+- [ ] State sync verified across chains
+- [ ] User doesn't notice they're cross-chain
+- [ ] Featured in Chainlink CCIP showcase
+
+---
+
+### Phase 8: Deployment & Launch (Planned)
 **Goal**: Production deployment on Base
 
 **Status**: Not started
@@ -366,12 +468,6 @@ Phase 3: Confidential Compute (Threshold Encryption + TEE)
 - AI = black box, API dependencies, costs
 - On-chain algorithm is transparent
 - Players can verify fairness
-
-### Why Exclude CCIP Cross-Chain?
-- Single-chain focus reduces complexity
-- CCIP adds bridge risk
-- Prize pools easier to manage on one chain
-- Can add later if demand exists
 
 ---
 
@@ -492,6 +588,7 @@ npm run dev
 - [Chainlink VRF v2.5](https://docs.chain.link/vrf/v2-5/overview)
 - [Chainlink Price Feeds](https://docs.chain.link/data-feeds)
 - [Chainlink Functions (CRE)](https://docs.chain.link/chainlink-functions)
+- [Chainlink CCIP](https://docs.chain.link/ccip)
 - [Base Developer Docs](https://docs.base.org)
 
 ### Repositories
