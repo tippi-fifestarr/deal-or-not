@@ -3,6 +3,7 @@
 import { Phase } from "@/types/game";
 import type { GameState } from "@/types/game";
 import BriefcaseRow from "./BriefcaseRow";
+import VideoWait from "./VideoWait";
 
 interface FinalDecisionProps {
   gameState: GameState;
@@ -57,14 +58,10 @@ export default function FinalDecision({
         </div>
       ) : (
         <div className="text-center space-y-4">
-          <div className="animate-pulse">
-            <p className="text-amber-300 text-lg font-semibold">
-              Decision locked in... the moment of truth approaches...
-            </p>
-            <p className="text-gray-500 text-sm mt-1">
-              Waiting for block confirmation
-            </p>
-          </div>
+          <VideoWait
+            message="The moment of truth approaches..."
+            submessage="Waiting for block confirmation"
+          />
           <button
             className="bg-gradient-to-r from-amber-500 to-red-500 hover:from-amber-400 hover:to-red-400 text-white font-bold py-4 px-10 rounded-xl text-lg transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
             onClick={onRevealFinal}

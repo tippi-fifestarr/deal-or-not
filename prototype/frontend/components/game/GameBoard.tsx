@@ -21,6 +21,7 @@ import CommitReveal from "./CommitReveal";
 import BankerOffer from "./BankerOffer";
 import FinalDecision from "./FinalDecision";
 import GameOver from "./GameOver";
+import VideoWait from "./VideoWait";
 import { centsToUsd } from "@/lib/utils";
 
 const EMPTY_OPENED = [false, false, false, false, false] as const;
@@ -127,14 +128,19 @@ export default function GameBoard() {
         ...contractConfig,
         functionName: "createGame",
       });
-      // Wait for receipt BEFORE setting gameId
-      if (publicClient) {
-        await publicClient.waitForTransactionReceipt({ hash });
-      }
+      // Set gameId immediately so the UI transitions to the game view
+      // Game state polling (every 3s) will pick up the VRF phase
       setGameId(currentNextId);
+      // Wait for receipt in background to clear pending state
+      if (publicClient) {
+        publicClient.waitForTransactionReceipt({ hash }).finally(() => {
+          setTxPending(false);
+        });
+      } else {
+        setTxPending(false);
+      }
     } catch (e: unknown) {
       setError(parseContractError(e));
-    } finally {
       setTxPending(false);
     }
   };
@@ -327,15 +333,12 @@ export default function GameBoard() {
         isPlayer={isPlayer}
       />
 
-      {/* Phase: WaitingForVRF */}
+      {/* Phase: WaitingForVRF — video plays while VRF seed arrives */}
       {phase === Phase.WaitingForVRF && (
-        <div className="text-center py-12">
-          <div className="animate-spin h-12 w-12 border-4 border-purple-400 border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-purple-300 text-lg">Quantum seed incoming...</p>
-          <p className="text-gray-500 text-sm mt-1">
-            Chainlink VRF is generating your game&apos;s randomness
-          </p>
-        </div>
+        <VideoWait
+          message="Quantum seed incoming..."
+          submessage="Chainlink VRF is generating your game's randomness"
+        />
       )}
 
       {/* Phase: Created — pick your case */}

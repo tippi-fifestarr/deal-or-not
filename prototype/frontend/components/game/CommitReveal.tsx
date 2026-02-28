@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import BriefcaseRow from "./BriefcaseRow";
+import VideoWait from "./VideoWait";
 import { Phase } from "@/types/game";
 import type { GameState } from "@/types/game";
 
@@ -67,17 +68,13 @@ export default function CommitReveal({
         </div>
       )}
 
-      {/* Reveal step */}
+      {/* Reveal step — video interstitial during block wait */}
       {isWaitingForReveal && (
         <div className="text-center space-y-4">
-          <div className="animate-pulse">
-            <p className="text-amber-300 text-lg font-semibold">
-              Case selected... building tension...
-            </p>
-            <p className="text-gray-500 text-sm mt-1">
-              Waiting for next block confirmation
-            </p>
-          </div>
+          <VideoWait
+            message="Quantum collapse incoming..."
+            submessage="Waiting for next block confirmation"
+          />
           <button
             className="bg-gradient-to-r from-amber-500 to-red-500 hover:from-amber-400 hover:to-red-400 text-white font-bold py-4 px-10 rounded-xl text-lg transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
             onClick={onReveal}
