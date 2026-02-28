@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useAccount, useConnect, useBalance } from "wagmi";
 import {
   useGameState,
@@ -25,6 +25,9 @@ const EMPTY_OPENED = [false, false, false, false, false] as const;
 const EMPTY_VALUES = [0n, 0n, 0n, 0n, 0n] as const;
 
 export default function GameBoard() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const { address, isConnected } = useAccount();
   const { connectors, connect } = useConnect();
   const { data: balance } = useBalance({ address });
@@ -157,6 +160,14 @@ export default function GameBoard() {
   };
 
   // ── Render ──
+
+  if (!mounted) {
+    return (
+      <div className="text-center py-20">
+        <div className="animate-spin h-10 w-10 border-4 border-amber-400 border-t-transparent rounded-full mx-auto" />
+      </div>
+    );
+  }
 
   if (!isConnected) {
     return (
