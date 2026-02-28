@@ -40,6 +40,10 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
     uint32 public s_callbackGasLimit = 200000;
     uint16 public s_requestConfirmations = 1;
 
+    // ── CRE Phase 2: Auto-Reveal ──
+    address public keystoneForwarder; // DON address allowed to call reveal
+    bool public autoRevealEnabled;    // Can be toggled by owner
+
     // ── Enums ──
     enum GameMode { SinglePlayer, MultiPlayer }
     enum Phase {
@@ -117,6 +121,7 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
     error InvalidReveal();
     error NoFundsToRescue();
     error TransferFailed();
+    error NotAuthorizedRevealer();
 
     // ── Constructor ──
     constructor(
@@ -245,9 +250,11 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
     /// @notice REVEAL: Open the case — quantum collapse happens here.
     ///         This is tx 2 of 2. The moment of truth.
     ///         blockhash(commitBlock) adds entropy unknown at commit time.
+    ///
+    ///         PHASE 2: Can be called by player OR Keystone Forwarder (CRE auto-reveal).
     function revealCase(uint256 gameId, uint8 caseIndex, uint256 salt) external {
         Game storage g = _games[gameId];
-        _requirePlayer(g);
+        _requirePlayerOrForwarder(g);
         _requirePhase(g, Phase.WaitingForReveal);
         if (block.number <= g.commitBlock) revert TooEarlyToReveal();
         if (block.number - g.commitBlock > REVEAL_WINDOW) revert RevealWindowExpired();
@@ -336,9 +343,11 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
     }
 
     /// @notice REVEAL final decision: swap or keep. Both cases collapse.
+    ///
+    ///         PHASE 2: Can be called by player OR Keystone Forwarder (CRE auto-reveal).
     function revealFinalDecision(uint256 gameId, bool swap, uint256 salt) external {
         Game storage g = _games[gameId];
-        _requirePlayer(g);
+        _requirePlayerOrForwarder(g);
         _requirePhase(g, Phase.WaitingForFinalReveal);
         if (block.number <= g.commitBlock) revert TooEarlyToReveal();
         if (block.number - g.commitBlock > REVEAL_WINDOW) revert RevealWindowExpired();
@@ -568,7 +577,28 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
         if (msg.sender != g.player) revert NotPlayer();
     }
 
+    /// @dev Phase 2: Allow player OR Keystone Forwarder to reveal.
+    function _requirePlayerOrForwarder(Game storage g) internal view {
+        bool isPlayer = msg.sender == g.player;
+        bool isForwarder = autoRevealEnabled && msg.sender == keystoneForwarder;
+        if (!isPlayer && !isForwarder) revert NotAuthorizedRevealer();
+    }
+
     function _requirePhase(Game storage g, Phase expected) internal view {
         if (g.phase != expected) revert WrongPhase(expected, g.phase);
+    }
+
+    // ════════════════════════════════════════════════════════
+    //              CRE PHASE 2: AUTO-REVEAL CONFIG
+    // ════════════════════════════════════════════════════════
+
+    /// @notice Set Keystone Forwarder address (CRE DON).
+    function setKeystoneForwarder(address _forwarder) external onlyOwner {
+        keystoneForwarder = _forwarder;
+    }
+
+    /// @notice Enable/disable auto-reveal via Keystone.
+    function setAutoRevealEnabled(bool _enabled) external onlyOwner {
+        autoRevealEnabled = _enabled;
     }
 }

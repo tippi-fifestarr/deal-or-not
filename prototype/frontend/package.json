@@ -11,20 +11,21 @@
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",
     "@wagmi/core": "^2.22.1",
+    "autoprefixer": "^10.4.27",
     "next": "16.1.6",
+    "postcss": "^8.5.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "tailwindcss": "^3.4.19",
     "viem": "^2.46.3",
     "wagmi": "^2.19.5"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4",
     "typescript": "^5"
   }
 }
