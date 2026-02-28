@@ -91,18 +91,30 @@ export default function GameBoard() {
       await refetch();
       return hash;
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Transaction failed";
-      // Clean up common wagmi error messages
-      if (msg.includes("User rejected")) {
-        setError("Transaction rejected");
-      } else {
-        setError(msg.slice(0, 150));
-      }
+      setError(parseContractError(e));
       throw e;
     } finally {
       setTxPending(false);
     }
   };
+
+  function parseContractError(e: unknown): string {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("User rejected") || msg.includes("user rejected")) return "Transaction rejected";
+    if (msg.includes("NotPlayer")) return "Not your game — your wallet is not the player";
+    if (msg.includes("NotHost")) return "Not your game — your wallet is not the host";
+    if (msg.includes("NotAllowedBanker")) return "Not an allowed banker for this game";
+    if (msg.includes("WrongPhase")) return "Wrong phase — the game is not in the expected state";
+    if (msg.includes("CannotOpenOwnCase")) return "You cannot open your own case";
+    if (msg.includes("CaseAlreadyOpened")) return "That case is already opened";
+    if (msg.includes("InvalidCase")) return "Invalid case index";
+    if (msg.includes("TooEarlyToReveal")) return "Too early — wait for the next block before revealing";
+    if (msg.includes("RevealWindowExpired")) return "Reveal window expired (256 blocks) — commit again";
+    if (msg.includes("InvalidReveal")) return "Invalid reveal — salt or choice doesn't match your commit";
+    // Fallback: trim to something readable
+    const short = msg.replace(/^.*reason:\s*/i, "").replace(/\n.*/s, "");
+    return short.slice(0, 150) || "Transaction failed";
+  }
 
   // ── Handlers ──
 
@@ -121,12 +133,7 @@ export default function GameBoard() {
       }
       setGameId(currentNextId);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Transaction failed";
-      if (msg.includes("User rejected")) {
-        setError("Transaction rejected");
-      } else {
-        setError(msg.slice(0, 150));
-      }
+      setError(parseContractError(e));
     } finally {
       setTxPending(false);
     }
@@ -308,6 +315,7 @@ export default function GameBoard() {
 
   // ── Active Game ──
   const phase = gameState.phase;
+  const isPlayer = address?.toLowerCase() === gameState.player.toLowerCase();
 
   return (
     <div className="max-w-3xl mx-auto py-6 space-y-8">
@@ -315,6 +323,8 @@ export default function GameBoard() {
         phase={phase}
         currentRound={gameState.currentRound}
         gameId={gameId}
+        player={gameState.player}
+        isPlayer={isPlayer}
       />
 
       {/* Phase: WaitingForVRF */}

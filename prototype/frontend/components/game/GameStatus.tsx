@@ -6,12 +6,16 @@ interface GameStatusProps {
   phase: Phase;
   currentRound: number;
   gameId: bigint;
+  player?: string;
+  isPlayer?: boolean;
 }
 
 export default function GameStatus({
   phase,
   currentRound,
   gameId,
+  player,
+  isPlayer,
 }: GameStatusProps) {
   const phaseBadgeColor: Record<Phase, string> = {
     [Phase.WaitingForVRF]: "bg-purple-900/50 text-purple-300 border-purple-700",
@@ -39,7 +43,17 @@ export default function GameStatus({
           </span>
         )}
       </div>
-      <p className="text-gray-600 text-xs">Game #{gameId.toString()}</p>
+      <p className="text-gray-600 text-xs">
+        Game #{gameId.toString()}
+        {player && (
+          <span> &middot; {player.slice(0, 6)}...{player.slice(-4)}</span>
+        )}
+      </p>
+      {isPlayer === false && (
+        <p className="text-red-400 text-xs font-semibold">
+          Not your game — connected wallet is not the player
+        </p>
+      )}
     </div>
   );
 }
