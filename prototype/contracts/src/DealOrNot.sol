@@ -7,8 +7,22 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 import {BankerAlgorithm} from "./BankerAlgorithm.sol";
 
 /// @title Deal or NOT — Quantum Case Prototype (5 Cases)
-/// @notice On-chain Deal or No Deal with Chainlink VRF + Price Feeds.
-/// @dev Cases have no values until opened — Brodinger's Case powered by VRF.
+/// @notice On-chain Deal or No Deal with Chainlink VRF + Price Feeds + Commit-Reveal.
+/// @dev Brodinger's Case: values don't exist until observed.
+///
+///      RANDOMNESS STRATEGY (3 layers):
+///      1. VRF seed — provably fair base randomness at game creation
+///      2. Commit-reveal — player commits choice, waits 1 block, reveals
+///      3. Blockhash entropy — blockhash(commitBlock) mixed into collapse
+///
+///      The VRF seed alone is deterministic once delivered. Without commit-reveal,
+///      anyone could read the seed and precompute all collapse outcomes.
+///      Commit-reveal adds blockhash entropy that's unknown at commit time,
+///      making precomputation impractical (256 block window).
+///
+///      FUTURE: VRF-per-collapse (async, expensive, zero precomputation)
+///              or CRE-managed reveal timing with Confidential Compute.
+///
 ///      "Does Howie know what's in the box? Not anymore."
 contract DealOrNot is VRFConsumerBaseV2Plus {
     using BankerAlgorithm for uint256[];
@@ -16,6 +30,7 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
     // ── Constants ──
     uint8 public constant NUM_CASES = 5;
     uint8 public constant NUM_ROUNDS = 4;
+    uint256 public constant REVEAL_WINDOW = 256; // blocks before blockhash expires
     uint256[5] public CASE_VALUES_CENTS = [1, 5, 10, 50, 100]; // $0.01 → $1.00
 
     // ── Chainlink Config ──
@@ -28,13 +43,15 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
     // ── Enums ──
     enum GameMode { SinglePlayer, MultiPlayer }
     enum Phase {
-        WaitingForVRF,   // 0: VRF requested, waiting for quantum seed
-        Created,         // 1: seed received, pick your case
-        Round,           // 2: open a case this round
-        AwaitingOffer,   // 3: case opened, waiting for banker
-        BankerOffer,     // 4: offer on the table — DEAL or NO DEAL?
-        FinalSwap,       // 5: last case vs yours — swap or keep?
-        GameOver         // 6: done
+        WaitingForVRF,         // 0: VRF requested, waiting for quantum seed
+        Created,               // 1: seed received, pick your case
+        Round,                 // 2: commit which case to open
+        WaitingForReveal,      // 3: committed, wait 1 block, then reveal
+        AwaitingOffer,         // 4: case collapsed, waiting for banker
+        BankerOffer,           // 5: offer on the table — DEAL or NO DEAL?
+        CommitFinal,           // 6: commit final decision (swap or keep)
+        WaitingForFinalReveal, // 7: committed final, wait then reveal
+        GameOver               // 8: done
     }
 
     // ── Structs ──
@@ -59,6 +76,8 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
         uint256 vrfRequestId;
         uint256 vrfSeed;             // quantum seed from VRF
         uint256 usedValuesBitmap;    // which value indices (0-4) have been assigned
+        uint256 commitHash;          // hash of committed choice
+        uint256 commitBlock;         // block number of commit (for blockhash entropy)
         uint256[5] caseValues;       // collapsed values (0 = still in superposition)
         bool[5] opened;              // which cases have been opened/revealed
     }
@@ -73,6 +92,7 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
     event GameCreated(uint256 indexed gameId, address indexed host, GameMode mode);
     event VRFSeedReceived(uint256 indexed gameId);
     event CasePicked(uint256 indexed gameId, uint8 caseIndex);
+    event CaseCommitted(uint256 indexed gameId, uint8 round);
     event CaseCollapsed(uint256 indexed gameId, uint8 caseIndex, uint256 valueCents);
     event RoundComplete(uint256 indexed gameId, uint8 round);
     event BankerAdded(uint256 indexed gameId, address indexed banker, bool isContract);
@@ -80,6 +100,7 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
     event BankerOfferMade(uint256 indexed gameId, uint8 round, uint256 offerCents);
     event DealAccepted(uint256 indexed gameId, uint256 payoutCents);
     event DealRejected(uint256 indexed gameId, uint8 round);
+    event FinalCommitted(uint256 indexed gameId);
     event GameResolved(uint256 indexed gameId, uint256 payoutCents, bool swapped);
     event FundsRescued(address indexed to, uint256 amount);
 
@@ -91,6 +112,9 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
     error InvalidCase(uint8 index);
     error CaseAlreadyOpened(uint8 index);
     error CannotOpenOwnCase();
+    error TooEarlyToReveal();
+    error RevealWindowExpired();
+    error InvalidReveal();
     error NoFundsToRescue();
     error TransferFailed();
 
@@ -204,17 +228,42 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
         emit CasePicked(gameId, caseIndex);
     }
 
-    /// @notice Open a case. Triggers quantum collapse — value assigned from remaining pool via VRF seed.
-    function openCase(uint256 gameId, uint8 caseIndex) external {
+    /// @notice COMMIT: "I want to open case X" — hash(caseIndex, salt).
+    ///         This is tx 1 of 2. Build tension. Show a video clip. Wait a block.
+    function commitCase(uint256 gameId, uint256 _commitHash) external {
         Game storage g = _games[gameId];
         _requirePlayer(g);
         _requirePhase(g, Phase.Round);
+
+        g.commitHash = _commitHash;
+        g.commitBlock = block.number;
+        g.phase = Phase.WaitingForReveal;
+
+        emit CaseCommitted(gameId, g.currentRound);
+    }
+
+    /// @notice REVEAL: Open the case — quantum collapse happens here.
+    ///         This is tx 2 of 2. The moment of truth.
+    ///         blockhash(commitBlock) adds entropy unknown at commit time.
+    function revealCase(uint256 gameId, uint8 caseIndex, uint256 salt) external {
+        Game storage g = _games[gameId];
+        _requirePlayer(g);
+        _requirePhase(g, Phase.WaitingForReveal);
+        if (block.number <= g.commitBlock) revert TooEarlyToReveal();
+        if (block.number - g.commitBlock > REVEAL_WINDOW) revert RevealWindowExpired();
+
+        // Verify commitment
+        uint256 expectedHash = uint256(keccak256(abi.encodePacked(caseIndex, salt)));
+        if (expectedHash != g.commitHash) revert InvalidReveal();
+
+        // Validate case
         if (caseIndex >= NUM_CASES) revert InvalidCase(caseIndex);
         if (caseIndex == g.playerCase) revert CannotOpenOwnCase();
         if (g.opened[caseIndex]) revert CaseAlreadyOpened(caseIndex);
 
-        // Quantum collapse
-        uint256 value = _collapseCase(g, caseIndex);
+        // Quantum collapse with blockhash entropy
+        bytes32 entropy = blockhash(g.commitBlock);
+        uint256 value = _collapseCase(g, caseIndex, entropy);
         g.caseValues[caseIndex] = value;
         g.opened[caseIndex] = true;
 
@@ -223,7 +272,7 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
         // Check remaining unopened non-player cases
         uint8 remaining = _countRemaining(g);
         if (remaining == 1) {
-            g.phase = Phase.FinalSwap;
+            g.phase = Phase.CommitFinal;
         } else {
             g.phase = Phase.AwaitingOffer;
         }
@@ -253,7 +302,8 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
         g.phase = Phase.GameOver;
 
         // Collapse all remaining cases for the big reveal
-        _collapseAllRemaining(g);
+        bytes32 entropy = blockhash(block.number - 1);
+        _collapseAllRemaining(g, entropy);
 
         emit DealAccepted(gameId, g.bankerOffer);
         emit GameResolved(gameId, g.finalPayout, false);
@@ -272,19 +322,41 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
         g.phase = Phase.Round;
     }
 
-    /// @notice Final decision: swap your case with the last remaining, or keep.
-    function finalDecision(uint256 gameId, bool swap) external {
+    /// @notice COMMIT final decision: swap or keep. Hash(swap, salt).
+    function commitFinalDecision(uint256 gameId, uint256 _commitHash) external {
         Game storage g = _games[gameId];
         _requirePlayer(g);
-        _requirePhase(g, Phase.FinalSwap);
+        _requirePhase(g, Phase.CommitFinal);
+
+        g.commitHash = _commitHash;
+        g.commitBlock = block.number;
+        g.phase = Phase.WaitingForFinalReveal;
+
+        emit FinalCommitted(gameId);
+    }
+
+    /// @notice REVEAL final decision: swap or keep. Both cases collapse.
+    function revealFinalDecision(uint256 gameId, bool swap, uint256 salt) external {
+        Game storage g = _games[gameId];
+        _requirePlayer(g);
+        _requirePhase(g, Phase.WaitingForFinalReveal);
+        if (block.number <= g.commitBlock) revert TooEarlyToReveal();
+        if (block.number - g.commitBlock > REVEAL_WINDOW) revert RevealWindowExpired();
+
+        // Verify commitment
+        uint256 expectedHash = uint256(keccak256(abi.encodePacked(swap, salt)));
+        if (expectedHash != g.commitHash) revert InvalidReveal();
+
+        // Collapse with blockhash entropy
+        bytes32 entropy = blockhash(g.commitBlock);
 
         // Collapse the last remaining case
         uint8 lastCase = _findLastCase(g);
-        uint256 lastValue = _collapseCase(g, lastCase);
+        uint256 lastValue = _collapseCase(g, lastCase, entropy);
         g.caseValues[lastCase] = lastValue;
 
         // Collapse player's own case
-        uint256 playerValue = _collapseCase(g, g.playerCase);
+        uint256 playerValue = _collapseCase(g, g.playerCase, entropy);
         g.caseValues[g.playerCase] = playerValue;
 
         g.finalPayout = swap ? lastValue : playerValue;
@@ -332,6 +404,7 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
         uint256 bankerOffer,
         uint256 finalPayout,
         uint256 ethPerDollar,
+        uint256 commitBlock,
         uint256[5] memory caseValues,
         bool[5] memory opened
     ) {
@@ -347,6 +420,7 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
             g.bankerOffer,
             g.finalPayout,
             g.ethPerDollar,
+            g.commitBlock,
             g.caseValues,
             g.opened
         );
@@ -394,22 +468,32 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
     receive() external payable {}
 
     // ════════════════════════════════════════════════════════
-    //                QUANTUM COLLAPSE ENGINE
+    //             QUANTUM COLLAPSE ENGINE
     // ════════════════════════════════════════════════════════
+    //
+    // 3-layer randomness:
+    //   Layer 1: VRF seed (provably fair, set once at game creation)
+    //   Layer 2: Case index + collapse count (deterministic per-case)
+    //   Layer 3: Blockhash entropy (unknown at commit time)
+    //
+    // Without Layer 3, the collapse is fully predictable from the seed.
+    // With it, precomputation requires knowing the future blockhash.
+    //
+    // FUTURE: Layer 4 — Chainlink Confidential Compute (DON threshold
+    //         encryption). Layer 5 — VRF-per-collapse (async, expensive,
+    //         zero precomputation). CRE can manage timing and orchestration.
 
     /// @dev Collapse a case: assign a random value from the remaining pool.
-    ///      Uses VRF seed + case index + collapse count for deterministic randomness.
-    ///      Values don't exist until this function runs — Brodinger's Case.
-    function _collapseCase(Game storage g, uint8 caseIndex) internal returns (uint256) {
+    function _collapseCase(Game storage g, uint8 caseIndex, bytes32 entropy) internal returns (uint256) {
         // Count remaining unused values in the pool
         uint8 remaining = 0;
         for (uint8 i = 0; i < NUM_CASES; i++) {
             if ((g.usedValuesBitmap & (1 << i)) == 0) remaining++;
         }
 
-        // Deterministic random pick from VRF seed
+        // 3-layer random pick: VRF seed + case context + blockhash entropy
         uint256 pick = uint256(keccak256(abi.encodePacked(
-            g.vrfSeed, caseIndex, g.totalCollapsed
+            g.vrfSeed, caseIndex, g.totalCollapsed, entropy
         ))) % remaining;
 
         // Walk unused values to find the picked one
@@ -428,15 +512,15 @@ contract DealOrNot is VRFConsumerBaseV2Plus {
     }
 
     /// @dev Collapse all remaining cases (for post-deal reveal).
-    function _collapseAllRemaining(Game storage g) internal {
+    function _collapseAllRemaining(Game storage g, bytes32 entropy) internal {
         for (uint8 i = 0; i < NUM_CASES; i++) {
             if (!g.opened[i] && i != g.playerCase && g.caseValues[i] == 0) {
-                g.caseValues[i] = _collapseCase(g, i);
+                g.caseValues[i] = _collapseCase(g, i, entropy);
             }
         }
         // Also collapse player's case
         if (g.caseValues[g.playerCase] == 0) {
-            g.caseValues[g.playerCase] = _collapseCase(g, g.playerCase);
+            g.caseValues[g.playerCase] = _collapseCase(g, g.playerCase, entropy);
         }
     }
 

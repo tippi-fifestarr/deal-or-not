@@ -1,0 +1,297 @@
+export const DEAL_OR_NOT_ABI = [
+  // ── Read Functions ──
+  {
+    type: "function",
+    name: "getGameState",
+    inputs: [{ name: "gameId", type: "uint256" }],
+    outputs: [
+      { name: "host", type: "address" },
+      { name: "player", type: "address" },
+      { name: "mode", type: "uint8" },
+      { name: "phase", type: "uint8" },
+      { name: "playerCase", type: "uint8" },
+      { name: "currentRound", type: "uint8" },
+      { name: "totalCollapsed", type: "uint8" },
+      { name: "bankerOffer", type: "uint256" },
+      { name: "finalPayout", type: "uint256" },
+      { name: "ethPerDollar", type: "uint256" },
+      { name: "commitBlock", type: "uint256" },
+      { name: "caseValues", type: "uint256[5]" },
+      { name: "opened", type: "bool[5]" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "nextGameId",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getRemainingValuePool",
+    inputs: [{ name: "gameId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256[]" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "calculateBankerOffer",
+    inputs: [{ name: "gameId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "calculateBankerOfferFull",
+    inputs: [{ name: "gameId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "centsToWei",
+    inputs: [
+      { name: "gameId", type: "uint256" },
+      { name: "cents", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getBanker",
+    inputs: [
+      { name: "gameId", type: "uint256" },
+      { name: "banker", type: "address" },
+    ],
+    outputs: [
+      { name: "isAllowed", type: "bool" },
+      { name: "isContract", type: "bool" },
+      { name: "isHuman", type: "bool" },
+      { name: "isBanned", type: "bool" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "NUM_CASES",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "NUM_ROUNDS",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "CASE_VALUES_CENTS",
+    inputs: [{ name: "", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "priceFeed",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "owner",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+  },
+
+  // ── Write Functions ──
+  {
+    type: "function",
+    name: "createGame",
+    inputs: [],
+    outputs: [{ name: "gameId", type: "uint256" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "pickCase",
+    inputs: [
+      { name: "gameId", type: "uint256" },
+      { name: "caseIndex", type: "uint8" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "commitCase",
+    inputs: [
+      { name: "gameId", type: "uint256" },
+      { name: "_commitHash", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "revealCase",
+    inputs: [
+      { name: "gameId", type: "uint256" },
+      { name: "caseIndex", type: "uint8" },
+      { name: "salt", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "setBankerOffer",
+    inputs: [
+      { name: "gameId", type: "uint256" },
+      { name: "offerCents", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "acceptDeal",
+    inputs: [{ name: "gameId", type: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "rejectDeal",
+    inputs: [{ name: "gameId", type: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "commitFinalDecision",
+    inputs: [
+      { name: "gameId", type: "uint256" },
+      { name: "_commitHash", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "revealFinalDecision",
+    inputs: [
+      { name: "gameId", type: "uint256" },
+      { name: "swap", type: "bool" },
+      { name: "salt", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+
+  // ── Events ──
+  {
+    type: "event",
+    name: "GameCreated",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+      { name: "host", type: "address", indexed: true },
+      { name: "mode", type: "uint8", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "VRFSeedReceived",
+    inputs: [{ name: "gameId", type: "uint256", indexed: true }],
+  },
+  {
+    type: "event",
+    name: "CasePicked",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+      { name: "caseIndex", type: "uint8", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "CaseCommitted",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+      { name: "round", type: "uint8", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "CaseCollapsed",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+      { name: "caseIndex", type: "uint8", indexed: false },
+      { name: "valueCents", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "RoundComplete",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+      { name: "round", type: "uint8", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "BankerOfferMade",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+      { name: "round", type: "uint8", indexed: false },
+      { name: "offerCents", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "DealAccepted",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+      { name: "payoutCents", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "DealRejected",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+      { name: "round", type: "uint8", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "FinalCommitted",
+    inputs: [{ name: "gameId", type: "uint256", indexed: true }],
+  },
+  {
+    type: "event",
+    name: "GameResolved",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+      { name: "payoutCents", type: "uint256", indexed: false },
+      { name: "swapped", type: "bool", indexed: false },
+    ],
+  },
+
+  // ── Errors ──
+  { type: "error", name: "WrongPhase", inputs: [{ name: "expected", type: "uint8" }, { name: "actual", type: "uint8" }] },
+  { type: "error", name: "NotPlayer", inputs: [] },
+  { type: "error", name: "NotHost", inputs: [] },
+  { type: "error", name: "NotAllowedBanker", inputs: [] },
+  { type: "error", name: "InvalidCase", inputs: [{ name: "index", type: "uint8" }] },
+  { type: "error", name: "CaseAlreadyOpened", inputs: [{ name: "index", type: "uint8" }] },
+  { type: "error", name: "CannotOpenOwnCase", inputs: [] },
+  { type: "error", name: "TooEarlyToReveal", inputs: [] },
+  { type: "error", name: "RevealWindowExpired", inputs: [] },
+  { type: "error", name: "InvalidReveal", inputs: [] },
+] as const;
