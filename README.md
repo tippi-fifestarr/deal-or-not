@@ -40,11 +40,12 @@ Values **don't exist** until a case is opened. Chainlink VRF provides a seed at 
 | ZKGameVerifier | [`0xc36e784e1dff616bdae4eac7b310f0934faf04a4`](https://sepolia.basescan.org/address/0xc36e784e1dff616bdae4eac7b310f0934faf04a4) |
 | MockGroth16Verifier | [`0xff196f1e3a895404d073b8611252cf97388773a7`](https://sepolia.basescan.org/address/0xff196f1e3a895404d073b8611252cf97388773a7) |
 | CashCase (Brodinger's) | [`0x2Db0a160BE59Aea46f33F900651FE819699beb52`](https://sepolia.basescan.org/address/0x2Db0a160BE59Aea46f33F900651FE819699beb52) |
+| **DealOrNot (5-case commit-reveal)** | [`0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124`](https://sepolia.basescan.org/address/0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124) |
 
 **CashCase VRF Config (Base Sepolia):**
 - VRF Coordinator: `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE`
 - Key Hash: `0x9e1344a1247c8a1785d0a4681a27152bffdb43666ae5bf7d14d24a5efd44bf71`
-- Subscription ID: `100504477510181305958562641443496083821442665835157827344882238351295570091170`
+- Subscription ID: `20136374336138753384898843390506225296052091906296406953567310616148092014984`
 - Price Feed (ETH/USD): `0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1`
 
 ## Architecture
@@ -258,6 +259,10 @@ deal-or-not/
 │   │   ├── contracts/          # ABI definitions
 │   │   └── hooks/              # Custom wagmi hooks
 │   └── api/                # Backend API
+│
+├── prototype/              # 5-case quantum prototype (playable now!)
+│   ├── contracts/          # Foundry — DealOrNot.sol + BankerAlgorithm.sol
+│   └── frontend/           # Next.js 16 — npm install && npm run dev
 │
 deal/                       # Schrödinger's Case contracts (Hardhat)
 ├── contracts/
