@@ -2,7 +2,8 @@
 
 import { useReadContract, useWriteContract } from "wagmi";
 import { DEAL_OR_NOT_ABI } from "@/lib/abi";
-import { CONTRACT_ADDRESS } from "@/lib/config";
+import { SPONSOR_JACKPOT_ABI } from "@/lib/sponsorAbi";
+import { CONTRACT_ADDRESS, SPONSOR_JACKPOT_ADDRESS } from "@/lib/config";
 import { type GameState, Phase } from "@/types/game";
 import { useMemo } from "react";
 
@@ -90,6 +91,60 @@ export function useCentsToWei(gameId: bigint | undefined, cents: bigint | undefi
     query: { enabled: gameId !== undefined && cents !== undefined },
   });
   return data as bigint | undefined;
+}
+
+// ── Jackpot Hooks ──
+
+const jackpotConfig = {
+  address: SPONSOR_JACKPOT_ADDRESS,
+  abi: SPONSOR_JACKPOT_ABI,
+} as const;
+
+export function useJackpot(gameId: bigint | undefined) {
+  const { data, refetch } = useReadContract({
+    ...jackpotConfig,
+    functionName: "getJackpot",
+    args: gameId !== undefined ? [gameId] : undefined,
+    query: {
+      enabled: gameId !== undefined && SPONSOR_JACKPOT_ADDRESS !== "0x0000000000000000000000000000000000000000",
+      refetchInterval: 3000,
+    },
+  });
+  return { jackpotCents: data as bigint | undefined, refetch };
+}
+
+export function useGameSponsor(gameId: bigint | undefined) {
+  const { data } = useReadContract({
+    ...jackpotConfig,
+    functionName: "getGameSponsorInfo",
+    args: gameId !== undefined ? [gameId] : undefined,
+    query: {
+      enabled: gameId !== undefined && SPONSOR_JACKPOT_ADDRESS !== "0x0000000000000000000000000000000000000000",
+      refetchInterval: 5000,
+    },
+  });
+
+  const sponsorInfo = useMemo(() => {
+    if (!data) return null;
+    const [name, logoUrl, sponsorAddr] = data as [string, string, string];
+    if (sponsorAddr === "0x0000000000000000000000000000000000000000") return null;
+    return { name, logoUrl, sponsorAddr };
+  }, [data]);
+
+  return sponsorInfo;
+}
+
+export function useJackpotClaimed(gameId: bigint | undefined) {
+  const { data } = useReadContract({
+    ...jackpotConfig,
+    functionName: "claimed",
+    args: gameId !== undefined ? [gameId] : undefined,
+    query: {
+      enabled: gameId !== undefined && SPONSOR_JACKPOT_ADDRESS !== "0x0000000000000000000000000000000000000000",
+      refetchInterval: 5000,
+    },
+  });
+  return data as boolean | undefined;
 }
 
 // ── Write Hook ──

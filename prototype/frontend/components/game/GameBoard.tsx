@@ -8,11 +8,15 @@ import {
   useRemainingPool,
   useBankerOfferCalc,
   useCentsToWei,
+  useJackpot,
+  useJackpotClaimed,
+  useGameSponsor,
 } from "@/hooks/useGameContract";
 import { useCommitReveal } from "@/hooks/useCommitReveal";
 import { useWriteContract } from "wagmi";
 import { DEAL_OR_NOT_ABI } from "@/lib/abi";
-import { CONTRACT_ADDRESS, CHAIN_ID } from "@/lib/config";
+import { SPONSOR_JACKPOT_ABI } from "@/lib/sponsorAbi";
+import { CONTRACT_ADDRESS, SPONSOR_JACKPOT_ADDRESS, CHAIN_ID } from "@/lib/config";
 import { Phase } from "@/types/game";
 import GameStatus from "./GameStatus";
 import BriefcaseRow from "./BriefcaseRow";
@@ -22,6 +26,7 @@ import BankerOffer from "./BankerOffer";
 import FinalDecision from "./FinalDecision";
 import GameOver from "./GameOver";
 import VideoWait from "./VideoWait";
+import JackpotDisplay from "./JackpotDisplay";
 import { centsToUsd } from "@/lib/utils";
 
 const EMPTY_OPENED = [false, false, false, false, false] as const;
@@ -48,6 +53,7 @@ export default function GameBoard() {
   const [joinInput, setJoinInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [txPending, setTxPending] = useState(false);
+  const [spectatorMode, setSpectatorMode] = useState(false);
 
   const { gameState, refetch } = useGameState(gameId);
   const { nextGameId } = useNextGameId();
@@ -57,6 +63,11 @@ export default function GameBoard() {
     commitCase: genCommitCase, commitFinal: genCommitFinal,
     getSalt, getStoredCaseIndex, getStoredSwap, clearCommit,
   } = useCommitReveal();
+
+  // Jackpot + sponsor state
+  const { jackpotCents } = useJackpot(gameId);
+  const jackpotClaimed = useJackpotClaimed(gameId);
+  const sponsorInfo = useGameSponsor(gameId);
 
   // Calculate banker offer when in AwaitingOffer phase
   const isAwaitingOffer = gameState?.phase === Phase.AwaitingOffer;
@@ -224,6 +235,29 @@ export default function GameBoard() {
   const handlePlayAgain = () => {
     setGameId(undefined);
     setError(null);
+    setSpectatorMode(false);
+  };
+
+  const handleClaimJackpot = async () => {
+    if (gameId === undefined) return;
+    setError(null);
+    setTxPending(true);
+    try {
+      const hash = await writeContractAsync({
+        address: SPONSOR_JACKPOT_ADDRESS,
+        abi: SPONSOR_JACKPOT_ABI,
+        functionName: "claimJackpot",
+        args: [gameId],
+      });
+      if (publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
+      await refetch();
+    } catch (e: unknown) {
+      setError(parseContractError(e));
+    } finally {
+      setTxPending(false);
+    }
   };
 
   // ── Render ──
@@ -236,7 +270,7 @@ export default function GameBoard() {
     );
   }
 
-  if (!isConnected) {
+  if (!isConnected && !spectatorMode) {
     return (
       <div className="text-center py-20 space-y-6">
         <h1 className="text-5xl font-bold text-amber-400 tracking-tight">
@@ -249,11 +283,39 @@ export default function GameBoard() {
         >
           Connect Wallet
         </button>
+
+        <div className="text-gray-600 text-sm pt-4">or watch a game</div>
+        <div className="flex gap-2 max-w-xs mx-auto">
+          <input
+            type="number"
+            placeholder="Game ID"
+            value={joinInput}
+            onChange={(e) => setJoinInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && joinInput) {
+                setGameId(BigInt(joinInput));
+                setSpectatorMode(true);
+              }
+            }}
+            className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-amber-500 focus:outline-none"
+          />
+          <button
+            className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-xl transition-colors"
+            onClick={() => {
+              if (joinInput) {
+                setGameId(BigInt(joinInput));
+                setSpectatorMode(true);
+              }
+            }}
+          >
+            Watch
+          </button>
+        </div>
       </div>
     );
   }
 
-  if (isWrongChain) {
+  if (isWrongChain && !spectatorMode) {
     return (
       <div className="text-center py-20 space-y-6">
         <h1 className="text-5xl font-bold text-amber-400 tracking-tight">
@@ -276,8 +338,8 @@ export default function GameBoard() {
     );
   }
 
-  // Lobby — no active game
-  if (gameId === undefined) {
+  // Lobby — no active game (only for connected users)
+  if (gameId === undefined && !spectatorMode) {
     return (
       <div className="max-w-lg mx-auto text-center py-10 space-y-8">
         <div>
@@ -344,12 +406,27 @@ export default function GameBoard() {
     );
   }
 
+  // Shouldn't happen, but satisfies TS narrowing
+  if (gameId === undefined) return null;
+
   // ── Active Game ──
   const phase = gameState.phase;
-  const isPlayer = address?.toLowerCase() === gameState.player.toLowerCase();
+  const isPlayer = !spectatorMode && address?.toLowerCase() === gameState.player.toLowerCase();
 
   return (
     <div className="max-w-3xl mx-auto py-6 space-y-8">
+      {spectatorMode && (
+        <div className="flex items-center justify-between bg-blue-900/20 border border-blue-700/30 rounded-xl px-4 py-2">
+          <span className="text-blue-400 text-sm">Spectator Mode — watching game #{gameId?.toString()}</span>
+          <button
+            onClick={handlePlayAgain}
+            className="text-gray-400 hover:text-white text-xs transition-colors"
+          >
+            Exit
+          </button>
+        </div>
+      )}
+
       <GameStatus
         phase={phase}
         currentRound={gameState.currentRound}
@@ -357,6 +434,15 @@ export default function GameBoard() {
         player={gameState.player}
         isPlayer={isPlayer}
       />
+
+      {/* Jackpot display — shown during active gameplay */}
+      {jackpotCents !== undefined && jackpotCents > 0n && phase !== Phase.GameOver && (
+        <JackpotDisplay
+          jackpotCents={jackpotCents}
+          sponsorName={sponsorInfo?.name}
+          sponsorLogo={sponsorInfo?.logoUrl}
+        />
+      )}
 
       {/* Phase: WaitingForVRF — video plays while VRF seed arrives */}
       {phase === Phase.WaitingForVRF && (
@@ -455,6 +541,7 @@ export default function GameBoard() {
             onAccept={handleAcceptDeal}
             onReject={handleRejectDeal}
             isPending={txPending}
+            jackpotCents={jackpotCents}
           />
         </>
       )}
@@ -481,6 +568,11 @@ export default function GameBoard() {
           gameState={gameState}
           payoutWei={payoutWei}
           onPlayAgain={handlePlayAgain}
+          jackpotCents={jackpotCents}
+          jackpotClaimed={jackpotClaimed}
+          onClaimJackpot={handleClaimJackpot}
+          claimPending={txPending}
+          sponsorName={sponsorInfo?.name}
         />
       )}
 
