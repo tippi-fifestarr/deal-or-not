@@ -105,7 +105,7 @@ contract DealOrNotConfidentialTest is Test {
         vrfCoordinator.fulfillRandomWords(vrfRequestId, address(game));
 
         // Check phase changed to Created
-        (,,, uint8 phase,,,,,,,,) = game.getGameState(gameId);
+        (,,, uint8 phase,,,,,,,,,) = game.getGameState(gameId);
         assertEq(phase, PHASE_CREATED, "Phase should be Created after VRF");
     }
 
@@ -253,10 +253,10 @@ contract DealOrNotConfidentialTest is Test {
 
         // Call fulfillRequest as Functions router
         vm.prank(functionsRouter);
-        game.fulfillRequest(requestId, response, err);
+        game.testFulfillRequest(requestId, response, err);
 
         // Check case value assigned
-        (,,,uint8 phase,,,,,, uint256[5] memory caseValues, bool[5] memory opened) = game.getGameState(gameId);
+        (,,,uint8 phase,,,,,,, uint256 commitBlock, uint256[5] memory caseValues, bool[5] memory opened) = game.getGameState(gameId);
 
         assertEq(phase, PHASE_AWAITING_OFFER, "Phase should be AwaitingOffer");
         assertEq(caseValues[0], 50, "Case 0 should have value 50");
@@ -276,7 +276,7 @@ contract DealOrNotConfidentialTest is Test {
         emit DealOrNotConfidential.CaseCollapsed(gameId, 0, 50);
 
         vm.prank(functionsRouter);
-        game.fulfillRequest(requestId, response, err);
+        game.testFulfillRequest(requestId, response, err);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -289,7 +289,7 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player); // Player is allowed banker (auto-added in createGame)
         game.setBankerOffer(gameId, 25); // Offer $0.25
 
-        (,,,uint8 phase,, uint256 bankerOffer,,,,,,) = game.getGameState(gameId);
+        (,,,uint8 phase,, uint256 bankerOffer,,,,,,,) = game.getGameState(gameId);
 
         assertEq(phase, PHASE_BANKER_OFFER, "Phase should be BankerOffer");
         assertEq(bankerOffer, 25, "Banker offer should be 25 cents");
@@ -304,7 +304,7 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.acceptDeal(gameId);
 
-        (,,,uint8 phase,,, uint256 finalPayout,,,,,) = game.getGameState(gameId);
+        (,,,uint8 phase,,, uint256 finalPayout,,,,,,) = game.getGameState(gameId);
 
         assertEq(phase, 10, "Phase should be GameOver");
         assertEq(finalPayout, 25, "Final payout should match offer");
@@ -319,7 +319,7 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.rejectDeal(gameId);
 
-        (,,,uint8 phase, uint8 currentRound, uint256 bankerOffer,,,,,) = game.getGameState(gameId);
+        (,,,uint8 phase, uint8 currentRound, uint256 bankerOffer,,,,,,) = game.getGameState(gameId);
 
         assertEq(phase, PHASE_ROUND, "Phase should be Round");
         assertEq(currentRound, 1, "Round should increment");
@@ -372,7 +372,7 @@ contract DealOrNotConfidentialTest is Test {
         bytes32 requestId = game.getFunctionsRequestId(gameId);
 
         vm.prank(functionsRouter);
-        game.fulfillRequest(requestId, response, err);
+        game.testFulfillRequest(requestId, response, err);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -418,7 +418,7 @@ contract DealOrNotConfidentialTest is Test {
         game.acceptDeal(gameId);
 
         // Check final state
-        (,,,uint8 phase,,, uint256 finalPayout,,,,,) = game.getGameState(gameId);
+        (,,,uint8 phase,,, uint256 finalPayout,,,,,,) = game.getGameState(gameId);
 
         assertEq(phase, 10, "Game should be over");
         assertEq(finalPayout, 25, "Payout should be 25 cents");

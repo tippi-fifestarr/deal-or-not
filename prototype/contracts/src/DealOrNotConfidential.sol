@@ -314,7 +314,7 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, FunctionsClient {
     }
 
     /// @dev Chainlink Functions callback with decrypted case value.
-    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) public override {
+    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
         uint256 gameId = functionsRequestToGame[requestId];
         Game storage g = _games[gameId];
 
@@ -547,6 +547,11 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, FunctionsClient {
     /// @notice Get Functions request ID for testing.
     function getFunctionsRequestId(uint256 gameId) external view returns (bytes32) {
         return _games[gameId].functionsRequestId;
+    }
+
+    /// @notice Public wrapper for fulfillRequest (testing only).
+    function testFulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) external {
+        fulfillRequest(requestId, response, err);
     }
 
     // ════════════════════════════════════════════════════════
