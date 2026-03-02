@@ -1,0 +1,952 @@
+# Deal or NOT - Development Plan
+
+**Last Updated**: February 28, 2026
+**Branch**: `prototype-12boxupgrade-uni`
+**Status**: Phase 2 Complete
+**Strategy**: Product-First (Diverges from Hackathon-Optimized PRD)
+
+---
+
+## Project Vision
+
+On-chain Deal or No Deal game show using Chainlink products for provably fair randomness, automated workflows, and future confidential compute integration.
+
+**Core Principle**: "Brodinger's Case" - Case values don't exist until observed (quantum superposition analogy)
+
+---
+
+## Strategic Approach: Product-First vs Hackathon-Optimized
+
+This development plan **intentionally diverges** from the original PRD ([PRD.md](https://github.com/rdobbeck/deal-or-not/blob/main/PRD.md)), which was optimized for the Chainlink Convergence Hackathon (Feb 6 – Mar 8, 2026).
+
+### Why Product-First?
+
+**PRD Strategy** (Hackathon):
+- Ship by March 8, 2026 deadline
+- Target 6 prize tracks simultaneously ($80K+ potential)
+- Maximize Chainlink product integration (all 5 products)
+- Multi-game platform from day one
+- Live game show format with audience/spectators
+
+**This Plan** (Product):
+- Ship incrementally, prioritize core gameplay quality
+- Focus on what makes the game fun and fair
+- Add Chainlink products as they improve UX (not for track points)
+- Single-player MVP first, scale to multi-player later
+- Build audience after game is proven, not before
+
+**Rationale**: The hackathon deadline has passed (if it was ever realistic). Building a **quality product that people actually want to play** is more valuable than a feature-complete demo that wins prizes but never ships.
+
+### What We're Excluding from PRD
+
+These features are in the PRD but **not in this roadmap** (see `GAP_ANALYSIS.md` for full comparison):
+
+#### Permanently Excluded
+- ❌ **AI Banker with LLM** - Adds complexity, API costs, black-box decisions. On-chain algorithm is transparent and verifiable.
+- ❌ **Live Game Show Format** - Streaming, sponsors, commercial breaks. Post-launch if there's demand.
+
+#### Deferred (May Add Later)
+- 🔶 **Factory Pattern (EIP-1167)** - Multiple concurrent games. Useful for scale but not needed for MVP.
+- 🔶 **BriefcaseNFT** - Tokenized game assets. Fun but not core to gameplay.
+- 🔶 **Lottery Contestant Selection** - Multi-player with audience participation. Phase 4 covers multi-player, but simpler approach.
+- 🔶 **World ID Integration** - Sybil-resistant entry. Adds complexity, questionable value for early users.
+- 🔶 **Progressive Jackpot** - Prize pool accumulation across games. Adds contract complexity, regulatory concerns.
+
+#### In Stretch Goals (PRD Had as Core)
+- 🎯 **Prediction Markets** - Spectator betting. Stretch goal here, core in PRD.
+- 🎯 **Agent Gameplay** - AI agents playing autonomously. Stretch goal here, core in PRD.
+- 🎯 **x402 Payments** - Agent API monetization. Stretch goal here, core in PRD.
+
+**Bottom Line**: We're building **Deal or NOT the game**, not **Deal or NOT the platform**. Platform features come after the game is proven.
+
+### What We're Keeping from PRD
+
+**Core Game Mechanics**:
+- ✅ Provably fair randomness (VRF v2.5)
+- ✅ Commit-reveal protocol
+- ✅ Quantum collapse engine ("Brodinger's Case")
+- ✅ On-chain banker algorithm
+- ✅ Price Feeds for USD conversion
+
+**Future Integrations** (High Priority):
+- ✅ **Confidential Compute** (Phase 3) - True hidden values, not pre-deterministic
+- ✅ **CRE Auto-Reveal** (Phase 2, done) - UX improvement, reduces player TX from 2→1
+- ✅ **CCIP Cross-Chain** (Phase 7) - Play from any chain, good for distribution
+- ✅ **Multi-Player Mode** (Phase 4) - Core to "game show" experience
+
+**Alignment**: We're still using Chainlink products extensively, but **because they make the game better**, not to check boxes for prize tracks.
+
+---
+
+## Current Status
+
+### ✅ Phase 1: Base Game (Complete)
+- **Smart Contract**: `prototype/contracts/src/DealOrNot.sol`
+  - Chainlink VRF v2.5 for quantum seed
+  - Commit-reveal protocol (3-layer randomness)
+  - Quantum collapse engine (`_collapseCase()`)
+  - On-chain banker algorithm with variance
+  - Single-player mode functional
+  - 5 cases, 4 rounds prototype
+
+- **Frontend**: Next.js 16 + Tailwind v3
+  - Game creation and play flow
+  - Case selection and reveals
+  - Banker offer display
+  - Deal/No Deal decisions
+  - Game state visualization
+
+- **Chainlink Integration**:
+  - VRF v2.5 for provably fair randomness
+  - Price Feeds (ETH/USD) for prize conversion
+  - On-chain banker offers (pure function)
+
+### ✅ Phase 2: CRE Auto-Reveal (Complete)
+- **Contract Support**:
+  - `keystoneForwarder` address (DON authorized caller)
+  - `autoRevealEnabled` flag
+  - `_requirePlayerOrForwarder()` authorization
+  - Admin functions: `setKeystoneForwarder()`, `setAutoRevealEnabled()`
+
+- **CRE Workflow**: `prototype/workflows/case-reveal-orchestrator.ts`
+  - Event listener for `CaseCommitted`
+  - Automatic 1-block wait
+  - Auto-reveal via Keystone Forwarder
+  - DON consensus (4-of-6 BFT)
+  - Fallback handling
+
+- **Documentation**:
+  - `workflows/README.md` - Architecture and setup
+  - `workflows/INTEGRATION.md` - Frontend integration guide
+  - Configuration templates and examples
+
+- **UX Improvement**: Player sends 1 TX instead of 2 (commit only, CRE handles reveal)
+
+---
+
+## ❌ NOT Being Implemented
+
+The following features are **excluded from the roadmap**:
+
+### AI Banker with LLM Integration
+- ~~AI-powered offers using Claude API~~
+- ~~Player psychology analysis~~
+- ~~Market condition analysis~~
+- ~~Multi-game learning~~
+
+**Rationale**: Keeping the banker algorithm deterministic and on-chain. AI introduces complexity, API dependencies, and unpredictable costs.
+
+### Prediction Market Banker Integration
+- ~~Banker adjusting offers based on prediction market odds~~
+- ~~AI reading crowd wisdom from betting markets~~
+
+**Rationale**: Banker should be based on game state and EV, not external market speculation.
+
+---
+
+## 🚀 Development Roadmap
+
+### Phase 3: Confidential Compute (Planned)
+**Goal**: True quantum superposition - case values literally don't exist until revealed
+
+**Status**: Not started
+**Priority**: High
+**Complexity**: High
+
+#### Features
+- **Threshold Encryption (DKG)**
+  - DON generates shared key via Distributed Key Generation
+  - No single node has full decryption key
+  - Case values encrypted on-chain as `bytes encryptedValue`
+
+- **TEE Enclaves (Intel SGX / AMD SEV)**
+  - Values assigned in secure enclaves
+  - Computation isolated from DON nodes
+  - Attestation proofs for verification
+
+- **On-Chain State Changes**
+  - Replace `uint256 caseValues[5]` with `bytes[5] encryptedValues`
+  - New function: `revealWithProof(gameId, caseIndex, proof)`
+  - Decryption happens only at reveal time
+
+- **Security Benefits**
+  - No pre-computation possible (currently VRF seed + blockhash = deterministic)
+  - Even DON nodes cannot predict values
+  - True "Brodinger's Case" implementation
+
+#### Implementation Steps
+1. Research Chainlink Confidential Compute documentation
+2. Design threshold encryption scheme
+3. Update contract for encrypted state
+4. Create TEE-based workflow
+5. Add attestation verification
+6. Test on testnet with Chainlink DON
+
+#### Resources
+- [Chainlink Confidential Computing](https://docs.chain.link)
+- [TEE Overview](https://en.wikipedia.org/wiki/Trusted_execution_environment)
+
+---
+
+### Phase 4: Multi-Player Mode (Planned)
+**Goal**: Multiple players compete in same game
+
+**Status**: Contract support exists, frontend not built
+**Priority**: Medium
+**Complexity**: Medium
+
+#### Features
+- **Game Modes**
+  - Competitive: Last player standing wins entire pool
+  - Cooperative: Players share based on performance
+  - Spectator: Watch live games
+
+- **Turn-Based Mechanics**
+  - Round-robin case selection
+  - Shared case pool (values collapse for all)
+  - Individual banker offers (different EV per player)
+
+- **Contract Changes Needed**
+  - Extend `Game` struct for multiple players
+  - Player turn management
+  - Prize distribution logic
+  - Elimination mechanics
+
+- **Frontend Changes**
+  - Lobby system (join games)
+  - Player list display
+  - Turn indicator
+  - Multi-player game board
+
+#### Implementation Steps
+1. Design multi-player game flow
+2. Update contract with player array
+3. Add turn management logic
+4. Build lobby UI
+5. Implement multi-player game board
+6. Test with 2-4 players locally
+
+---
+
+### Phase 5: Frontend Polish (Planned)
+**Goal**: Game show experience
+
+**Status**: Not started
+**Priority**: Medium
+**Complexity**: Low-Medium
+
+#### Features
+- **Animations**
+  - Case opening effects
+  - Value reveal animations
+  - Deal/No Deal decision cinematics
+  - Confetti for big wins
+
+- **Sound & Music**
+  - Background music (game show theme)
+  - Case open sound effects
+  - Dramatic stings (banker offers, reveals)
+  - Victory/defeat sounds
+
+- **Banker Character**
+  - Animated avatar
+  - Speech bubbles for offers
+  - Personality (taunts, encouragement)
+  - Optional: Video clips integration
+
+- **Game History**
+  - Past games leaderboard
+  - Player stats (win rate, average payout)
+  - Best/worst deals
+  - Share results to social
+
+- **Mobile Responsiveness**
+  - Touch-friendly case selection
+  - Portrait/landscape layouts
+  - Optimized animations for mobile
+
+#### Implementation Steps
+1. Design animation library (Framer Motion?)
+2. Source sound effects (royalty-free)
+3. Create banker avatar/character
+4. Build game history database
+5. Add social sharing
+6. Mobile optimization pass
+
+---
+
+### Phase 6: Prize Pools & Monetization (Planned)
+**Goal**: Real money games
+
+**Status**: Not started
+**Priority**: High (for launch)
+**Complexity**: Medium
+
+#### Features
+- **Entry Fees**
+  - Pay ETH to create game
+  - Fee determines prize pool scale
+  - Minimum/maximum entry amounts
+
+- **Prize Pool Mechanics**
+  - Scale case values based on entry fee
+  - Example: 0.01 ETH entry = 5x multiplier
+  - Dynamic value arrays per game
+
+- **Revenue Model**
+  - House edge (5-10% of entry fee)
+  - Used for:
+    - Chainlink service fees (VRF, CRE)
+    - Protocol development
+    - Marketing/growth
+  - Transparent fee display
+
+- **Fairness Guarantees**
+  - EV calculation shown upfront
+  - Maximum theoretical payout displayed
+  - Provably fair VRF seed
+  - All logic verifiable on-chain
+
+#### Implementation Steps
+1. Add entry fee parameter to `createGame()`
+2. Scale case values dynamically
+3. Implement house edge collection
+4. Add prize pool display to frontend
+5. Create fee transparency page
+6. Legal review (gambling regulations)
+
+---
+
+### Phase 7: Cross-Chain via CCIP (Planned)
+**Goal**: Enable cross-chain games and prize pools
+
+**Status**: Not started
+**Priority**: Medium-Low
+**Complexity**: High
+
+#### Features
+- **Cross-Chain Game Creation**
+  - Create game on Base, play from Arbitrum/Optimism/Polygon
+  - CCIP messages for cross-chain state sync
+  - Unified game state across chains
+
+- **Cross-Chain Prize Pools**
+  - Pool funds from multiple chains
+  - Winner receives payout on their origin chain
+  - Automatic bridging via CCIP
+
+- **Multi-Chain Banker**
+  - Banker can be on different chain than game
+  - Offers sent via CCIP messages
+  - Real-time cross-chain communication
+
+- **Chain Agnostic UX**
+  - Players don't need to switch chains
+  - Frontend detects user's chain
+  - Automatic CCIP routing
+
+#### Contract Architecture
+```
+Base (Hub Chain)
+├── DealOrNot.sol (main game logic)
+├── CCIPSender.sol (outbound messages)
+└── CCIPReceiver.sol (inbound messages)
+
+Arbitrum/Optimism/Polygon (Spoke Chains)
+├── DealOrNotProxy.sol (local game interface)
+├── CCIPSender.sol (send to Base)
+└── CCIPReceiver.sol (receive from Base)
+```
+
+#### CCIP Message Types
+1. **CREATE_GAME**: Spoke → Base
+2. **GAME_CREATED**: Base → Spoke
+3. **COMMIT_CASE**: Spoke → Base
+4. **CASE_REVEALED**: Base → All Spokes
+5. **BANKER_OFFER**: Base → Spoke
+6. **DEAL_DECISION**: Spoke → Base
+7. **GAME_RESOLVED**: Base → All Spokes
+
+#### Security Considerations
+- CCIP lane security (verify sender/receiver)
+- Message replay protection
+- State synchronization guarantees
+- Bridge failure handling (timeouts, refunds)
+- Gas cost estimation (cross-chain TX expensive)
+
+#### Implementation Steps
+1. Research CCIP documentation and examples
+2. Design cross-chain message protocol
+3. Implement CCIPSender/Receiver contracts
+4. Deploy to Base + 2-3 spoke chains (testnet)
+5. Build cross-chain frontend routing
+6. Test message delivery and state sync
+7. Gas optimization (bundle messages)
+8. Security audit for bridge logic
+9. Mainnet deployment (Base + spokes)
+
+#### Cost Analysis
+- CCIP message: ~$0.10 - $1.00 (depending on destination)
+- Full cross-chain game: ~$2-5 in CCIP fees
+- Player pays: Entry fee + CCIP fee
+- Or: Protocol subsidizes CCIP for better UX
+
+#### User Experience
+**Without CCIP** (Single Chain):
+1. Player on Base creates game → plays on Base
+2. All players must be on same chain
+
+**With CCIP** (Cross-Chain):
+1. Player on Arbitrum creates game → sends CCIP message
+2. Base creates game state
+3. Player on Optimism joins → plays via CCIP
+4. Winner receives payout on their origin chain
+5. No manual bridging needed
+
+#### Why Add CCIP?
+- **Liquidity**: Aggregate players from multiple chains
+- **Accessibility**: Players stay on preferred chain
+- **Innovation**: First cross-chain game show
+- **Chainlink Showcase**: Demonstrate CCIP capabilities
+
+#### Risks
+- CCIP messages can fail (network congestion, gas)
+- State desync if message lost
+- Higher costs for players
+- Complexity in debugging
+- Multi-chain deployment overhead
+
+#### Success Criteria
+- [ ] 100+ cross-chain games played
+- [ ] < 1% CCIP message failure rate
+- [ ] State sync verified across chains
+- [ ] User doesn't notice they're cross-chain
+- [ ] Featured in Chainlink CCIP showcase
+
+---
+
+### Phase 8: Deployment & Launch (Planned)
+**Goal**: Production deployment on Base
+
+**Status**: Not started
+**Priority**: High (before launch)
+**Complexity**: Medium
+
+#### Pre-Launch Checklist
+
+**Smart Contract**
+- [ ] Security audit (external firm)
+- [ ] Gas optimization pass
+- [ ] Deploy to Base Sepolia testnet
+- [ ] Beta testing (50+ games)
+- [ ] Fix any discovered issues
+- [ ] Deploy to Base mainnet
+- [ ] Verify on Basescan
+- [ ] Transfer ownership to multisig
+
+**Chainlink Setup**
+- [ ] VRF subscription funded
+- [ ] Keystone Forwarder configured
+- [ ] CRE workflow deployed to DON
+- [ ] Monitoring/alerting setup
+- [ ] Fallback mechanisms tested
+
+**Frontend**
+- [ ] Deploy to Vercel
+- [ ] Custom domain (dealornot.xyz?)
+- [ ] SEO optimization
+- [ ] Analytics integration (Plausible/Fathom)
+- [ ] Error tracking (Sentry)
+- [ ] Mobile testing (iOS/Android)
+
+**Legal & Compliance**
+- [ ] Terms of Service
+- [ ] Privacy Policy
+- [ ] Gambling license research (if needed)
+- [ ] Geo-restrictions (if required)
+- [ ] Age verification (18+)
+
+**Marketing**
+- [ ] Landing page
+- [ ] Demo video
+- [ ] Twitter/X announcement
+- [ ] Discord community
+- [ ] Farcaster integration?
+- [ ] Launch on Product Hunt
+
+---
+
+## Technical Architecture
+
+### Smart Contract Stack
+```
+DealOrNot.sol (Game Logic)
+├── VRFConsumerBaseV2Plus (Chainlink VRF)
+├── AggregatorV3Interface (Price Feeds)
+├── BankerAlgorithm.sol (Offer Calculation)
+└── Ownable (Access Control)
+```
+
+### Frontend Stack
+```
+Next.js 16 (App Router)
+├── React 19
+├── Tailwind CSS v3
+├── wagmi (Ethereum React Hooks)
+├── viem (Ethereum Client)
+└── @tanstack/react-query (State Management)
+```
+
+### Chainlink Integration
+```
+Phase 1: VRF v2.5 (Random Seed)
+Phase 1: Price Feeds (ETH/USD)
+Phase 2: CRE Auto-Reveal (Keystone Forwarder)
+Phase 3: Confidential Compute (Threshold Encryption + TEE)
+```
+
+---
+
+## Key Decisions & Rationale
+
+### Why Base?
+- Low gas costs (~$0.005 per transaction)
+- Fast finality (~2 seconds)
+- Coinbase ecosystem
+- Growing DeFi/gaming community
+
+### Why 5 Cases (Not 26)?
+- Prototype simplicity
+- Faster game completion (4 rounds vs 10)
+- Lower gas costs (smaller arrays)
+- Can scale to 12 or 26 later
+
+### Why Commit-Reveal (Not Just VRF)?
+- VRF seed alone is deterministic → pre-computation attack
+- Blockhash adds entropy unknown at commit time
+- 256-block reveal window enforced
+- Future: Replace with Confidential Compute for true randomness
+
+### Why No AI Banker?
+- Deterministic = verifiable = trustless
+- AI = black box, API dependencies, costs
+- On-chain algorithm is transparent
+- Players can verify fairness
+
+---
+
+## Development Environment
+
+### Prerequisites
+- Node.js v22 (via nvm)
+- Foundry (for smart contracts)
+- MetaMask or Rabby wallet
+- Base Sepolia ETH (from faucet)
+- Alchemy API key (RPC)
+
+### Setup
+```bash
+# Clone repo
+git clone https://github.com/rdobbeck/deal-or-not.git
+cd deal-or-not
+
+# Checkout development branch
+git checkout prototype-12boxupgrade-uni
+
+# Install dependencies
+cd prototype/frontend
+npm install
+
+cd ../contracts
+forge install
+
+# Run local dev
+cd ../frontend
+npm run dev
+```
+
+### Testing Locally
+```bash
+# Terminal 1: Anvil (local blockchain)
+cd prototype/contracts
+anvil
+
+# Terminal 2: Deploy contract
+forge script script/Deploy.s.sol --broadcast --rpc-url http://localhost:8545
+
+# Terminal 3: Frontend
+cd prototype/frontend
+npm run dev
+
+# Browser: http://localhost:3000
+```
+
+---
+
+## Metrics & Success Criteria
+
+### Phase 3 Success (Confidential Compute)
+- [ ] Values cannot be predicted before reveal
+- [ ] TEE attestation verifies secure execution
+- [ ] Gas costs acceptable (< $0.10 per game on Base)
+- [ ] 100+ test games with no failures
+
+### Phase 4 Success (Multi-Player)
+- [ ] 4-player games run smoothly
+- [ ] Turn-based flow feels natural
+- [ ] No race conditions or exploits
+- [ ] Average game time < 10 minutes
+
+### Phase 5 Success (Frontend Polish)
+- [ ] Animations smooth on mobile
+- [ ] Sound enhances experience (not annoying)
+- [ ] Game history loads < 1 second
+- [ ] 90%+ positive user feedback
+
+### Phase 6 Success (Monetization)
+- [ ] Prize pools funded properly
+- [ ] House edge collected accurately
+- [ ] No exploits found in beta
+- [ ] Break-even on Chainlink costs
+
+### Launch Success
+- [ ] 1,000+ games played in first month
+- [ ] 100+ daily active players
+- [ ] < 0.1% error rate
+- [ ] Featured on Base ecosystem page
+- [ ] Positive community sentiment
+
+---
+
+## 🎯 Stretch Goals (Post-Launch)
+
+These features are **not part of the core roadmap** but could be explored after successful launch if there's demand and resources.
+
+### AI Agent Players
+**Concept**: Autonomous AI agents compete against humans or other agents
+
+**Features**:
+- **AgentRegistry Contract**
+  - Agent registration with wallet address
+  - Agent metadata (name, strategy type, creator)
+  - Agent leaderboard (games played, win rate, total winnings)
+  - Agent reputation system
+
+- **Agent Gameplay**
+  - AI agents make decisions autonomously
+  - Agent-vs-human games
+  - Agent-vs-agent tournaments
+  - CRE workflows as agent brains
+
+- **Agent Strategies**
+  - Risk-averse (always take safe deals)
+  - Risk-seeking (hold out for big prize)
+  - EV-maximizing (mathematical optimal)
+  - Psychological (bluff, read patterns)
+
+**Implementation**:
+```solidity
+contract AgentRegistry {
+    struct Agent {
+        address wallet;
+        string name;
+        string strategyType;
+        uint256 gamesPlayed;
+        uint256 totalWinnings;
+        bool isActive;
+    }
+
+    mapping(address => Agent) public agents;
+
+    function registerAgent(string name, string strategy) external;
+    function getLeaderboard() external view returns (Agent[] memory);
+}
+```
+
+**Why It's a Stretch Goal**:
+- Adds complexity (agent authentication, anti-spam)
+- Requires agent SDK/API design
+- Testing agent strategies is time-consuming
+- Human-first approach for MVP
+
+**If We Build It**:
+- Launch agent SDK (TypeScript/Python)
+- Host agent hackathon
+- Agent tournament with prizes
+- Featured on Chainlink agent showcase
+
+---
+
+### x402 Micropayments for Agents
+**Concept**: Agents pay per API call to play games
+
+**Features**:
+- **HTTP 402 Payment Protocol**
+  - Agent sends HTTP request with x402 payment proof
+  - CRE workflow validates payment
+  - Agent gets access to make game move
+  - Pay-per-call (not subscription)
+
+- **Agent Gateway CRE Workflow**
+  ```typescript
+  // HTTP Trigger (x402 authenticated)
+  export async function agentGateway(request: HTTP402Request) {
+      // 1. Validate x402 payment
+      const payment = await validateX402(request.headers);
+      if (!payment.valid) return 402; // Payment Required
+
+      // 2. Parse agent move
+      const move = parseAgentMove(request.body);
+
+      // 3. Execute on-chain
+      const tx = await executeMove(move);
+
+      // 4. Return game state
+      return gameState(move.gameId);
+  }
+  ```
+
+- **Pricing Model**
+  - $0.01 per API call (reasonable for agents)
+  - Agents pre-fund wallet
+  - Auto-refund if game cancelled
+  - Bulk discounts for high-volume agents
+
+- **Use Cases**
+  - AI research labs testing strategies
+  - Agent-as-a-service platforms
+  - Educational AI competitions
+  - Autonomous trading bots playing for profit
+
+**Why It's a Stretch Goal**:
+- x402 is new protocol (Q1 2026 production)
+- Requires payment infrastructure setup
+- Small market initially (agents << humans)
+- Adds operational complexity
+
+**If We Build It**:
+- First game show using x402
+- Featured in Coinbase x402 showcase
+- Agent API revenue stream
+- Developer ecosystem growth
+
+---
+
+### Agent vs Agent Tournaments
+**Concept**: Fully autonomous agent competitions
+
+**Features**:
+- **Tournament Structure**
+  - Round-robin: Every agent plays every other agent
+  - Bracket: Single/double elimination
+  - League: Season-long point accumulation
+  - Blitz: 100+ games in 1 hour
+
+- **Prize Pools**
+  - Entry fees from agent creators
+  - Sponsored prizes (Base, Chainlink)
+  - NFT trophies for winners
+  - Leaderboard rankings
+
+- **Spectator Experience**
+  - Watch live agent battles
+  - Bet on outcomes (prediction markets)
+  - Real-time strategy analysis
+  - Post-game replays with commentary
+
+- **Agent Classes**
+  - **CRE Agents**: On-chain workflows (transparent)
+  - **External Agents**: HTTP API (black box)
+  - **Hybrid**: Mix of on-chain + off-chain logic
+
+**Why It's a Stretch Goal**:
+- Niche audience (developers, AI enthusiasts)
+- Requires robust anti-cheat system
+- Tournament infrastructure complex
+- Not revenue-generating short-term
+
+**If We Build It**:
+- Annual "Deal or NOT AI Cup"
+- $10K+ prize pool
+- Academic research papers
+- Agent strategy open-sourcing
+
+---
+
+### Prediction Markets on Games
+**Concept**: Spectators bet on game outcomes in real-time
+
+**Features**:
+- **Market Types (Human Games)**
+  - Will player accept deal in round X?
+  - Final payout over/under threshold?
+  - Player swaps case vs keeps?
+  - Total rounds before deal accepted?
+  - Specific case value predictions
+
+- **Market Types (Agent Games)**
+  - Will Agent A win?
+  - What round will deal be accepted?
+  - Final payout over/under $0.50?
+  - Head-to-head: Agent A vs Agent B
+
+- **Live Betting**
+  - Odds update after each case reveal
+  - Dynamic pricing based on remaining values
+  - Pause betting during reveal animations
+  - Instant settlement on game end
+
+- **Integration Options**
+  - **Option A**: Integrate existing platforms
+    - Polymarket-style AMM
+    - External oracle for settlement
+    - Less dev work, existing liquidity
+
+  - **Option B**: Custom prediction market
+    - Build own AMM (Uniswap v3 style)
+    - CRE settlement workflow
+    - Full control, revenue capture
+    - More dev work, cold start problem
+
+- **Market Mechanics**
+  ```solidity
+  contract GamePredictionMarket {
+      struct Market {
+          uint256 gameId;
+          string question;
+          uint256 yesShares;
+          uint256 noShares;
+          bool resolved;
+          bool outcome;
+      }
+
+      function createMarket(uint256 gameId, string question) external;
+      function buyShares(uint256 marketId, bool yes, uint256 amount) external;
+      function resolveMarket(uint256 marketId, bool outcome) external; // CRE calls this
+      function claimWinnings(uint256 marketId) external;
+  }
+  ```
+
+- **CRE Settlement Workflow**
+  ```typescript
+  // Triggered on GameResolved event
+  export async function settlePredictionMarkets(gameId: bigint) {
+      const markets = await getMarketsForGame(gameId);
+      const gameState = await getGameState(gameId);
+
+      for (const market of markets) {
+          const outcome = evaluateOutcome(market.question, gameState);
+          await contract.resolveMarket(market.id, outcome);
+      }
+  }
+  ```
+
+- **Revenue Model**
+  - 2-5% fee on all bets
+  - Liquidity provider rewards
+  - Market creator incentives
+  - Protocol-owned liquidity (POL)
+
+- **User Experience**
+  - Sidebar prediction markets during live games
+  - Quick bet buttons (1-click)
+  - Portfolio view (active bets)
+  - Historical P&L tracking
+  - Social sharing of big wins
+
+**Why It's a Stretch Goal**:
+- Regulatory complexity (betting/gambling)
+- Requires liquidity to be useful
+- Not core to game experience
+- Adds UI complexity
+- Settlement edge cases
+
+**If We Build It**:
+- First game show with integrated prediction markets
+- Spectator revenue stream
+- Viral social sharing ("I bet $100 on this!")
+- Featured on prediction market platforms
+
+**Risks**:
+- Legal issues (gambling laws vary by jurisdiction)
+- May need to geo-restrict
+- Market manipulation concerns
+- Low liquidity = bad UX
+- Oracle accuracy critical
+
+**Success Criteria**:
+- $10K+ daily betting volume
+- 100+ active prediction markets
+- < 0.1% settlement errors
+- Positive legal opinion from counsel
+
+---
+
+## Open Questions
+
+### Technical
+1. **Confidential Compute Timeline**: When will Chainlink Confidential Compute be production-ready?
+2. **TEE Hardware Requirements**: What infrastructure does DON need for TEE?
+3. **Gas Optimization**: Can we reduce contract deployment size?
+4. **Scaling**: What's the max concurrent games before performance degrades?
+
+### Product
+1. **Entry Fee Range**: What's the sweet spot? (0.001 - 0.1 ETH?)
+2. **House Edge**: 5% or 10%? User testing needed.
+3. **Game Duration**: Should we add a time limit per round?
+4. **Banker Personality**: Serious banker vs. comedic character?
+
+### Business
+1. **Legal**: Do we need a gambling license?
+2. **Geo-Restrictions**: Block certain countries?
+3. **Revenue Split**: What % to protocol treasury vs. Chainlink fees?
+4. **Partnerships**: Integrate with Base ecosystem projects?
+
+### Community
+1. **Governance**: DAO for protocol upgrades?
+2. **Token**: Launch a game token? (Probably not needed)
+3. **Tournaments**: Seasonal leaderboards with prizes?
+4. **Social**: Spectator betting? (Separate from main game)
+
+---
+
+## Resources
+
+### Documentation
+- [Chainlink VRF v2.5](https://docs.chain.link/vrf/v2-5/overview)
+- [Chainlink Price Feeds](https://docs.chain.link/data-feeds)
+- [Chainlink Functions (CRE)](https://docs.chain.link/chainlink-functions)
+- [Chainlink CCIP](https://docs.chain.link/ccip)
+- [Base Developer Docs](https://docs.base.org)
+
+### Repositories
+- This Project: https://github.com/rdobbeck/deal-or-not
+- Scaffold-ETH 2: https://github.com/scaffold-eth/scaffold-eth-2
+- Chainlink Contracts: https://github.com/smartcontractkit/chainlink
+
+### Community
+- Base Discord: https://discord.gg/base
+- Chainlink Discord: https://discord.gg/chainlink
+- Project Discord: TBD
+
+---
+
+## Version History
+
+| Date | Version | Changes |
+|------|---------|---------|
+| Feb 28, 2026 | 0.2.0 | Phase 2 (CRE Auto-Reveal) complete |
+| Feb 27, 2026 | 0.1.0 | Phase 1 (Base Game) complete |
+| Feb 26, 2026 | 0.0.1 | Initial prototype |
+
+---
+
+## Contact
+
+**Project Lead**: SkillProof
+**Email**: skillproof@proton.me
+**GitHub**: https://github.com/rdobbeck/deal-or-not
+
+---
+
+**Next Steps**: Implement Phase 3 (Confidential Compute) or Phase 4 (Multi-Player) - discuss priority with team.

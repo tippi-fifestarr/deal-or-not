@@ -1,0 +1,27 @@
+{
+  "name": "deal-or-not-functions",
+  "version": "1.0.0",
+  "description": "Chainlink Functions scripts for Deal or NOT - Confidential case value reveals",
+  "main": "case-reveal.js",
+  "scripts": {
+    "upload": "node upload-secrets.js",
+    "simulate": "npx hardhat functions-simulate --network baseSepolia"
+  },
+  "keywords": [
+    "chainlink",
+    "functions",
+    "confidential-compute",
+    "deal-or-no-deal"
+  ],
+  "author": "SkillProof <skillproof@proton.me>",
+  "license": "MIT",
+  "dependencies": {
+    "@chainlink/functions-toolkit": "^0.2.9",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.4"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.17"
+  }
+}
