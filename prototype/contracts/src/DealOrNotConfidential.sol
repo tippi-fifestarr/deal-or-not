@@ -314,7 +314,7 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, FunctionsClient {
     }
 
     /// @dev Chainlink Functions callback with decrypted case value.
-    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
+    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) public override {
         uint256 gameId = functionsRequestToGame[requestId];
         Game storage g = _games[gameId];
 
@@ -457,9 +457,9 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, FunctionsClient {
         }
 
         uint256 playerValue = g.caseValues[g.playerCase];
-        uint256 lastValue = g.caseValues[lastCase];
+        uint256 finalCaseValue = g.caseValues[lastCase];
 
-        g.finalPayout = swap ? lastValue : playerValue;
+        g.finalPayout = swap ? finalCaseValue : playerValue;
         g.phase = Phase.GameOver;
 
         emit GameResolved(gameId, g.finalPayout, swap);
@@ -537,6 +537,16 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, FunctionsClient {
     /// @notice Convert USD cents to ETH wei.
     function centsToWei(uint256 gameId, uint256 cents) external view returns (uint256) {
         return (cents * _games[gameId].ethPerDollar) / 100;
+    }
+
+    /// @notice Get VRF request ID for testing.
+    function getVRFRequestId(uint256 gameId) external view returns (uint256) {
+        return _games[gameId].vrfRequestId;
+    }
+
+    /// @notice Get Functions request ID for testing.
+    function getFunctionsRequestId(uint256 gameId) external view returns (bytes32) {
+        return _games[gameId].functionsRequestId;
     }
 
     // ════════════════════════════════════════════════════════
