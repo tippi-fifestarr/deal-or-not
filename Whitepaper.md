@@ -299,9 +299,9 @@ const onCaseOpenRequested = (runtime: Runtime<Config>, log: EVMLog): string => {
 
 **Contract**: `prototype/contracts/src/SponsorJackpot.sol`
 **Workflow**: `prototype/workflows/sponsor-jackpot/workflow/main.ts`
-**Deployed**: `0x43a55c6EdCc8183b3FD9818b4d6Bf02a5e6590Ba` (Base Sepolia)
+**Deployed**: `0x7B04840165E05877A772E3b1c71fE05399101De0` (Base Sepolia)
 
-Orthogonal to the case value hiding problem, the Sponsor Jackpot adds real economic incentive to the game. Sponsors deposit ETH, and a CRE cron workflow deposits random jackpot amounts into active games every 30 seconds.
+Orthogonal to the case value hiding problem, the Sponsor Jackpot adds real economic incentive to the game. Sponsors deposit ETH, and a CRE workflow deposits random jackpot amounts into active games (triggered per case opening or via a 10-minute cron).
 
 **How it works:**
 1. Sponsors register with name and logo, deposit ETH

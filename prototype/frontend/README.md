@@ -35,6 +35,18 @@ All addresses are hardcoded in `lib/config.ts` — no `.env` needed.
 | ETH/USD Price Feed | `0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1` |
 | LINK Token | `0xE4aB69C077896252FAFBD49EFD26B5D171A32410` |
 
+### CRE Forwarder Addresses (Base Sepolia)
+
+| Environment | Address |
+|-------------|---------|
+| **Simulation** (MockKeystoneForwarder) | `0x82300bd7c3958625581cc2f77bc6464dcecdf3e5` |
+| **Production** (KeystoneForwarder) | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` |
+
+Currently set to MockKeystoneForwarder for `cre simulate --broadcast` testing. Switch to production via:
+```bash
+cast send 0x9f9744D9c49b4E7B5DE85269042d1922Ba2A922F "setCREForwarder(address)" 0xF8344CFd5c43616a4366C34E3EEE75af79a74482 --private-key $DEPLOYER_PK --rpc-url https://base-sepolia-rpc.publicnode.com
+```
+
 | Wallet | Address |
 |--------|---------|
 | Deployer / Host | `0x75a32D24fd4EDB2C5895aCE905dA5Ee1fBD584A1` |
