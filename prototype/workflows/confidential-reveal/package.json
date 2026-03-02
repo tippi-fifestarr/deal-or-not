@@ -1,0 +1,14 @@
+{
+  "name": "deal-or-not-confidential-reveal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CRE workflow for confidential case value reveals using enclave secrets",
+  "main": "workflow/main.ts",
+  "dependencies": {
+    "@chainlink/cre-sdk": "latest",
+    "viem": "^2.46.3"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

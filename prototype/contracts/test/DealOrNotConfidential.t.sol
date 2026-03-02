@@ -13,26 +13,26 @@ contract DealOrNotConfidentialTest is Test {
 
     address public owner;
     address public player;
-    address public functionsRouter;
+    address public creForwarder;
 
     uint256 public subscriptionId;
     bytes32 public keyHash;
-    uint64 public functionsSubscriptionId = 1;
-    bytes32 public donId = 0x66756e2d626173652d7365706f6c69612d310000000000000000000000000000;
 
-    // Game phases
+    // Game phases (CRE-based — no commit-reveal)
     uint8 constant PHASE_WAITING_FOR_VRF = 0;
     uint8 constant PHASE_CREATED = 1;
     uint8 constant PHASE_ROUND = 2;
-    uint8 constant PHASE_WAITING_FOR_REVEAL = 3;
-    uint8 constant PHASE_REQUESTING_VALUE = 4;
-    uint8 constant PHASE_AWAITING_OFFER = 5;
-    uint8 constant PHASE_BANKER_OFFER = 6;
+    uint8 constant PHASE_WAITING_FOR_CRE = 3;
+    uint8 constant PHASE_AWAITING_OFFER = 4;
+    uint8 constant PHASE_BANKER_OFFER = 5;
+    uint8 constant PHASE_FINAL_ROUND = 6;
+    uint8 constant PHASE_WAITING_FOR_FINAL_CRE = 7;
+    uint8 constant PHASE_GAME_OVER = 8;
 
     function setUp() public {
         owner = address(this);
         player = makeAddr("player");
-        functionsRouter = makeAddr("functionsRouter");
+        creForwarder = makeAddr("creForwarder");
 
         // Deploy mock VRF coordinator
         vrfCoordinator = new VRFCoordinatorV2_5Mock(
@@ -48,30 +48,24 @@ contract DealOrNotConfidentialTest is Test {
         // Deploy mock price feed (ETH/USD = $2000)
         priceFeed = new MockV3Aggregator(8, 2000e8);
 
-        // Deploy game contract
+        // Deploy game contract (5 params — no Functions!)
         keyHash = bytes32(uint256(1));
         game = new DealOrNotConfidential(
             address(vrfCoordinator),
             subscriptionId,
             keyHash,
             address(priceFeed),
-            functionsRouter,
-            functionsSubscriptionId,
-            donId
+            creForwarder
         );
 
         // Add contract as consumer
         vrfCoordinator.addConsumer(subscriptionId, address(game));
 
-        // Set Functions source code (mock)
-        string memory mockSource = "return Functions.encodeUint256(50);";
-        game.setFunctionsSource(mockSource);
-
         vm.deal(player, 1 ether);
     }
 
     /*//////////////////////////////////////////////////////////////
-                            GAME CREATION TESTS
+                        GAME CREATION TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_CreateGame() public {
@@ -85,7 +79,7 @@ contract DealOrNotConfidentialTest is Test {
             address gamePlayer,
             uint8 mode,
             uint8 phase,
-            ,,,,,,,,
+            ,,,,,,,
         ) = game.getGameState(gameId);
 
         assertEq(host, player, "Host should be player");
@@ -98,19 +92,15 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         uint256 gameId = game.createGame();
 
-        // Get VRF request ID
         uint256 vrfRequestId = game.getVRFRequestId(gameId);
-
-        // Fulfill VRF request
         vrfCoordinator.fulfillRandomWords(vrfRequestId, address(game));
 
-        // Check phase changed to Created
         (,,, uint8 phase,,,,,,,,) = game.getGameState(gameId);
         assertEq(phase, PHASE_CREATED, "Phase should be Created after VRF");
     }
 
     /*//////////////////////////////////////////////////////////////
-                            CASE PICKING TESTS
+                        CASE PICKING TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_PickCase() public {
@@ -119,7 +109,7 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.pickCase(gameId, 2);
 
-        (,,,uint8 phase, uint8 playerCase,,,,,,,,) = game.getGameState(gameId);
+        (,,, uint8 phase, uint8 playerCase,,,,,,,) = game.getGameState(gameId);
 
         assertEq(phase, PHASE_ROUND, "Phase should be Round");
         assertEq(playerCase, 2, "Player case should be 2");
@@ -139,164 +129,104 @@ contract DealOrNotConfidentialTest is Test {
 
         vm.expectRevert();
         vm.prank(player);
-        game.pickCase(gameId, 5); // Only 0-4 valid
+        game.pickCase(gameId, 5);
     }
 
     /*//////////////////////////////////////////////////////////////
-                         COMMIT-REVEAL TESTS
+                    OPEN CASE + CRE REVEAL TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function test_CommitCase() public {
+    function test_OpenCase() public {
         uint256 gameId = _createGameAndPickCase();
 
-        uint8 caseIndex = 0;
-        uint256 salt = 12345;
-        uint256 commitHash = uint256(keccak256(abi.encodePacked(caseIndex, salt)));
-
+        // Player opens case 0 — single TX, no commit-reveal!
         vm.prank(player);
-        game.commitCase(gameId, commitHash);
+        game.openCase(gameId, 0);
 
-        (,,,uint8 phase,,,,,,, uint256 commitBlock,,) = game.getGameState(gameId);
-
-        assertEq(phase, PHASE_WAITING_FOR_REVEAL, "Phase should be WaitingForReveal");
-        assertEq(commitBlock, block.number, "Commit block should be current block");
+        (,,, uint8 phase,,,,,,,,) = game.getGameState(gameId);
+        assertEq(phase, PHASE_WAITING_FOR_CRE, "Phase should be WaitingForCRE");
     }
 
-    function test_RevealCase_SendsFunctionsRequest() public {
-        uint256 gameId = _createGameAndPickCase();
-
-        uint8 caseIndex = 0;
-        uint256 salt = 12345;
-        uint256 commitHash = uint256(keccak256(abi.encodePacked(caseIndex, salt)));
-
-        vm.prank(player);
-        game.commitCase(gameId, commitHash);
-
-        // Roll forward 1 block
-        vm.roll(block.number + 1);
-
-        // Reveal should trigger Functions request
-        vm.prank(player);
-        bytes32 requestId = game.revealCase(gameId, caseIndex, salt);
-
-        (,,,uint8 phase,,,,,,,,) = game.getGameState(gameId);
-
-        assertEq(phase, PHASE_REQUESTING_VALUE, "Phase should be RequestingValue");
-        assertTrue(requestId != bytes32(0), "Request ID should be non-zero");
-    }
-
-    function test_RevealCase_RevertIfTooEarly() public {
-        uint256 gameId = _createGameAndPickCase();
-
-        uint8 caseIndex = 0;
-        uint256 salt = 12345;
-        uint256 commitHash = uint256(keccak256(abi.encodePacked(caseIndex, salt)));
-
-        vm.prank(player);
-        game.commitCase(gameId, commitHash);
-
-        // Try to reveal in same block
-        vm.expectRevert();
-        vm.prank(player);
-        game.revealCase(gameId, caseIndex, salt);
-    }
-
-    function test_RevealCase_RevertIfWrongSalt() public {
-        uint256 gameId = _createGameAndPickCase();
-
-        uint8 caseIndex = 0;
-        uint256 salt = 12345;
-        uint256 commitHash = uint256(keccak256(abi.encodePacked(caseIndex, salt)));
-
-        vm.prank(player);
-        game.commitCase(gameId, commitHash);
-
-        vm.roll(block.number + 1);
-
-        // Wrong salt
-        vm.expectRevert();
-        vm.prank(player);
-        game.revealCase(gameId, caseIndex, 99999);
-    }
-
-    function test_RevealCase_RevertIfPlayerCase() public {
+    function test_OpenCase_RevertIfOwnCase() public {
         uint256 gameId = _createGameAndPickCase(); // Picked case 2
 
-        uint8 caseIndex = 2; // Try to open player's own case
-        uint256 salt = 12345;
-        uint256 commitHash = uint256(keccak256(abi.encodePacked(caseIndex, salt)));
-
-        vm.prank(player);
-        game.commitCase(gameId, commitHash);
-
-        vm.roll(block.number + 1);
-
         vm.expectRevert();
         vm.prank(player);
-        game.revealCase(gameId, caseIndex, salt);
+        game.openCase(gameId, 2); // Can't open own case
     }
 
-    /*//////////////////////////////////////////////////////////////
-                      FUNCTIONS CALLBACK TESTS
-    //////////////////////////////////////////////////////////////*/
+    function test_OpenCase_RevertIfAlreadyOpened() public {
+        uint256 gameId = _openCaseAndFulfillCRE();
 
-    function test_FulfillRequest_AssignsCaseValue() public {
-        uint256 gameId = _createAndCommitCase();
+        // Case 0 already opened — can't open again
+        vm.expectRevert();
+        vm.prank(player);
+        game.openCase(gameId, 0);
+    }
 
-        // Simulate Functions callback
-        uint256 caseValue = 50; // $0.50 in cents
-        bytes memory response = abi.encode(caseValue);
-        bytes memory err = "";
+    function test_FulfillCaseValue() public {
+        uint256 gameId = _createGameAndPickCase();
 
-        // Get request ID
-        bytes32 requestId = game.getFunctionsRequestId(gameId);
+        vm.prank(player);
+        game.openCase(gameId, 0);
 
-        // Call fulfillRequest as Functions router
-        vm.prank(functionsRouter);
-        game.fulfillRequest(requestId, response, err);
+        // CRE fulfills with value 50 ($0.50)
+        vm.prank(creForwarder);
+        game.fulfillCaseValue(gameId, 0, 50);
 
-        // Check case value assigned
-        (,,,uint8 phase,,,,,, uint256[5] memory caseValues, bool[5] memory opened) = game.getGameState(gameId);
+        (,,, uint8 phase,,,,,,,
+         uint256[5] memory caseValues,
+         bool[5] memory opened
+        ) = game.getGameState(gameId);
 
         assertEq(phase, PHASE_AWAITING_OFFER, "Phase should be AwaitingOffer");
         assertEq(caseValues[0], 50, "Case 0 should have value 50");
         assertTrue(opened[0], "Case 0 should be opened");
     }
 
-    function test_FulfillRequest_EmitsCaseCollapsed() public {
-        uint256 gameId = _createAndCommitCase();
+    function test_FulfillCaseValue_RevertIfNotCRE() public {
+        uint256 gameId = _createGameAndPickCase();
 
-        uint256 caseValue = 50;
-        bytes memory response = abi.encode(caseValue);
-        bytes memory err = "";
+        vm.prank(player);
+        game.openCase(gameId, 0);
 
-        bytes32 requestId = game.getFunctionsRequestId(gameId);
+        // Random address tries to fulfill — should revert
+        vm.expectRevert();
+        vm.prank(player);
+        game.fulfillCaseValue(gameId, 0, 50);
+    }
 
-        vm.expectEmit(true, true, true, true);
-        emit DealOrNotConfidential.CaseCollapsed(gameId, 0, 50);
+    function test_FulfillCaseValue_RevertIfInvalidValue() public {
+        uint256 gameId = _createGameAndPickCase();
 
-        vm.prank(functionsRouter);
-        game.fulfillRequest(requestId, response, err);
+        vm.prank(player);
+        game.openCase(gameId, 0);
+
+        // CRE tries to fulfill with a value not in the pool (999)
+        vm.expectRevert();
+        vm.prank(creForwarder);
+        game.fulfillCaseValue(gameId, 0, 999);
     }
 
     /*//////////////////////////////////////////////////////////////
-                         BANKER OFFER TESTS
+                        BANKER OFFER TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_SetBankerOffer() public {
-        uint256 gameId = _revealCaseAndGetOffer();
+        uint256 gameId = _openCaseAndFulfillCRE();
 
-        vm.prank(player); // Player is allowed banker (auto-added in createGame)
-        game.setBankerOffer(gameId, 25); // Offer $0.25
+        vm.prank(player);
+        game.setBankerOffer(gameId, 25);
 
-        (,,,uint8 phase,, uint256 bankerOffer,,,,,,) = game.getGameState(gameId);
+        (,,, uint8 phase,,,,
+         uint256 bankerOffer,,,,) = game.getGameState(gameId);
 
         assertEq(phase, PHASE_BANKER_OFFER, "Phase should be BankerOffer");
         assertEq(bankerOffer, 25, "Banker offer should be 25 cents");
     }
 
     function test_AcceptDeal() public {
-        uint256 gameId = _revealCaseAndGetOffer();
+        uint256 gameId = _openCaseAndFulfillCRE();
 
         vm.prank(player);
         game.setBankerOffer(gameId, 25);
@@ -304,14 +234,15 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.acceptDeal(gameId);
 
-        (,,,uint8 phase,,, uint256 finalPayout,,,,,) = game.getGameState(gameId);
+        (,,, uint8 phase,,,,,
+         uint256 finalPayout,,,) = game.getGameState(gameId);
 
-        assertEq(phase, 10, "Phase should be GameOver");
+        assertEq(phase, PHASE_GAME_OVER, "Phase should be GameOver");
         assertEq(finalPayout, 25, "Final payout should match offer");
     }
 
     function test_RejectDeal() public {
-        uint256 gameId = _revealCaseAndGetOffer();
+        uint256 gameId = _openCaseAndFulfillCRE();
 
         vm.prank(player);
         game.setBankerOffer(gameId, 25);
@@ -319,7 +250,9 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.rejectDeal(gameId);
 
-        (,,,uint8 phase, uint8 currentRound, uint256 bankerOffer,,,,,) = game.getGameState(gameId);
+        (,,, uint8 phase,,
+         uint8 currentRound,,
+         uint256 bankerOffer,,,,) = game.getGameState(gameId);
 
         assertEq(phase, PHASE_ROUND, "Phase should be Round");
         assertEq(currentRound, 1, "Round should increment");
@@ -327,59 +260,54 @@ contract DealOrNotConfidentialTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                           HELPER FUNCTIONS
+                      FINAL ROUND TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function _createGameAndFulfillVRF() internal returns (uint256 gameId) {
-        vm.prank(player);
-        gameId = game.createGame();
+    function test_KeepCase_FinalRound() public {
+        uint256 gameId = _playToFinalRound();
 
-        uint256 vrfRequestId = game.getVRFRequestId(gameId);
-        vrfCoordinator.fulfillRandomWords(vrfRequestId, address(game));
+        (,,, uint8 phase,,,,,,,,) = game.getGameState(gameId);
+        assertEq(phase, PHASE_FINAL_ROUND, "Should be in FinalRound");
+
+        // Player keeps their case
+        vm.prank(player);
+        game.keepCase(gameId);
+
+        (,,, phase,,,,,,,,) = game.getGameState(gameId);
+        assertEq(phase, PHASE_WAITING_FOR_FINAL_CRE, "Should be WaitingForFinalCRE");
     }
 
-    function _createGameAndPickCase() internal returns (uint256 gameId) {
-        gameId = _createGameAndFulfillVRF();
+    function test_GameSecret_Published() public {
+        uint256 gameId = _openCaseAndFulfillCRE();
 
+        // Accept deal to end game
         vm.prank(player);
-        game.pickCase(gameId, 2); // Pick case 2
+        game.setBankerOffer(gameId, 25);
+        vm.prank(player);
+        game.acceptDeal(gameId);
+
+        // CRE publishes the game secret
+        bytes32 secret = bytes32(uint256(0xdead));
+        vm.prank(creForwarder);
+        game.publishGameSecret(gameId, secret);
+
+        bytes32 publishedSecret = game.getGameSecret(gameId);
+        assertEq(publishedSecret, secret, "Secret should be published");
     }
 
-    function _createAndCommitCase() internal returns (uint256 gameId) {
-        gameId = _createGameAndPickCase();
+    function test_GameSecret_RevertIfNotGameOver() public {
+        uint256 gameId = _createGameAndPickCase();
 
-        uint8 caseIndex = 0;
-        uint256 salt = 12345;
-        uint256 commitHash = uint256(keccak256(abi.encodePacked(caseIndex, salt)));
-
-        vm.prank(player);
-        game.commitCase(gameId, commitHash);
-
-        vm.roll(block.number + 1);
-
-        vm.prank(player);
-        game.revealCase(gameId, caseIndex, salt);
-    }
-
-    function _revealCaseAndGetOffer() internal returns (uint256 gameId) {
-        gameId = _createAndCommitCase();
-
-        // Fulfill Functions request
-        uint256 caseValue = 50;
-        bytes memory response = abi.encode(caseValue);
-        bytes memory err = "";
-
-        bytes32 requestId = game.getFunctionsRequestId(gameId);
-
-        vm.prank(functionsRouter);
-        game.fulfillRequest(requestId, response, err);
+        vm.expectRevert();
+        vm.prank(creForwarder);
+        game.publishGameSecret(gameId, bytes32(uint256(0xdead)));
     }
 
     /*//////////////////////////////////////////////////////////////
-                          INTEGRATION TESTS
+                     FULL INTEGRATION TEST
     //////////////////////////////////////////////////////////////*/
 
-    function test_FullGameFlow() public {
+    function test_FullGameFlow_DealAccepted() public {
         // 1. Create game
         vm.prank(player);
         uint256 gameId = game.createGame();
@@ -392,22 +320,13 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.pickCase(gameId, 2);
 
-        // 4. Open case 0
-        uint256 salt = 12345;
-        uint256 commitHash = uint256(keccak256(abi.encodePacked(uint8(0), salt)));
-
+        // 4. Open case 0 — ONE TX, no commit-reveal!
         vm.prank(player);
-        game.commitCase(gameId, commitHash);
+        game.openCase(gameId, 0);
 
-        vm.roll(block.number + 1);
-
-        vm.prank(player);
-        game.revealCase(gameId, 0, salt);
-
-        // 5. Fulfill Functions
-        bytes32 requestId = game.getFunctionsRequestId(gameId);
-        vm.prank(functionsRouter);
-        game.fulfillRequest(requestId, abi.encode(uint256(1)), "");
+        // 5. CRE fulfills value (simulating enclave computation)
+        vm.prank(creForwarder);
+        game.fulfillCaseValue(gameId, 0, 1); // $0.01
 
         // 6. Banker makes offer
         vm.prank(player);
@@ -418,10 +337,19 @@ contract DealOrNotConfidentialTest is Test {
         game.acceptDeal(gameId);
 
         // Check final state
-        (,,,uint8 phase,,, uint256 finalPayout,,,,,) = game.getGameState(gameId);
+        (,,, uint8 phase,,,,,
+         uint256 finalPayout,,,) = game.getGameState(gameId);
 
-        assertEq(phase, 10, "Game should be over");
+        assertEq(phase, PHASE_GAME_OVER, "Game should be over");
         assertEq(finalPayout, 25, "Payout should be 25 cents");
+
+        // 8. CRE publishes secret for auditability
+        bytes32 secret = bytes32(uint256(0xbeef));
+        vm.prank(creForwarder);
+        game.publishGameSecret(gameId, secret);
+
+        bytes32 publishedSecret = game.getGameSecret(gameId);
+        assertEq(publishedSecret, secret, "Secret should be published");
     }
 
     function test_CalculateBankerOffer() public {
@@ -430,7 +358,6 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.pickCase(gameId, 2);
 
-        // Get initial offer (all values available)
         uint256 offer = game.calculateBankerOffer(gameId);
 
         assertTrue(offer > 0, "Offer should be positive");
@@ -446,5 +373,73 @@ contract DealOrNotConfidentialTest is Test {
         uint256 actualWei = game.centsToWei(gameId, 100);
 
         assertEq(actualWei, expectedWei, "Conversion should be correct");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        HELPER FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function _createGameAndFulfillVRF() internal returns (uint256 gameId) {
+        vm.prank(player);
+        gameId = game.createGame();
+
+        uint256 vrfRequestId = game.getVRFRequestId(gameId);
+        vrfCoordinator.fulfillRandomWords(vrfRequestId, address(game));
+    }
+
+    function _createGameAndPickCase() internal returns (uint256 gameId) {
+        gameId = _createGameAndFulfillVRF();
+
+        vm.prank(player);
+        game.pickCase(gameId, 2);
+    }
+
+    function _openCaseAndFulfillCRE() internal returns (uint256 gameId) {
+        gameId = _createGameAndPickCase();
+
+        // Player opens case 0 — single TX
+        vm.prank(player);
+        game.openCase(gameId, 0);
+
+        // CRE fulfills with value 50 ($0.50)
+        vm.prank(creForwarder);
+        game.fulfillCaseValue(gameId, 0, 50);
+    }
+
+    /// @dev Play through 3 cases to reach FinalRound (1 case left + player's case)
+    function _playToFinalRound() internal returns (uint256 gameId) {
+        gameId = _createGameAndPickCase(); // player case = 2
+
+        // Open case 0
+        vm.prank(player);
+        game.openCase(gameId, 0);
+        vm.prank(creForwarder);
+        game.fulfillCaseValue(gameId, 0, 1); // $0.01
+
+        // Reject deal round 0
+        vm.prank(player);
+        game.setBankerOffer(gameId, 10);
+        vm.prank(player);
+        game.rejectDeal(gameId);
+
+        // Open case 1
+        vm.prank(player);
+        game.openCase(gameId, 1);
+        vm.prank(creForwarder);
+        game.fulfillCaseValue(gameId, 1, 5); // $0.05
+
+        // Reject deal round 1
+        vm.prank(player);
+        game.setBankerOffer(gameId, 20);
+        vm.prank(player);
+        game.rejectDeal(gameId);
+
+        // Open case 3
+        vm.prank(player);
+        game.openCase(gameId, 3);
+        vm.prank(creForwarder);
+        game.fulfillCaseValue(gameId, 3, 10); // $0.10
+
+        // Now only case 4 + player's case 2 remain → FinalRound
     }
 }
