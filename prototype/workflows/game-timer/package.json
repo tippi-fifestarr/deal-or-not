@@ -1,9 +1,9 @@
 {
-  "name": "deal-or-not-sponsor-jackpot",
+  "name": "deal-or-not-game-timer",
   "version": "0.1.0",
   "main": "dist/main.js",
   "private": true,
-  "description": "CRE log-trigger workflow: add sponsor jackpot on each case opening",
+  "description": "CRE cron workflow: expire games older than 10 min and clear jackpots",
   "scripts": {
     "postinstall": "bun x cre-setup"
   },

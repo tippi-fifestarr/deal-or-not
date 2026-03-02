@@ -269,7 +269,10 @@ contract SponsorJackpot is Ownable, IReceiver {
         emit JackpotIncreased(gameId, amountCents, jackpots[gameId]);
     }
 
-    /// @dev Clear jackpot and refund to sponsor. Game must be over (expired or completed).
+    /// @dev Clear jackpot on game expiry. Zeros the cents ledger so the player
+    ///      can't claim. No ETH movement needed — addToJackpot only increments
+    ///      a cents counter; the sponsor's ETH balance is never debited until
+    ///      a successful claimJackpot(). Clearing just cancels the promise.
     function _clearExpiredJackpot(uint256 gameId) internal {
         if (claimed[gameId]) revert AlreadyClaimed();
 
@@ -283,11 +286,9 @@ contract SponsorJackpot is Ownable, IReceiver {
         (, , , uint8 phase, , , , , , , ,) = gameContract.getGameState(gameId);
         if (phase != PHASE_GAME_OVER) revert GameNotOver();
 
-        // Return jackpot to sponsor balance
+        // Zero the cents ledger — sponsor's ETH balance is unaffected
         claimed[gameId] = true;
         jackpots[gameId] = 0;
-        // Note: cents stay as cents in sponsor balance — not converted to ETH here
-        // The sponsor's ETH balance is separate from the jackpot cents
         emit JackpotCleared(gameId, sponsorAddr, pot);
     }
 }

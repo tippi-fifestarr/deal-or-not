@@ -298,17 +298,18 @@ const onCaseOpenRequested = (runtime: Runtime<Config>, log: EVMLog): string => {
 ## 7. CRE Sponsor Jackpot
 
 **Contract**: `prototype/contracts/src/SponsorJackpot.sol`
-**Workflow**: `prototype/workflows/sponsor-jackpot/workflow/main.ts`
-**Deployed**: `0x7B04840165E05877A772E3b1c71fE05399101De0` (Base Sepolia)
+**Workflow**: `prototype/workflows/sponsor-jackpot/main.ts`
+**Deployed**: `0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95` (Base Sepolia)
 
-Orthogonal to the case value hiding problem, the Sponsor Jackpot adds real economic incentive to the game. Sponsors deposit ETH, and a CRE workflow deposits random jackpot amounts into active games (triggered per case opening or via a 10-minute cron).
+Orthogonal to the case value hiding problem, the Sponsor Jackpot adds real economic incentive to the game. Sponsors deposit ETH, and a CRE log-trigger workflow deposits random jackpot amounts into active games on each case opening. A separate game-timer cron workflow (every 10 min) expires stale games and clears their jackpots.
 
 **How it works:**
 1. Sponsors register with name and logo, deposit ETH
-2. Sponsors assign themselves to games (`assignToGame(gameId)`)
-3. CRE cron workflow scans recent games, picks random jackpot amounts, calls `addToJackpot()`
+2. Sponsors assign themselves to games (`sponsorGame(gameId)`)
+3. CRE log-trigger workflow fires on each `CaseOpenRequested` event, picks a random jackpot amount from the top 2 remaining case values, calls `addToJackpot()`
 4. Player claims jackpot if they go "no deal" all the way (`totalCollapsed == 5`)
 5. Jackpot is converted from cents to ETH using the game's price snapshot
+6. If the game expires (10-min timer), a CRE cron workflow calls `expireGame()` + `clearExpiredJackpot()`
 
 This system is a **proving ground for CRE workflows** — it demonstrates event-driven CRE → on-chain writes, the exact pattern needed for confidential case reveals.
 
@@ -344,7 +345,8 @@ This system is a **proving ground for CRE workflows** — it demonstrates event-
 ├─────────────────────────────────────────────────────────────────┤
 │                    SPONSOR JACKPOT (Orthogonal)                 │
 │                                                                 │
-│  CRE Cron ──→ addToJackpot(gameId, amount)                     │
+│  CRE Log  ──→ addToJackpot(gameId, amount) on each case open   │
+│  CRE Cron ──→ expireGame() + clearExpiredJackpot() every 10min │
 │  Player   ──→ claimJackpot(gameId) if no-deal all the way      │
 │                                                                 │
 │  Sponsor deposits ETH → assigned to games → CRE distributes    │
@@ -368,8 +370,8 @@ This system is a **proving ground for CRE workflows** — it demonstrates event-
 ```
 VRF v2.5          → Seed generation (fairness) + lottery winner selection
 CRE + Vault DON   → Secret management (privacy)
-CRE Event Trigger  → Case reveals + prediction market settlement (automation)
-CRE Cron Trigger   → Sponsor jackpot deposits (automation)
+CRE Event Trigger  → Case reveals + sponsor jackpot deposits (automation)
+CRE Cron Trigger   → Game expiry + jackpot clearing every 10 min (automation)
 Price Feeds        → ETH/USD conversion (payout)
 CCIP              → Cross-chain staking and play (interoperability)
 ```
@@ -519,5 +521,5 @@ One transaction per round. No commit-reveal. No trusted scripts. No precomputati
 - `prototype/contracts/src/DealOrNot.sol` — Phase 2 base game (vulnerable to selective reveal)
 - `prototype/contracts/src/DealOrNotConfidential.sol` — Phase 4 CRE Confidential (the solution)
 - `prototype/contracts/src/SponsorJackpot.sol` — Sponsor jackpot system
-- `prototype/workflows/` — CRE workflows (sponsor-jackpot + confidential-reveal)
+- `prototype/workflows/` — CRE workflows (confidential-reveal, sponsor-jackpot, game-timer)
 - `legacy/` — Historical contracts and docs (see `legacy/README.md`)
