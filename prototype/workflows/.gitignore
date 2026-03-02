@@ -1,0 +1,4 @@
+# CRE secrets and keys
+project.yaml
+.env
+secrets.yaml

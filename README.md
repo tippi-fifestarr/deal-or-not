@@ -40,8 +40,8 @@ Values **don't exist** until a case is opened. Chainlink VRF provides a seed at 
 | ZKGameVerifier | [`0xc36e784e1dff616bdae4eac7b310f0934faf04a4`](https://sepolia.basescan.org/address/0xc36e784e1dff616bdae4eac7b310f0934faf04a4) |
 | MockGroth16Verifier | [`0xff196f1e3a895404d073b8611252cf97388773a7`](https://sepolia.basescan.org/address/0xff196f1e3a895404d073b8611252cf97388773a7) |
 | CashCase (Brodinger's) | [`0x2Db0a160BE59Aea46f33F900651FE819699beb52`](https://sepolia.basescan.org/address/0x2Db0a160BE59Aea46f33F900651FE819699beb52) |
-| **DealOrNotConfidential (CRE)** | [`0x9f9744D9c49b4E7B5DE85269042d1922Ba2A922F`](https://sepolia.basescan.org/address/0x9f9744D9c49b4E7B5DE85269042d1922Ba2A922F) |
-| **SponsorJackpot** | [`0x7B04840165E05877A772E3b1c71fE05399101De0`](https://sepolia.basescan.org/address/0x7B04840165E05877A772E3b1c71fE05399101De0) |
+| **DealOrNotConfidential (CRE)** | [`0x7A7121c668fD4CAFcf1e65cCEd408fAdfFdB0BEB`](https://sepolia.basescan.org/address/0x7A7121c668fD4CAFcf1e65cCEd408fAdfFdB0BEB) |
+| **SponsorJackpot** | [`0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95`](https://sepolia.basescan.org/address/0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95) |
 
 **CashCase VRF Config (Base Sepolia):**
 - VRF Coordinator: `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE`

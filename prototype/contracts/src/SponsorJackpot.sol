@@ -21,14 +21,20 @@ interface IDealOrNot {
     );
 }
 
+/// @notice IReceiver — Keystone Forwarder delivers CRE reports via this interface.
+interface IReceiver {
+    function onReport(bytes calldata metadata, bytes calldata report) external;
+}
+
 /// @title SponsorJackpot — CRE-powered sponsorship protocol for Deal or NOT
 /// @notice Sponsors register with branding (name, logo), deposit ETH, and
-///         assign themselves to games. A CRE cron workflow deposits a random
-///         amount into the active game's jackpot every 30 seconds.
-///         The jackpot only pays out if the player goes "no deal" all the way.
+///         assign themselves to games. A CRE log-trigger workflow adds to the
+///         jackpot on each case opening. The jackpot only pays out if the player
+///         goes "no deal" all the way. If the game expires (10 min timer), the
+///         jackpot is returned to the sponsor.
 ///
 ///         "This episode of Deal or NOT is sponsored by..."
-contract SponsorJackpot is Ownable {
+contract SponsorJackpot is Ownable, IReceiver {
 
     // ── Constants ──
     uint8 constant PHASE_GAME_OVER = 8;
@@ -58,6 +64,7 @@ contract SponsorJackpot is Ownable {
     event GameSponsored(uint256 indexed gameId, address indexed sponsor, string name);
     event JackpotIncreased(uint256 indexed gameId, uint256 amountCents, uint256 newTotal);
     event JackpotClaimed(uint256 indexed gameId, address indexed player, uint256 cents, uint256 weiPaid);
+    event JackpotCleared(uint256 indexed gameId, address indexed sponsor, uint256 amountCents);
 
     // ── Errors ──
     error NotAuthorized();
@@ -114,13 +121,44 @@ contract SponsorJackpot is Ownable {
     //                     CRE WRITES
     // ════════════════════════════════════════════════════════
 
-    /// @notice Add to a game's jackpot. Called by CRE cron workflow every 30s.
-    /// @dev Requires game to have an assigned sponsor.
+    /// @notice Add to a game's jackpot. Called by CRE log-trigger workflow on case opens.
     function addToJackpot(uint256 gameId, uint256 amountCents) external {
         if (msg.sender != keystoneForwarder && msg.sender != owner()) revert NotAuthorized();
-        if (gameSponsor[gameId] == address(0)) revert NoSponsor();
-        jackpots[gameId] += amountCents;
-        emit JackpotIncreased(gameId, amountCents, jackpots[gameId]);
+        _addToJackpot(gameId, amountCents);
+    }
+
+    /// @notice Clear a game's jackpot and return to sponsor. Called by CRE when game expires.
+    function clearExpiredJackpot(uint256 gameId) external {
+        if (msg.sender != keystoneForwarder && msg.sender != owner()) revert NotAuthorized();
+        _clearExpiredJackpot(gameId);
+    }
+
+    // ════════════════════════════════════════════════════════
+    //              IReceiver (KEYSTONE FORWARDER)
+    // ════════════════════════════════════════════════════════
+
+    /// @notice Called by KeystoneForwarder to deliver CRE workflow reports.
+    function onReport(bytes calldata /* metadata */, bytes calldata report) external override {
+        if (msg.sender != keystoneForwarder) revert NotAuthorized();
+
+        bytes4 selector = bytes4(report[:4]);
+
+        if (selector == this.addToJackpot.selector) {
+            (uint256 gameId, uint256 amountCents) =
+                abi.decode(report[4:], (uint256, uint256));
+            _addToJackpot(gameId, amountCents);
+        } else if (selector == this.clearExpiredJackpot.selector) {
+            (uint256 gameId) = abi.decode(report[4:], (uint256));
+            _clearExpiredJackpot(gameId);
+        } else {
+            revert("Unknown report selector");
+        }
+    }
+
+    /// @notice ERC165 — declares support for IReceiver.
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == type(IReceiver).interfaceId
+            || interfaceId == 0x01ffc9a7; // IERC165
     }
 
     // ════════════════════════════════════════════════════════
@@ -219,5 +257,37 @@ contract SponsorJackpot is Ownable {
         uint256 bal = address(this).balance;
         (bool ok,) = payable(to).call{value: bal}("");
         if (!ok) revert TransferFailed();
+    }
+
+    // ════════════════════════════════════════════════════════
+    //                  INTERNAL HELPERS
+    // ════════════════════════════════════════════════════════
+
+    function _addToJackpot(uint256 gameId, uint256 amountCents) internal {
+        if (gameSponsor[gameId] == address(0)) revert NoSponsor();
+        jackpots[gameId] += amountCents;
+        emit JackpotIncreased(gameId, amountCents, jackpots[gameId]);
+    }
+
+    /// @dev Clear jackpot and refund to sponsor. Game must be over (expired or completed).
+    function _clearExpiredJackpot(uint256 gameId) internal {
+        if (claimed[gameId]) revert AlreadyClaimed();
+
+        uint256 pot = jackpots[gameId];
+        if (pot == 0) revert NoJackpot();
+
+        address sponsorAddr = gameSponsor[gameId];
+        if (sponsorAddr == address(0)) revert NoSponsor();
+
+        // Verify game is over (expired games are set to GameOver by DealOrNotConfidential)
+        (, , , uint8 phase, , , , , , , ,) = gameContract.getGameState(gameId);
+        if (phase != PHASE_GAME_OVER) revert GameNotOver();
+
+        // Return jackpot to sponsor balance
+        claimed[gameId] = true;
+        jackpots[gameId] = 0;
+        // Note: cents stay as cents in sponsor balance — not converted to ETH here
+        // The sponsor's ETH balance is separate from the jackpot cents
+        emit JackpotCleared(gameId, sponsorAddr, pot);
     }
 }

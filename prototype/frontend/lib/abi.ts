@@ -89,6 +89,13 @@ export const DEAL_OR_NOT_ABI = [
   },
   {
     type: "function",
+    name: "getGameCreatedAt",
+    inputs: [{ name: "gameId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "NUM_CASES",
     inputs: [],
     outputs: [{ name: "", type: "uint8" }],
@@ -293,8 +300,18 @@ export const DEAL_OR_NOT_ABI = [
     ],
   },
 
+  {
+    type: "event",
+    name: "GameExpired",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+    ],
+  },
+
   // ── Errors ──
   { type: "error", name: "WrongPhase", inputs: [{ name: "expected", type: "uint8" }, { name: "actual", type: "uint8" }] },
+  { type: "error", name: "GameNotActive", inputs: [] },
+  { type: "error", name: "GameNotExpired", inputs: [] },
   { type: "error", name: "NotPlayer", inputs: [] },
   { type: "error", name: "NotHost", inputs: [] },
   { type: "error", name: "NotAllowedBanker", inputs: [] },

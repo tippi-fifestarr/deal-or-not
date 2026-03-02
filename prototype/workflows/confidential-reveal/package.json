@@ -1,14 +1,18 @@
 {
   "name": "deal-or-not-confidential-reveal",
   "version": "0.1.0",
+  "main": "dist/main.js",
   "private": true,
   "description": "CRE workflow for confidential case value reveals using enclave secrets",
-  "main": "workflow/main.ts",
+  "scripts": {
+    "postinstall": "bun x cre-setup"
+  },
+  "license": "UNLICENSED",
   "dependencies": {
-    "@chainlink/cre-sdk": "latest",
-    "viem": "^2.46.3"
+    "@chainlink/cre-sdk": "^1.1.1",
+    "viem": "^2.34.0"
   },
   "devDependencies": {
-    "typescript": "^5"
+    "@types/bun": "1.2.21"
   }
 }

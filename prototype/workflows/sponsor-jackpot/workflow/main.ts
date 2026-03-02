@@ -28,8 +28,8 @@
 //                    CONFIGURATION
 // ══════════════════════════════════════════════════════════
 
-const DEAL_OR_NOT_ADDR = "0x9f9744D9c49b4E7B5DE85269042d1922Ba2A922F";
-const SPONSOR_JACKPOT_ADDR = "0x7B04840165E05877A772E3b1c71fE05399101De0";
+const DEAL_OR_NOT_ADDR = "0x7A7121c668fD4CAFcf1e65cCEd408fAdfFdB0BEB";
+const SPONSOR_JACKPOT_ADDR = "0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95";
 const CHAIN_ID = 84532; // Base Sepolia
 
 // Game phases (from DealOrNot.sol)
