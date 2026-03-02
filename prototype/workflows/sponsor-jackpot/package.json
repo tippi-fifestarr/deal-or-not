@@ -1,0 +1,10 @@
+{
+  "name": "sponsor-jackpot-workflow",
+  "version": "1.0.0",
+  "description": "CRE cron workflow: sponsor jackpot for Deal or NOT",
+  "main": "workflow/main.ts",
+  "scripts": {
+    "simulate": "cre workflow simulate workflow --non-interactive --trigger-index 0",
+    "simulate:broadcast": "cre workflow simulate workflow --non-interactive --trigger-index 0 --broadcast"
+  }
+}

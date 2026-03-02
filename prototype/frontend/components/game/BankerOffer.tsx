@@ -9,6 +9,7 @@ interface BankerOfferProps {
   onAccept: () => void;
   onReject: () => void;
   isPending: boolean;
+  jackpotCents?: bigint;
 }
 
 export default function BankerOffer({
@@ -18,6 +19,7 @@ export default function BankerOffer({
   onAccept,
   onReject,
   isPending,
+  jackpotCents,
 }: BankerOfferProps) {
   const quality = dealQualityPercent(offerCents, remainingValues);
 
@@ -61,6 +63,19 @@ export default function BankerOffer({
             />
           </div>
         </div>
+
+        {/* Jackpot warning */}
+        {jackpotCents !== undefined && jackpotCents > 0n && (
+          <div className="bg-amber-900/30 border border-amber-700/40 rounded-xl p-3 mb-4 text-center">
+            <p className="text-amber-400 text-sm">
+              Jackpot if you go all the way:{" "}
+              <span className="font-bold text-amber-300">{centsToUsd(jackpotCents)}</span>
+            </p>
+            <p className="text-amber-600 text-xs mt-1">
+              Deal now and you forfeit the jackpot
+            </p>
+          </div>
+        )}
 
         {/* DEAL / NO DEAL buttons */}
         <div className="flex gap-4">

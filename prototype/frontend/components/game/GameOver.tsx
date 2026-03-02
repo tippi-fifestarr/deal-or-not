@@ -8,13 +8,25 @@ interface GameOverProps {
   gameState: GameState;
   payoutWei?: bigint;
   onPlayAgain: () => void;
+  jackpotCents?: bigint;
+  jackpotClaimed?: boolean;
+  onClaimJackpot?: () => void;
+  claimPending?: boolean;
+  sponsorName?: string;
 }
 
 export default function GameOver({
   gameState,
   payoutWei,
   onPlayAgain,
+  jackpotCents,
+  jackpotClaimed,
+  onClaimJackpot,
+  claimPending,
+  sponsorName,
 }: GameOverProps) {
+  const wentAllTheWay = gameState.totalCollapsed === NUM_CASES;
+  const hasJackpot = (jackpotCents !== undefined && jackpotCents > 0n) || jackpotClaimed;
   return (
     <div className="space-y-6 text-center">
       <h2 className="text-3xl font-bold text-amber-400">Game Over!</h2>
@@ -31,6 +43,49 @@ export default function GameOver({
           <p className="text-gray-400 text-sm mt-1">~{formatWei(payoutWei)}</p>
         )}
       </div>
+
+      {/* Jackpot outcome */}
+      {hasJackpot && (
+        <div className={`rounded-xl p-4 border ${
+          wentAllTheWay
+            ? "bg-amber-900/30 border-amber-500/50"
+            : "bg-gray-800/30 border-gray-700/50"
+        }`}>
+          {wentAllTheWay ? (
+            <div className="text-center space-y-2">
+              {jackpotClaimed ? (
+                <>
+                  <p className="text-green-400 font-bold text-lg">Jackpot Claimed!</p>
+                  <p className="text-gray-400 text-xs">Sponsored by {sponsorName || "Chainlink"} via CRE</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-amber-400 font-bold text-lg">
+                    Jackpot Won: {centsToUsd(jackpotCents ?? 0n)}
+                  </p>
+                  <p className="text-gray-400 text-xs">Sponsored by {sponsorName || "Chainlink"} via CRE</p>
+                  {onClaimJackpot && (
+                    <button
+                      className="bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-white font-bold py-2 px-6 rounded-xl transition-all disabled:opacity-50"
+                      onClick={onClaimJackpot}
+                      disabled={claimPending}
+                    >
+                      {claimPending ? "Claiming..." : "Claim Jackpot"}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="text-center">
+              <p className="text-gray-500">
+                Jackpot forfeited: <span className="line-through">{centsToUsd(jackpotCents ?? 0n)}</span>
+              </p>
+              <p className="text-gray-600 text-xs mt-1">You took the deal — jackpot requires going all the way</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* All cases revealed */}
       <div>
