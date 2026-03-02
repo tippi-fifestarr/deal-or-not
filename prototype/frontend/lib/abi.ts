@@ -15,7 +15,6 @@ export const DEAL_OR_NOT_ABI = [
       { name: "bankerOffer", type: "uint256" },
       { name: "finalPayout", type: "uint256" },
       { name: "ethPerDollar", type: "uint256" },
-      { name: "commitBlock", type: "uint256" },
       { name: "caseValues", type: "uint256[5]" },
       { name: "opened", type: "bool[5]" },
     ],
@@ -76,6 +75,20 @@ export const DEAL_OR_NOT_ABI = [
   },
   {
     type: "function",
+    name: "getGameSecret",
+    inputs: [{ name: "gameId", type: "uint256" }],
+    outputs: [{ name: "", type: "bytes32" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "verifyGame",
+    inputs: [{ name: "gameId", type: "uint256" }],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "NUM_CASES",
     inputs: [],
     outputs: [{ name: "", type: "uint8" }],
@@ -109,6 +122,13 @@ export const DEAL_OR_NOT_ABI = [
     outputs: [{ name: "", type: "address" }],
     stateMutability: "view",
   },
+  {
+    type: "function",
+    name: "creForwarder",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+  },
 
   // ── Write Functions ──
   {
@@ -130,21 +150,10 @@ export const DEAL_OR_NOT_ABI = [
   },
   {
     type: "function",
-    name: "commitCase",
-    inputs: [
-      { name: "gameId", type: "uint256" },
-      { name: "_commitHash", type: "uint256" },
-    ],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "revealCase",
+    name: "openCase",
     inputs: [
       { name: "gameId", type: "uint256" },
       { name: "caseIndex", type: "uint8" },
-      { name: "salt", type: "uint256" },
     ],
     outputs: [],
     stateMutability: "nonpayable",
@@ -175,22 +184,15 @@ export const DEAL_OR_NOT_ABI = [
   },
   {
     type: "function",
-    name: "commitFinalDecision",
-    inputs: [
-      { name: "gameId", type: "uint256" },
-      { name: "_commitHash", type: "uint256" },
-    ],
+    name: "keepCase",
+    inputs: [{ name: "gameId", type: "uint256" }],
     outputs: [],
     stateMutability: "nonpayable",
   },
   {
     type: "function",
-    name: "revealFinalDecision",
-    inputs: [
-      { name: "gameId", type: "uint256" },
-      { name: "swap", type: "bool" },
-      { name: "salt", type: "uint256" },
-    ],
+    name: "swapCase",
+    inputs: [{ name: "gameId", type: "uint256" }],
     outputs: [],
     stateMutability: "nonpayable",
   },
@@ -220,15 +222,15 @@ export const DEAL_OR_NOT_ABI = [
   },
   {
     type: "event",
-    name: "CaseCommitted",
+    name: "CaseOpenRequested",
     inputs: [
       { name: "gameId", type: "uint256", indexed: true },
-      { name: "round", type: "uint8", indexed: false },
+      { name: "caseIndex", type: "uint8", indexed: false },
     ],
   },
   {
     type: "event",
-    name: "CaseCollapsed",
+    name: "CaseRevealed",
     inputs: [
       { name: "gameId", type: "uint256", indexed: true },
       { name: "caseIndex", type: "uint8", indexed: false },
@@ -270,7 +272,7 @@ export const DEAL_OR_NOT_ABI = [
   },
   {
     type: "event",
-    name: "FinalCommitted",
+    name: "FinalCaseRequested",
     inputs: [{ name: "gameId", type: "uint256", indexed: true }],
   },
   {
@@ -282,16 +284,26 @@ export const DEAL_OR_NOT_ABI = [
       { name: "swapped", type: "bool", indexed: false },
     ],
   },
+  {
+    type: "event",
+    name: "GameSecretPublished",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+      { name: "secret", type: "bytes32", indexed: false },
+    ],
+  },
 
   // ── Errors ──
   { type: "error", name: "WrongPhase", inputs: [{ name: "expected", type: "uint8" }, { name: "actual", type: "uint8" }] },
   { type: "error", name: "NotPlayer", inputs: [] },
   { type: "error", name: "NotHost", inputs: [] },
   { type: "error", name: "NotAllowedBanker", inputs: [] },
+  { type: "error", name: "NotCREForwarder", inputs: [] },
   { type: "error", name: "InvalidCase", inputs: [{ name: "index", type: "uint8" }] },
   { type: "error", name: "CaseAlreadyOpened", inputs: [{ name: "index", type: "uint8" }] },
   { type: "error", name: "CannotOpenOwnCase", inputs: [] },
-  { type: "error", name: "TooEarlyToReveal", inputs: [] },
-  { type: "error", name: "RevealWindowExpired", inputs: [] },
-  { type: "error", name: "InvalidReveal", inputs: [] },
+  { type: "error", name: "InvalidValue", inputs: [] },
+  { type: "error", name: "GameNotOver", inputs: [] },
+  { type: "error", name: "SecretAlreadyPublished", inputs: [] },
+  { type: "error", name: "SecretVerificationFailed", inputs: [] },
 ] as const;

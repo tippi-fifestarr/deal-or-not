@@ -6,32 +6,30 @@ import VideoWait from "./VideoWait";
 import { Phase } from "@/types/game";
 import type { GameState } from "@/types/game";
 
-interface CommitRevealProps {
+interface CaseOpenerProps {
   gameState: GameState;
   gameId: bigint;
-  onCommit: (caseIndex: number) => Promise<void>;
-  onReveal: () => Promise<void>;
+  onOpenCase: (caseIndex: number) => Promise<void>;
   isPending: boolean;
 }
 
 export default function CommitReveal({
   gameState,
   gameId,
-  onCommit,
-  onReveal,
+  onOpenCase,
   isPending,
-}: CommitRevealProps) {
+}: CaseOpenerProps) {
   const [selectedCase, setSelectedCase] = useState<number | null>(null);
-  const isWaitingForReveal = gameState.phase === Phase.WaitingForReveal;
+  const isWaitingForCRE = gameState.phase === Phase.WaitingForCRE;
 
   const handleCaseClick = (index: number) => {
-    if (isPending || isWaitingForReveal) return;
+    if (isPending || isWaitingForCRE) return;
     setSelectedCase(index);
   };
 
-  const handleCommit = async () => {
+  const handleOpenCase = async () => {
     if (selectedCase === null) return;
-    await onCommit(selectedCase);
+    await onOpenCase(selectedCase);
     setSelectedCase(null);
   };
 
@@ -43,11 +41,11 @@ export default function CommitReveal({
         playerCase={gameState.playerCase}
         caseValues={gameState.caseValues}
         onCaseClick={handleCaseClick}
-        disabled={isPending || isWaitingForReveal}
+        disabled={isPending || isWaitingForCRE}
       />
 
-      {/* Commit step */}
-      {!isWaitingForReveal && (
+      {/* Select + Open step */}
+      {!isWaitingForCRE && (
         <div className="text-center space-y-3">
           {selectedCase !== null ? (
             <>
@@ -56,10 +54,10 @@ export default function CommitReveal({
               </p>
               <button
                 className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-3 px-8 rounded-xl transition-all disabled:opacity-50"
-                onClick={handleCommit}
+                onClick={handleOpenCase}
                 disabled={isPending}
               >
-                {isPending ? "Committing..." : "Commit Selection"}
+                {isPending ? "Opening..." : "Open Case"}
               </button>
             </>
           ) : (
@@ -68,20 +66,13 @@ export default function CommitReveal({
         </div>
       )}
 
-      {/* Reveal step — video interstitial during block wait */}
-      {isWaitingForReveal && (
+      {/* Waiting for CRE — video interstitial */}
+      {isWaitingForCRE && (
         <div className="text-center space-y-4">
           <VideoWait
-            message="Quantum collapse incoming..."
-            submessage="Waiting for next block confirmation"
+            message="Confidential compute in progress..."
+            submessage="CRE enclave is computing the case value"
           />
-          <button
-            className="bg-gradient-to-r from-amber-500 to-red-500 hover:from-amber-400 hover:to-red-400 text-white font-bold py-4 px-10 rounded-xl text-lg transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
-            onClick={onReveal}
-            disabled={isPending}
-          >
-            {isPending ? "Revealing..." : "REVEAL!"}
-          </button>
         </div>
       )}
     </div>

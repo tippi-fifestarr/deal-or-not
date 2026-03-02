@@ -1,6 +1,6 @@
 # Deal or NOT — Frontend
 
-Playable Deal or No Deal with quantum case collapse on Base Sepolia.
+Playable Deal or No Deal with CRE Confidential Compute on Base Sepolia.
 
 ## Quick Start
 
@@ -17,7 +17,7 @@ Open http://localhost:3000, connect MetaMask to Base Sepolia.
 1. **Add contract as VRF consumer** on the Chainlink VRF subscription (requires the subscription owner wallet):
    - Go to https://vrf.chain.link on Base Sepolia
    - Find subscription `20136374336138753384898843390506225296052091906296406953567310616148092014984`
-   - Add `0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124` as a consumer
+   - Add `0x9f9744D9c49b4E7B5DE85269042d1922Ba2A922F` as a consumer
 2. **Import a burner wallet** into MetaMask on Base Sepolia
    - Deployer PK: `0x671ea01f6ac1b2d53d49eea104c69e64680ddecc230e5faed864ecd055fbb6fd`
    - Player PK: `0x7bccdcecede835466aafe20ea5aa11bad825c5bea940473e4f865b8013fc2340`
@@ -29,7 +29,8 @@ All addresses are hardcoded in `lib/config.ts` — no `.env` needed.
 
 | Contract | Address |
 |----------|---------|
-| **DealOrNot** (commit-reveal) | `0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124` |
+| **DealOrNotConfidential** (CRE) | `0x9f9744D9c49b4E7B5DE85269042d1922Ba2A922F` |
+| **SponsorJackpot** | `0x7B04840165E05877A772E3b1c71fE05399101De0` |
 | VRF Coordinator | `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE` |
 | ETH/USD Price Feed | `0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1` |
 | LINK Token | `0xE4aB69C077896252FAFBD49EFD26B5D171A32410` |
@@ -45,13 +46,17 @@ VRF Subscription ID: `2013637433613875338489884339050622529605209190629640695356
 
 1. **New Game** — calls `createGame()`, requests Chainlink VRF seed
 2. **Pick Your Case** — choose 1 of 5 briefcases (value unknown — quantum superposition)
-3. **Rounds 1-3** — commit-reveal to open cases:
-   - Select a case -> **Commit** (TX1: hash of choice + salt stored in localStorage)
-   - Wait 1 block -> **Reveal** (TX2: case collapses with blockhash entropy)
+3. **Rounds 1-3** — CRE confidential case opening:
+   - Select a case -> **Open Case** (1 TX — no commit-reveal needed)
+   - CRE enclave computes the collapsed value using VRF seed + game secret
    - **Ring the Banker** -> on-chain offer calculated with EV + variance + psychology
    - **DEAL** (accept offer, game over) or **NO DEAL** (next round)
-4. **Final Decision** — 2 cases remain, commit-reveal: KEEP or SWAP
-5. **Game Over** — all cases revealed, final payout shown
+4. **Final Decision** — 2 cases remain: **KEEP** your case or **SWAP**
+5. **Game Over** — all cases revealed, final payout shown + jackpot if sponsored
+
+## Sponsor Jackpot (CRE Cron)
+
+A CRE cron workflow deposits a random sponsor amount into the active game's jackpot every 30 seconds. The amount is drawn from the range between the 2nd-highest and highest remaining case values. If the player goes "no deal" all the way, they can claim the jackpot.
 
 ## Tech Stack
 
@@ -59,6 +64,7 @@ VRF Subscription ID: `2013637433613875338489884339050622529605209190629640695356
 - wagmi v2 + viem v2 + TanStack Query
 - Tailwind CSS 4
 - Chainlink VRF v2.5 + Price Feeds (ETH/USD)
+- Chainlink CRE (Confidential Compute + Cron Workflows)
 
 ## Case Values
 
@@ -71,8 +77,7 @@ $0.01, $0.05, $0.10, $0.50, $1.00
 | `lib/config.ts` | All contract addresses and chain config |
 | `lib/abi.ts` | Contract ABI (from forge output) |
 | `hooks/useGameContract.ts` | All contract read/write hooks |
-| `hooks/useCommitReveal.ts` | Salt generation + localStorage persistence |
 | `components/game/GameBoard.tsx` | Main game orchestrator (9 phases) |
-| `components/game/CommitReveal.tsx` | Two-step commit -> reveal UX |
+| `components/game/CommitReveal.tsx` | CRE-powered 1-step case opening UX |
 | `components/game/BankerOffer.tsx` | DEAL/NO DEAL modal with quality bar |
 | `types/game.ts` | Phase enum + GameState interface |

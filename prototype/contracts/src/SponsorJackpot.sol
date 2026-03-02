@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-/// @dev Minimal interface to read DealOrNot game state.
+/// @dev Minimal interface to read DealOrNotConfidential game state.
 interface IDealOrNot {
     function getGameState(uint256 gameId) external view returns (
         address host,
@@ -16,7 +16,6 @@ interface IDealOrNot {
         uint256 bankerOffer,
         uint256 finalPayout,
         uint256 ethPerDollar,
-        uint256 commitBlock,
         uint256[5] memory caseValues,
         bool[5] memory opened
     );
@@ -151,7 +150,6 @@ contract SponsorJackpot is Ownable {
             , // bankerOffer
             , // finalPayout
             uint256 ethPerDollar,
-            , // commitBlock
             , // caseValues
               // opened
         ) = gameContract.getGameState(gameId);

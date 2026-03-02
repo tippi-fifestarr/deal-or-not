@@ -2,11 +2,11 @@ export enum Phase {
   WaitingForVRF = 0,
   Created = 1,
   Round = 2,
-  WaitingForReveal = 3,
+  WaitingForCRE = 3,
   AwaitingOffer = 4,
   BankerOffer = 5,
-  CommitFinal = 6,
-  WaitingForFinalReveal = 7,
+  FinalRound = 6,
+  WaitingForFinalCRE = 7,
   GameOver = 8,
 }
 
@@ -14,11 +14,11 @@ export const PHASE_NAMES: Record<Phase, string> = {
   [Phase.WaitingForVRF]: "Quantum Seed Incoming...",
   [Phase.Created]: "Pick Your Case",
   [Phase.Round]: "Choose a Case to Open",
-  [Phase.WaitingForReveal]: "Waiting for Reveal...",
+  [Phase.WaitingForCRE]: "CRE Computing Value...",
   [Phase.AwaitingOffer]: "Ring the Banker",
   [Phase.BankerOffer]: "The Banker Is Calling...",
-  [Phase.CommitFinal]: "Final Decision",
-  [Phase.WaitingForFinalReveal]: "Waiting for Final Reveal...",
+  [Phase.FinalRound]: "Final Decision",
+  [Phase.WaitingForFinalCRE]: "CRE Revealing Final Case...",
   [Phase.GameOver]: "Game Over",
 };
 
@@ -33,7 +33,6 @@ export interface GameState {
   bankerOffer: bigint;
   finalPayout: bigint;
   ethPerDollar: bigint;
-  commitBlock: bigint;
   caseValues: readonly bigint[];
   opened: readonly boolean[];
 }

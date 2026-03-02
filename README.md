@@ -40,7 +40,8 @@ Values **don't exist** until a case is opened. Chainlink VRF provides a seed at 
 | ZKGameVerifier | [`0xc36e784e1dff616bdae4eac7b310f0934faf04a4`](https://sepolia.basescan.org/address/0xc36e784e1dff616bdae4eac7b310f0934faf04a4) |
 | MockGroth16Verifier | [`0xff196f1e3a895404d073b8611252cf97388773a7`](https://sepolia.basescan.org/address/0xff196f1e3a895404d073b8611252cf97388773a7) |
 | CashCase (Brodinger's) | [`0x2Db0a160BE59Aea46f33F900651FE819699beb52`](https://sepolia.basescan.org/address/0x2Db0a160BE59Aea46f33F900651FE819699beb52) |
-| **DealOrNot (5-case commit-reveal)** | [`0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124`](https://sepolia.basescan.org/address/0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124) |
+| **DealOrNotConfidential (CRE)** | [`0x9f9744D9c49b4E7B5DE85269042d1922Ba2A922F`](https://sepolia.basescan.org/address/0x9f9744D9c49b4E7B5DE85269042d1922Ba2A922F) |
+| **SponsorJackpot** | [`0x7B04840165E05877A772E3b1c71fE05399101De0`](https://sepolia.basescan.org/address/0x7B04840165E05877A772E3b1c71fE05399101De0) |
 
 **CashCase VRF Config (Base Sepolia):**
 - VRF Coordinator: `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE`
@@ -260,9 +261,10 @@ deal-or-not/
 │   │   └── hooks/              # Custom wagmi hooks
 │   └── api/                # Backend API
 │
-├── prototype/              # 5-case quantum prototype (playable now!)
-│   ├── contracts/          # Foundry — DealOrNot.sol + BankerAlgorithm.sol
-│   └── frontend/           # Next.js 16 — npm install && npm run dev
+├── prototype/              # 5-case CRE Confidential prototype (playable now!)
+│   ├── contracts/          # Foundry — DealOrNotConfidential.sol + SponsorJackpot.sol
+│   ├── frontend/           # Next.js 16 — npm install && npm run dev
+│   └── workflows/          # CRE workflows (sponsor-jackpot, confidential-reveal)
 │
 deal/                       # Schrödinger's Case contracts (Hardhat)
 ├── contracts/
@@ -276,7 +278,7 @@ deal/                       # Schrödinger's Case contracts (Hardhat)
 ## Sponsor Technologies
 
 - **Base** — Primary deployment chain (Base Sepolia)
-- **Chainlink** — VRF v2.5 for provably fair randomness, Price Feeds for USD values
+- **Chainlink** — VRF v2.5 for provably fair randomness, Price Feeds for USD values, CRE for confidential compute + sponsor jackpot cron
 - **Scaffold-ETH 2** — Development framework and UI components
 
 ## License
