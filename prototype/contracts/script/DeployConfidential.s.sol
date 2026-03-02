@@ -9,11 +9,11 @@ import {DealOrNotConfidential} from "../src/DealOrNotConfidential.sol";
 contract DeployConfidential is Script {
     // Base Sepolia Chainlink Config
     address constant VRF_COORDINATOR = 0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE;
-    bytes32 constant VRF_KEY_HASH = 0x9e9e46732b32662b9adc6f3abdf6c5e61eb4a4813c6c22dbb5923968e7f69b9f; // 500 gwei
+    bytes32 constant VRF_KEY_HASH = 0x9e1344a1247c8a1785d0a4681a27152bffdb43666ae5bf7d14d24a5efd44bf71;
     address constant ETH_USD_PRICE_FEED = 0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1;
 
     // User-provided subscription IDs
-    uint256 constant VRF_SUBSCRIPTION_ID = 33463597817054297358581832393667208607971753497855037687300387869698162762494;
+    uint256 constant VRF_SUBSCRIPTION_ID = 20136374336138753384898843390506225296052091906296406953567310616148092014984;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
