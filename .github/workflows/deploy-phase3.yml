@@ -1,0 +1,47 @@
+name: Deploy Phase 3 to Base Sepolia
+
+on:
+  workflow_dispatch:
+
+env:
+  FOUNDRY_PROFILE: default
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install dependencies
+        working-directory: prototype/contracts
+        run: forge install
+
+      - name: Build contracts
+        working-directory: prototype/contracts
+        run: forge build --force
+
+      - name: Deploy DealOrNotConfidential
+        working-directory: prototype/contracts
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          RPC_URL: ${{ secrets.RPC_URL }}
+          FUNCTIONS_SUBSCRIPTION_ID: ${{ secrets.FUNCTIONS_SUBSCRIPTION_ID }}
+        run: |
+          forge script script/DeployConfidential.s.sol:DeployConfidential \
+            --rpc-url $RPC_URL \
+            --private-key $PRIVATE_KEY \
+            --broadcast \
+            -vvvv
+
+      - name: Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-artifacts
+          path: prototype/contracts/broadcast/
