@@ -27,6 +27,16 @@ import GameOver from "./GameOver";
 import VideoWait from "./VideoWait";
 import JackpotDisplay from "./JackpotDisplay";
 import { centsToUsd } from "@/lib/utils";
+import {
+  GlassBriefcase,
+  GlassBriefcaseGrid,
+  GlassBankerOffer,
+  GlassGameStatus,
+  GlassExpectedValue,
+  GlassFloatingActionBar,
+  GlassButton,
+  GlassCard,
+} from "../glass";
 
 const EMPTY_OPENED = [false, false, false, false, false] as const;
 const EMPTY_VALUES = [0n, 0n, 0n, 0n, 0n] as const;
@@ -53,6 +63,7 @@ export default function GameBoard() {
   const [error, setError] = useState<string | null>(null);
   const [txPending, setTxPending] = useState(false);
   const [spectatorMode, setSpectatorMode] = useState(false);
+  const [showBankerOfferModal, setShowBankerOfferModal] = useState(false);
 
   const { gameState, refetch } = useGameState(gameId);
   const { nextGameId } = useNextGameId();
@@ -64,10 +75,12 @@ export default function GameBoard() {
   const jackpotClaimed = useJackpotClaimed(gameId);
   const sponsorInfo = useGameSponsor(gameId);
 
-  // Jackpot + sponsor state
-  const { jackpotCents } = useJackpot(gameId);
-  const jackpotClaimed = useJackpotClaimed(gameId);
-  const sponsorInfo = useGameSponsor(gameId);
+  // Show banker offer modal when phase changes to BankerOffer
+  useEffect(() => {
+    if (gameState?.phase === Phase.BankerOffer) {
+      setShowBankerOfferModal(true);
+    }
+  }, [gameState?.phase]);
 
   // Calculate banker offer when in AwaitingOffer phase
   const isAwaitingOffer = gameState?.phase === Phase.AwaitingOffer;
@@ -182,11 +195,13 @@ export default function GameBoard() {
 
   const handleAcceptDeal = async () => {
     if (gameId === undefined) return;
+    setShowBankerOfferModal(false);
     try { await sendTx("acceptDeal", [gameId]); } catch {}
   };
 
   const handleRejectDeal = async () => {
     if (gameId === undefined) return;
+    setShowBankerOfferModal(false);
     try { await sendTx("rejectDeal", [gameId]); } catch {}
   };
 
@@ -311,24 +326,29 @@ export default function GameBoard() {
     return (
       <div className="max-w-lg mx-auto text-center py-10 space-y-8">
         <div>
-          <h1 className="text-5xl font-bold text-amber-400 tracking-tight">
+          <h1 className="text-5xl font-bold text-white tracking-tight mb-2">
             Deal or NOT
           </h1>
-          <p className="text-gray-500 mt-2">
-            {address && <span className="text-xs">{address.slice(0, 6)}...{address.slice(-4)}</span>}
-            {balance && <span> &middot; {(Number(balance.value) / 1e18).toFixed(4)} ETH</span>}
-          </p>
+          <GlassCard className="p-3 inline-block">
+            <p className="text-white/70 text-sm">
+              {address && <span className="text-xs">{address.slice(0, 6)}...{address.slice(-4)}</span>}
+              {balance && <span> &middot; {(Number(balance.value) / 1e18).toFixed(4)} ETH</span>}
+            </p>
+          </GlassCard>
         </div>
 
-        <button
-          className="w-full bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-white font-bold py-4 px-8 rounded-xl text-lg transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
+        <GlassButton
+          variant="prominent"
+          tint="green"
+          size="lg"
           onClick={handleCreateGame}
           disabled={txPending}
+          className="w-full text-xl"
         >
-          {txPending ? "Creating Game..." : "New Game"}
-        </button>
+          {txPending ? "Creating Game..." : "New Game 🎲"}
+        </GlassButton>
 
-        <div className="text-gray-600 text-sm">or join existing</div>
+        <div className="text-white/60 text-sm">or join existing</div>
 
         <div className="flex gap-2">
           <input
@@ -337,21 +357,26 @@ export default function GameBoard() {
             value={joinInput}
             onChange={(e) => setJoinInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleJoinGame()}
-            className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-amber-500 focus:outline-none"
+            className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white focus:border-white/40 focus:outline-none backdrop-blur-md"
           />
-          <button
-            className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl transition-colors"
+          <GlassButton
+            variant="prominent"
+            tint="blue"
             onClick={handleJoinGame}
           >
             Join
-          </button>
+          </GlassButton>
         </div>
 
-        {error && <p className="text-red-400 text-sm">{error}</p>}
+        {error && (
+          <GlassCard className="p-3 bg-red-500/10 border-red-500/30">
+            <p className="text-red-400 text-sm">{error}</p>
+          </GlassCard>
+        )}
 
         <button
           onClick={() => disconnect()}
-          className="text-gray-600 text-xs hover:text-gray-400 transition-colors"
+          className="text-white/60 text-xs hover:text-white/90 transition-colors"
         >
           Disconnect
         </button>
@@ -390,12 +415,11 @@ export default function GameBoard() {
         </div>
       )}
 
-      <GameStatus
-        phase={phase}
-        currentRound={gameState.currentRound}
-        gameId={gameId}
-        player={gameState.player}
-        isPlayer={isPlayer}
+      <GlassGameStatus
+        phase={phase.toString()}
+        round={gameState.currentRound}
+        maxRounds={4}
+        playerAddress={isPlayer ? gameState.player : undefined}
       />
 
       {/* Jackpot display — shown during active gameplay */}
@@ -418,17 +442,25 @@ export default function GameBoard() {
       {/* Phase: Created — pick your case */}
       {phase === Phase.Created && (
         <div className="text-center space-y-6">
-          <p className="text-blue-300 text-lg">
-            Choose a briefcase to keep as yours
-          </p>
-          <BriefcaseRow
-            opened={EMPTY_OPENED}
-            playerCase={-1}
-            caseValues={EMPTY_VALUES}
-            onCaseClick={handlePickCase}
-            disabled={txPending}
-            selectMode
-          />
+          <GlassCard className="p-6 mb-4">
+            <p className="text-white/90 text-xl font-semibold">
+              Choose a briefcase to keep as yours
+            </p>
+          </GlassCard>
+
+          <GlassBriefcaseGrid columns={5}>
+            {[0, 1, 2, 3, 4].map((caseIndex) => (
+              <GlassBriefcase
+                key={caseIndex}
+                caseNumber={caseIndex}
+                opened={false}
+                playerCase={false}
+                disabled={txPending}
+                onClick={() => handlePickCase(caseIndex)}
+              />
+            ))}
+          </GlassBriefcaseGrid>
+
           {txPending && (
             <p className="text-amber-400 animate-pulse">Picking case...</p>
           )}
@@ -488,22 +520,32 @@ export default function GameBoard() {
           <div className="flex gap-8 justify-center items-start">
             <ValueBoard eliminatedValues={eliminatedValues} />
             <div className="flex-1">
-              <BriefcaseRow
-                opened={gameState.opened}
-                playerCase={gameState.playerCase}
-                caseValues={gameState.caseValues}
-                disabled
-              />
+              <GlassBriefcaseGrid columns={5}>
+                {[0, 1, 2, 3, 4].map((caseIndex) => (
+                  <GlassBriefcase
+                    key={caseIndex}
+                    caseNumber={caseIndex}
+                    opened={gameState.opened[caseIndex]}
+                    playerCase={gameState.playerCase === caseIndex}
+                    value={gameState.opened[caseIndex] ? Number(gameState.caseValues[caseIndex]) : undefined}
+                    disabled
+                  />
+                ))}
+              </GlassBriefcaseGrid>
             </div>
           </div>
-          <BankerOffer
-            offerCents={gameState.bankerOffer}
-            offerWei={offerWei}
-            remainingValues={remainingValues ?? []}
-            onAccept={handleAcceptDeal}
-            onReject={handleRejectDeal}
-            isPending={txPending}
-            jackpotCents={jackpotCents}
+
+          {/* Glass Banker Offer Modal */}
+          <GlassBankerOffer
+            offer={Number(gameState.bankerOffer)}
+            expectedValue={remainingValues
+              ? remainingValues.reduce((sum, val) => sum + Number(val), 0) / remainingValues.length
+              : Number(gameState.bankerOffer)}
+            round={gameState.currentRound}
+            quip="Make your choice wisely..."
+            onDeal={handleAcceptDeal}
+            onNoDeal={handleRejectDeal}
+            isOpen={showBankerOfferModal}
           />
         </>
       )}
