@@ -1,0 +1,6 @@
+{
+  "contractAddress": "0x7A7121c668fD4CAFcf1e65cCEd408fAdfFdB0BEB",
+  "chainSelectorName": "ethereum-testnet-sepolia-base-1",
+  "gasLimit": "500000",
+  "geminiModel": "gemini-2.5-flash"
+}

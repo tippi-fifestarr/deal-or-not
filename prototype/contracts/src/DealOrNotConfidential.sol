@@ -56,6 +56,9 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, IReceiver {
     // ── CRE Config ──
     address public creForwarder;     // Keystone Forwarder — authorized CRE workflow address
 
+    // ── CCIP Config ──
+    address public ccipBridge;       // Authorized CCIP bridge for cross-chain joins
+
     // ── Enums ──
     enum GameMode { SinglePlayer, MultiPlayer }
     enum Phase {
@@ -120,6 +123,8 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, IReceiver {
     event FinalCaseRequested(uint256 indexed gameId);
     event GameResolved(uint256 indexed gameId, uint256 payoutCents, bool swapped);
     event GameSecretPublished(uint256 indexed gameId, bytes32 secret);
+    event BankerMessage(uint256 indexed gameId, string message);
+    event PlayerJoinedCrossChain(uint256 indexed gameId, address indexed player);
     event GameExpired(uint256 indexed gameId);
     event FundsRescued(address indexed to, uint256 amount);
 
@@ -140,6 +145,9 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, IReceiver {
     error GameNotExpired();
     error NoFundsToRescue();
     error TransferFailed();
+    error NotCCIPBridge();
+    error GameAlreadyHasPlayer();
+    error MessageTooLong();
 
     // ── Constructor ──
     constructor(
@@ -285,15 +293,17 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, IReceiver {
 
     /// @notice Banker sets offer.
     function setBankerOffer(uint256 gameId, uint256 offerCents) external {
-        Game storage g = _games[gameId];
-        _requirePhase(g, Phase.AwaitingOffer);
-        Banker storage b = gameBankers[gameId][msg.sender];
-        if (!b.isAllowed || b.isBanned) revert NotAllowedBanker();
+        _requireBankerAuth(gameId);
+        _setBankerOffer(gameId, offerCents);
+    }
 
-        g.bankerOffer = offerCents;
-        g.phase = Phase.BankerOffer;
-
-        emit BankerOfferMade(gameId, g.currentRound, offerCents);
+    /// @notice Banker sets offer with an LLM-generated personality message.
+    ///         Used by the AI Banker CRE workflow (Gemini).
+    function setBankerOfferWithMessage(uint256 gameId, uint256 offerCents, string calldata message) external {
+        _requireBankerAuth(gameId);
+        if (bytes(message).length > 512) revert MessageTooLong();
+        _setBankerOffer(gameId, offerCents);
+        emit BankerMessage(gameId, message);
     }
 
     /// @notice DEAL — accept the banker's offer. Game over.
@@ -374,6 +384,21 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, IReceiver {
     }
 
     // ════════════════════════════════════════════════════════
+    //              CCIP CROSS-CHAIN JOIN
+    // ════════════════════════════════════════════════════════
+
+    /// @notice Join a game from another chain via the CCIP bridge.
+    ///         Only callable by the authorized bridge contract.
+    function joinGameCrossChain(uint256 gameId, address player) external {
+        if (msg.sender != ccipBridge) revert NotCCIPBridge();
+        Game storage g = _games[gameId];
+        _requirePhase(g, Phase.Created);
+        if (g.player != g.host) revert GameAlreadyHasPlayer();
+        g.player = player;
+        emit PlayerJoinedCrossChain(gameId, player);
+    }
+
+    // ════════════════════════════════════════════════════════
     //              IReceiver (KEYSTONE FORWARDER)
     // ════════════════════════════════════════════════════════
 
@@ -389,6 +414,10 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, IReceiver {
             (uint256 gameId, uint8 caseIndex, uint256 valueCents) =
                 abi.decode(report[4:], (uint256, uint8, uint256));
             _fulfillCaseValue(gameId, caseIndex, valueCents);
+        } else if (selector == this.setBankerOfferWithMessage.selector) {
+            (uint256 gameId, uint256 offerCents, string memory message) =
+                abi.decode(report[4:], (uint256, uint256, string));
+            _setBankerOfferWithMessage(gameId, offerCents, message);
         } else if (selector == this.publishGameSecret.selector) {
             (uint256 gameId, bytes32 secret) =
                 abi.decode(report[4:], (uint256, bytes32));
@@ -552,6 +581,11 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, IReceiver {
         creForwarder = _creForwarder;
     }
 
+    /// @notice Owner can set the authorized CCIP bridge address.
+    function setCCIPBridge(address _ccipBridge) external onlyOwner {
+        ccipBridge = _ccipBridge;
+    }
+
     receive() external payable {}
 
     // ════════════════════════════════════════════════════════
@@ -653,6 +687,22 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, IReceiver {
         emit GameSecretPublished(gameId, secret);
     }
 
+    function _setBankerOffer(uint256 gameId, uint256 offerCents) internal {
+        Game storage g = _games[gameId];
+        _requirePhase(g, Phase.AwaitingOffer);
+
+        g.bankerOffer = offerCents;
+        g.phase = Phase.BankerOffer;
+
+        emit BankerOfferMade(gameId, g.currentRound, offerCents);
+    }
+
+    function _setBankerOfferWithMessage(uint256 gameId, uint256 offerCents, string memory message) internal {
+        if (bytes(message).length > 512) revert MessageTooLong();
+        _setBankerOffer(gameId, offerCents);
+        emit BankerMessage(gameId, message);
+    }
+
     function _expireGame(uint256 gameId) internal {
         Game storage g = _games[gameId];
         if (g.phase == Phase.GameOver) revert GameNotActive();
@@ -746,6 +796,11 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, IReceiver {
 
     function _requirePhase(Game storage g, Phase expected) internal view {
         if (g.phase != expected) revert WrongPhase(expected, g.phase);
+    }
+
+    function _requireBankerAuth(uint256 gameId) internal view {
+        Banker storage b = gameBankers[gameId][msg.sender];
+        if (!b.isAllowed || b.isBanned) revert NotAllowedBanker();
     }
 
     function _requireCRE() internal view {
