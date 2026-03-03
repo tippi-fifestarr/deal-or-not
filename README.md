@@ -133,7 +133,21 @@ npm run dev
 # Visit http://localhost:3000
 ```
 
-### Play via CLI (with CRE simulates)
+### Two Testing Modes
+
+**Human Player** — play in the browser, `cre-support.sh` handles CRE automatically:
+
+```bash
+cd prototype/frontend && npm run dev      # Terminal 1: start frontend
+
+cd prototype && source scripts/env.sh     # Terminal 2: CRE auto-support
+# Create game in browser with MetaMask, then:
+zsh scripts/cre-support.sh <GID>          # Watches game, auto-runs all CRE workflows
+```
+
+The script polls game state every 5s and auto-triggers CRE reveals, AI Banker (Gemini 2.5 Flash), and sponsor jackpot as you play. Just play in the browser — the script handles the rest.
+
+**Claude / AI Agent** — full CLI game + Playwright UI verification:
 
 ```bash
 cd prototype
@@ -147,7 +161,11 @@ zsh scripts/cre-banker.sh <REVEAL_TX>     # AI Banker + Gemini message
 zsh scripts/play-game.sh reject <GID>     # NO DEAL!
 ```
 
-**Full E2E walkthrough and CRE trigger map:** see [`prototype/contracts/README.md`](prototype/contracts/README.md)
+Claude can play end-to-end via `cast send` (no wallet needed), then verify the frontend with Playwright screenshots in spectator mode. State checks via `play-game.sh state <GID>`.
+
+**Script architecture**: `cre-support.sh` is the meta script that watches a game and auto-runs the right CRE workflow at each phase. Under the hood it calls micro scripts: `cre-reveal.sh` (confidential reveal), `cre-banker.sh` (AI Banker + Gemini), `cre-jackpot.sh` (sponsor jackpot), `cre-timer.sh` (game expiry). In CLI mode, Claude calls the micro scripts directly.
+
+**Full E2E walkthroughs, CRE trigger map, and sponsor setup:** see [`prototype/contracts/README.md`](prototype/contracts/README.md)
 
 ### Build Contracts
 

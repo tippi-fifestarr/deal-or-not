@@ -64,23 +64,40 @@ Independent (no player action needed):
 
 ## Two Testing Modes
 
-### CLI Mode (cast + scripts)
+### Mode 1: Claude / AI Agent (CLI + Playwright)
 
-All actions via `play-game.sh`, all CRE via scripts. Good for Claude, automated testing, spectator demos.
+Claude (or any AI agent) can play a full game end-to-end without a browser wallet. All player actions use `cast send` via `play-game.sh`, all CRE workflows run via scripts, and the frontend can be verified with Playwright screenshots.
 
-**Who**: Claude, developers testing in terminal
+**Who**: Claude Code, CI pipelines, automated E2E tests
 
-**How it works**: You run every command yourself — player actions AND CRE simulates.
+**Flow**:
+1. Player actions via `play-game.sh` (create, pick, open, accept/reject)
+2. CRE workflows via `cre-reveal.sh`, `cre-banker.sh`, `cre-jackpot.sh`
+3. State checks via `play-game.sh state <GID>`
+4. UI verification via Playwright MCP (`browser_navigate`, `browser_snapshot`, `browser_take_screenshot`)
 
-### Browser Mode (wallet + UI)
+Claude can run a complete game loop: create → pick → open → reveal → banker → deal/not → repeat. After each step, Playwright can screenshot the frontend (spectator mode, no wallet needed) to verify the UI reflects on-chain state.
 
-Player acts in the frontend at `localhost:3000`. Someone (Claude, you, Ryan) runs CRE simulates in a terminal when the game gets stuck in WaitingCRE or AwaitingOffer.
+### Mode 2: Human Player (Browser + `cre-support.sh`)
 
-**Who**: Player in browser, helper in terminal
+A human plays in the browser with MetaMask. The `cre-support.sh` script runs in a terminal and automatically handles all CRE workflows as the game progresses.
 
-**How it works**: Player creates game / picks case / opens cases in the UI. When the UI shows "Waiting for CRE..." or "Waiting for Banker...", the terminal helper runs the appropriate `cre-*.sh` script.
+**Who**: Human player in browser, `cre-support.sh` in terminal
+
+**Flow**:
+1. Start frontend: `cd prototype/frontend && npm run dev`
+2. Connect wallet at `localhost:3000`, create game
+3. In terminal: `zsh scripts/cre-support.sh <GID>`
+4. Play in browser — the script auto-runs reveals, AI Banker (Gemini), and jackpot
+5. When the banker offer appears (with Gemini personality message), choose Deal or NOT
+
+The script polls game state every 5 seconds, detects phase transitions, finds the relevant TX hashes from recent blocks, and runs the appropriate CRE workflow. If the AI Banker TX can't be found, it falls back to the on-chain algorithm via `play-game.sh ring`.
+
+**Note**: CRE workflows are in simulate mode (not deployed to DON). In production, all four workflows would fire automatically from on-chain events — no helper script needed.
 
 ## Scripts Reference
+
+There are two layers of scripts: **micro scripts** that each run one CRE workflow, and a **meta script** (`cre-support.sh`) that watches a game and auto-runs the right micro scripts at the right time.
 
 | Script | Purpose | Usage |
 |---|---|---|
@@ -97,6 +114,7 @@ Player acts in the frontend at `localhost:3000`. Someone (Claude, you, Ryan) run
 | `cre-banker.sh <REVEAL_TX>` | AI Banker + Gemini | reveal TX hash |
 | `cre-jackpot.sh <TX>` | Sponsor jackpot (optional) | openCase TX hash |
 | `cre-timer.sh` | Game timer (optional) | No args |
+| `cre-support.sh <GID>` | **Auto-CRE** — watches game, runs all CRE automatically | Game ID |
 
 ## Full E2E Walkthrough (CLI Mode)
 
@@ -162,18 +180,32 @@ zsh scripts/play-game.sh ring <GID>
 
 ## Full E2E Walkthrough (Browser Mode)
 
+**Recommended:** Use `cre-support.sh` — it watches the game and auto-runs all CRE workflows:
+
 ```bash
 # Terminal 1: Start frontend
 cd prototype/frontend && npm run dev
 
-# Browser: Connect wallet at localhost:3000
-# Browser: Create game → wait for VRF (~60s)
-# Browser: Pick case → open case
-
-# Terminal 2: Run CRE when UI shows "Waiting..."
+# Terminal 2: Start CRE auto-support
 cd prototype
 source scripts/env.sh
 
+# Browser: Connect wallet at localhost:3000
+# Browser: Create game → wait for VRF (~60s)
+# Once you have the game ID:
+zsh scripts/cre-support.sh <GID>
+
+# Now just play in the browser!
+# The script auto-detects phase changes and runs:
+#   WaitingForCRE   → cre-reveal.sh + cre-jackpot.sh
+#   AwaitingOffer   → cre-banker.sh (Gemini AI message)
+#   WaitingFinalCRE → cre-reveal.sh (final cases)
+#   GameOver        → prints final state and exits
+```
+
+**Manual mode** (if you prefer running each CRE step yourself):
+
+```bash
 # When UI says "Waiting for CRE reveal..."
 zsh scripts/cre-reveal.sh <TX_FROM_UI>
 
@@ -184,6 +216,32 @@ zsh scripts/cre-banker.sh <REVEAL_TX>
 ```
 
 **Tip:** The TX hash from `openCase` is visible in the browser's wallet confirmation or the terminal's transaction receipt. The reveal TX hash is printed at the end of `cre-reveal.sh` output.
+
+## Sponsor Jackpot Setup (Optional)
+
+The `sponsor-jackpot` CRE workflow adds bonus jackpot amounts each time a case is opened. For it to work, a sponsor must register and fund a game:
+
+```bash
+source scripts/env.sh
+SPONSOR_JACKPOT="0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95"
+
+# 1. Register as a sponsor (sends initial ETH deposit)
+cast send "$SPONSOR_JACKPOT" "registerSponsor(string,string)" \
+  "MyBrand" "https://example.com/logo.png" \
+  --value 0.01ether --private-key "$DEPLOYER_KEY" --rpc-url "$RPC_URL"
+
+# 2. Sponsor a specific game
+cast send "$SPONSOR_JACKPOT" "sponsorGame(uint256)" <GAME_ID> \
+  --private-key "$DEPLOYER_KEY" --rpc-url "$RPC_URL"
+
+# 3. (Later) Top up sponsor balance
+cast send "$SPONSOR_JACKPOT" "topUp()" \
+  --value 0.01ether --private-key "$DEPLOYER_KEY" --rpc-url "$RPC_URL"
+```
+
+**Without a sponsor**, the game works normally — the CRE jackpot workflow runs but skips gracefully ("no sponsor assigned"). The player just won't accumulate a jackpot bonus.
+
+**How it works**: Each time a case is opened, the CRE `sponsor-jackpot` workflow picks a random jackpot amount based on the top 2 remaining case values and calls `addToJackpot()` on the SponsorJackpot contract. At game end, the player can claim their accumulated jackpot.
 
 ## Gemini API Key
 
