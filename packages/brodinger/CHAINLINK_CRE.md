@@ -60,3 +60,14 @@ CRE integration strengthens our pitch for:
 ## TL;DR
 
 CRE is powerful but solves a different problem than our mocks. It's an orchestration layer, not a testing framework. Our Hardhat mocks stay. But CRE could be the backbone for our AI agent system — agents as CRE workflows making consensus-verified decisions. Worth exploring as a "phase 2" integration or mentioning in the pitch as future architecture.
+
+---
+
+> **Update (March 2026):** CRE was fully integrated and is now the core of the prototype. Four CRE workflows are built and E2E tested on Base Sepolia:
+>
+> 1. **confidential-reveal** — CRE Confidential Compute replaces commit-reveal entirely. Values are derived from VRF seed + CRE-held secret, written via Keystone Forwarder. 1 TX per round.
+> 2. **sponsor-jackpot** — Log-trigger on CaseOpenRequested. Picks random jackpot amount from top 2 remaining values, writes addToJackpot().
+> 3. **game-timer** — Cron trigger every 10 min. Expires stale games, clears jackpots. Two writeReport calls in one workflow.
+> 4. **banker-ai** — Log-trigger on RoundComplete. Computes EV-based offer in TypeScript, calls Gemini 2.5 Flash for personality message, dual writeReport to game contract + BestOfBanker gallery.
+>
+> The conclusion above ("CRE could be the backbone") turned out to be exactly right — it IS the backbone. See `prototype/workflows/` and `Whitepaper.md` Sections 5, 7, 10.

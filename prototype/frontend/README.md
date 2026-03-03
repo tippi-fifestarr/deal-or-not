@@ -17,7 +17,7 @@ Open http://localhost:3000, connect MetaMask to Base Sepolia.
 1. **Add contract as VRF consumer** on the Chainlink VRF subscription (requires the subscription owner wallet):
    - Go to https://vrf.chain.link on Base Sepolia
    - Find subscription `20136374336138753384898843390506225296052091906296406953567310616148092014984`
-   - Add `0x7A7121c668fD4CAFcf1e65cCEd408fAdfFdB0BEB` as a consumer
+   - Add `0xd9D4A974021055c46fD834049e36c21D7EE48137` as a consumer
 2. **Import a burner wallet** into MetaMask on Base Sepolia
    - Deployer PK: `0x671ea01f6ac1b2d53d49eea104c69e64680ddecc230e5faed864ecd055fbb6fd`
    - Player PK: `0x7bccdcecede835466aafe20ea5aa11bad825c5bea940473e4f865b8013fc2340`
@@ -29,7 +29,7 @@ All addresses are hardcoded in `lib/config.ts` — no `.env` needed.
 
 | Contract | Address |
 |----------|---------|
-| **DealOrNotConfidential** (CRE) | `0x7A7121c668fD4CAFcf1e65cCEd408fAdfFdB0BEB` |
+| **DealOrNotConfidential** (CRE) | `0xd9D4A974021055c46fD834049e36c21D7EE48137` |
 | **SponsorJackpot** | `0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95` |
 | VRF Coordinator | `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE` |
 | ETH/USD Price Feed | `0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1` |
@@ -44,7 +44,7 @@ All addresses are hardcoded in `lib/config.ts` — no `.env` needed.
 
 Currently set to MockKeystoneForwarder for `cre simulate --broadcast` testing. Switch to production via:
 ```bash
-cast send 0x7A7121c668fD4CAFcf1e65cCEd408fAdfFdB0BEB "setCREForwarder(address)" 0xF8344CFd5c43616a4366C34E3EEE75af79a74482 --private-key $DEPLOYER_PK --rpc-url https://base-sepolia-rpc.publicnode.com
+cast send 0xd9D4A974021055c46fD834049e36c21D7EE48137 "setCREForwarder(address)" 0xF8344CFd5c43616a4366C34E3EEE75af79a74482 --private-key $DEPLOYER_PK --rpc-url https://base-sepolia-rpc.publicnode.com
 ```
 
 | Wallet | Address |

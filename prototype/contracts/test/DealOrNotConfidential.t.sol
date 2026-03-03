@@ -377,6 +377,237 @@ contract DealOrNotConfidentialTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
+              SET BANKER OFFER WITH MESSAGE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetBankerOfferWithMessage() public {
+        uint256 gameId = _openCaseAndFulfillCRE();
+
+        // Player (host) is auto-added as banker
+        vm.prank(player);
+        game.setBankerOfferWithMessage(gameId, 25, "The DON has spoken. Deal or no deal?");
+
+        (,,, uint8 phase,,,,
+         uint256 bankerOffer,,,,) = game.getGameState(gameId);
+
+        assertEq(phase, PHASE_BANKER_OFFER, "Phase should be BankerOffer");
+        assertEq(bankerOffer, 25, "Banker offer should be 25 cents");
+    }
+
+    function test_SetBankerOfferWithMessage_EmptyMessage() public {
+        uint256 gameId = _openCaseAndFulfillCRE();
+
+        vm.prank(player);
+        game.setBankerOfferWithMessage(gameId, 25, "");
+
+        (,,, uint8 phase,,,,,,,,) = game.getGameState(gameId);
+        assertEq(phase, PHASE_BANKER_OFFER, "Empty message should be valid");
+    }
+
+    function test_SetBankerOfferWithMessage_MaxLength() public {
+        uint256 gameId = _openCaseAndFulfillCRE();
+
+        // Build exactly 512-byte message
+        bytes memory msg512 = new bytes(512);
+        for (uint256 i = 0; i < 512; i++) {
+            msg512[i] = "A";
+        }
+
+        vm.prank(player);
+        game.setBankerOfferWithMessage(gameId, 25, string(msg512));
+
+        (,,, uint8 phase,,,,,,,,) = game.getGameState(gameId);
+        assertEq(phase, PHASE_BANKER_OFFER, "512-byte message should be valid");
+    }
+
+    function test_SetBankerOfferWithMessage_RevertIfMessageTooLong() public {
+        uint256 gameId = _openCaseAndFulfillCRE();
+
+        // Build 513-byte message
+        bytes memory msg513 = new bytes(513);
+        for (uint256 i = 0; i < 513; i++) {
+            msg513[i] = "A";
+        }
+
+        vm.prank(player);
+        vm.expectRevert(DealOrNotConfidential.MessageTooLong.selector);
+        game.setBankerOfferWithMessage(gameId, 25, string(msg513));
+    }
+
+    function test_SetBankerOfferWithMessage_RevertIfNotBanker() public {
+        uint256 gameId = _openCaseAndFulfillCRE();
+
+        address rando = makeAddr("rando");
+        vm.prank(rando);
+        vm.expectRevert(DealOrNotConfidential.NotAllowedBanker.selector);
+        game.setBankerOfferWithMessage(gameId, 25, "Hello");
+    }
+
+    function test_SetBankerOfferWithMessage_RevertIfWrongPhase() public {
+        uint256 gameId = _createGameAndPickCase();
+        // Phase is Round, not AwaitingOffer
+
+        vm.prank(player);
+        vm.expectRevert(); // WrongPhase
+        game.setBankerOfferWithMessage(gameId, 25, "Hello");
+    }
+
+    function test_SetBankerOfferWithMessage_RevertIfBannedBanker() public {
+        uint256 gameId = _openCaseAndFulfillCRE();
+
+        // Add then ban a banker
+        address banker = makeAddr("banker");
+        vm.prank(player);
+        game.addBanker(gameId, banker, false, true);
+        vm.prank(player);
+        game.banBanker(gameId, banker);
+
+        vm.prank(banker);
+        vm.expectRevert(DealOrNotConfidential.NotAllowedBanker.selector);
+        game.setBankerOfferWithMessage(gameId, 25, "Banned banker");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+              ON REPORT DISPATCH TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_OnReport_SetBankerOfferWithMessage() public {
+        uint256 gameId = _openCaseAndFulfillCRE();
+
+        // Build the report payload: selector + abi.encode(gameId, offerCents, message)
+        bytes memory report = abi.encodePacked(
+            game.setBankerOfferWithMessage.selector,
+            abi.encode(gameId, uint256(42), "AI Banker says hello!")
+        );
+
+        vm.prank(creForwarder);
+        game.onReport("", report);
+
+        (,,, uint8 phase,,,,
+         uint256 bankerOffer,,,,) = game.getGameState(gameId);
+
+        assertEq(phase, PHASE_BANKER_OFFER, "Phase should be BankerOffer via onReport");
+        assertEq(bankerOffer, 42, "Offer should be 42 via onReport");
+    }
+
+    function test_OnReport_SetBankerOfferWithMessage_MessageTooLong() public {
+        uint256 gameId = _openCaseAndFulfillCRE();
+
+        // Build 513-byte message
+        bytes memory longMsg = new bytes(513);
+        for (uint256 i = 0; i < 513; i++) {
+            longMsg[i] = "B";
+        }
+
+        bytes memory report = abi.encodePacked(
+            game.setBankerOfferWithMessage.selector,
+            abi.encode(gameId, uint256(42), string(longMsg))
+        );
+
+        vm.prank(creForwarder);
+        vm.expectRevert(DealOrNotConfidential.MessageTooLong.selector);
+        game.onReport("", report);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+              JOIN GAME CROSS CHAIN TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_JoinGameCrossChain() public {
+        uint256 gameId = _createGameAndFulfillVRF();
+        address ccipBridge = makeAddr("ccipBridge");
+
+        game.setCCIPBridge(ccipBridge);
+
+        address crossChainPlayer = makeAddr("crossChainPlayer");
+        vm.prank(ccipBridge);
+        game.joinGameCrossChain(gameId, crossChainPlayer);
+
+        (, address gamePlayer,,,,,,,,,,) = game.getGameState(gameId);
+        assertEq(gamePlayer, crossChainPlayer, "Player should be cross-chain player");
+    }
+
+    function test_JoinGameCrossChain_RevertIfNotBridge() public {
+        uint256 gameId = _createGameAndFulfillVRF();
+        address ccipBridge = makeAddr("ccipBridge");
+        game.setCCIPBridge(ccipBridge);
+
+        vm.prank(player);
+        vm.expectRevert(DealOrNotConfidential.NotCCIPBridge.selector);
+        game.joinGameCrossChain(gameId, makeAddr("someone"));
+    }
+
+    function test_JoinGameCrossChain_RevertIfWrongPhase() public {
+        uint256 gameId = _createGameAndPickCase(); // Phase is Round
+        address ccipBridge = makeAddr("ccipBridge");
+        game.setCCIPBridge(ccipBridge);
+
+        vm.prank(ccipBridge);
+        vm.expectRevert(); // WrongPhase(Created, Round)
+        game.joinGameCrossChain(gameId, makeAddr("someone"));
+    }
+
+    function test_JoinGameCrossChain_RevertIfAlreadyHasPlayer() public {
+        uint256 gameId = _createGameAndFulfillVRF();
+        address ccipBridge = makeAddr("ccipBridge");
+        game.setCCIPBridge(ccipBridge);
+
+        // First join succeeds
+        address player1 = makeAddr("player1");
+        vm.prank(ccipBridge);
+        game.joinGameCrossChain(gameId, player1);
+
+        // Second join should fail
+        address player2 = makeAddr("player2");
+        vm.prank(ccipBridge);
+        vm.expectRevert(DealOrNotConfidential.GameAlreadyHasPlayer.selector);
+        game.joinGameCrossChain(gameId, player2);
+    }
+
+    function test_JoinGameCrossChain_RevertIfBridgeNotSet() public {
+        uint256 gameId = _createGameAndFulfillVRF();
+        // ccipBridge is address(0) by default — any non-zero address should fail
+
+        address attacker = makeAddr("attacker");
+        vm.prank(attacker);
+        vm.expectRevert(DealOrNotConfidential.NotCCIPBridge.selector);
+        game.joinGameCrossChain(gameId, makeAddr("someone"));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+              SET CCIP BRIDGE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetCCIPBridge() public {
+        address newBridge = makeAddr("newBridge");
+        game.setCCIPBridge(newBridge);
+        assertEq(game.ccipBridge(), newBridge, "Bridge should be updated");
+    }
+
+    function test_SetCCIPBridge_RevertIfNotOwner() public {
+        vm.prank(player);
+        vm.expectRevert(); // OwnableUnauthorizedAccount
+        game.setCCIPBridge(makeAddr("newBridge"));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+              REGRESSION: Original setBankerOffer still works
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetBankerOffer_StillWorks() public {
+        uint256 gameId = _openCaseAndFulfillCRE();
+
+        vm.prank(player);
+        game.setBankerOffer(gameId, 30);
+
+        (,,, uint8 phase,,,,
+         uint256 bankerOffer,,,,) = game.getGameState(gameId);
+
+        assertEq(phase, PHASE_BANKER_OFFER, "Original setBankerOffer should still work");
+        assertEq(bankerOffer, 30, "Offer should be 30");
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 

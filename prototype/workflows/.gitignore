@@ -2,3 +2,8 @@
 project.yaml
 .env
 secrets.yaml
+config.simulate.json
+
+# CRE build artifacts
+.cre_build_tmp.js
+bun.lock
