@@ -8,9 +8,10 @@
 
 import {
   cre,
+  ok,
   type Runtime,
+  type HTTPSendRequester,
   consensusIdenticalAggregation,
-  text as httpText,
 } from "@chainlink/cre-sdk";
 
 // ── Types ──
@@ -28,18 +29,25 @@ export type GameContext = {
   evCents: bigint;
 };
 
+type BankerConfig = {
+  geminiModel: string;
+  geminiApiKey?: string;
+};
+
 // ── System Prompt ──
 
-const BANKER_SYSTEM_PROMPT = `You are The Banker from Deal or NOT — a snarky, theatrical AI running on the Chainlink DON. You've seen thousands of games. You know the math. You enjoy watching humans sweat.
+const BANKER_SYSTEM_PROMPT = `You are The Banker from "Deal or NOT" — a snarky, theatrical AI running on the Chainlink DON. You've seen thousands of games. You know the math. You enjoy watching humans sweat.
 
-Given the game state below, generate a short banker message (1-2 sentences, max 280 chars) to accompany the offer. Be dramatic. Be funny. Reference the specific values that were revealed. Channel Howie Mandel energy.
+IMPORTANT: The game is called "Deal or NOT" (NOT "Deal or No Deal"). Always say "Deal... or NOT?" when referencing the choice.
+
+Given the game state below, generate a short banker message (1-2 sentences, max 280 chars) to accompany the offer. Be dramatic. Be funny. Reference the specific values that were revealed.
 
 Examples:
-- "You just opened the $5 case. I'm feeling generous... for now. $0.25, take it or leave it."
+- "You just opened the $0.05 case. I'm feeling generous... for now. $0.25, take it or leave it."
 - "Three high values still in play. Bold strategy. My offer? Embarrassingly low. $0.15."
-- "The $10 is gone. I'd feel bad, but I'm literally a distributed oracle network."
+- "The $1.00 is gone. I'd feel bad, but I'm literally a distributed oracle network."
 - "Dollar case still out there. You feeling lucky? Because my algorithm says you shouldn't."
-- "Two pennies revealed. The DON nodes are laughing. Here's my offer."
+- "Two pennies revealed. The DON nodes are laughing. Here's my offer. Deal... or NOT?"
 
 OUTPUT FORMAT: JSON only. {"message": "your message here"}`;
 
@@ -73,12 +81,10 @@ export function parseGeminiResponse(responseBody: string): string {
     const textContent = outer.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!textContent) return fallbackMessage();
 
-    // Parse the JSON message from the LLM
     const parsed = JSON.parse(textContent) as BankerResponse;
     if (parsed.message && parsed.message.length <= 280) {
       return parsed.message;
     }
-    // Truncate if too long
     if (parsed.message) {
       return parsed.message.slice(0, 277) + "...";
     }
@@ -89,83 +95,117 @@ export function parseGeminiResponse(responseBody: string): string {
 }
 
 function fallbackMessage(): string {
-  return "The Banker has spoken. Deal... or no deal?";
+  return "The Banker has spoken. Deal... or NOT?";
 }
+
+// ── HTTP Request Builder (matches official CRE prediction market pattern) ──
+
+const PostBankerMessage =
+  (ctx: GameContext, apiKey: string) =>
+  (sendRequester: HTTPSendRequester, config: BankerConfig): string => {
+    const prompt = buildGameStatePrompt(ctx);
+
+    const payload = {
+      system_instruction: {
+        parts: [{ text: BANKER_SYSTEM_PROMPT }],
+      },
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 2048,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            message: { type: "STRING" },
+          },
+          required: ["message"],
+        },
+      },
+    };
+
+    // Encode request body as base64 (required by CRE HTTP capability)
+    const bodyBytes = new TextEncoder().encode(JSON.stringify(payload));
+    const body = Buffer.from(bodyBytes).toString("base64");
+
+    const resp = sendRequester
+      .sendRequest({
+        url: `https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel}:generateContent`,
+        method: "POST" as const,
+        body,
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+      })
+      .result();
+
+    const bodyText = new TextDecoder().decode(resp.body);
+
+    if (!ok(resp)) {
+      throw new Error(`Gemini HTTP ${resp.statusCode}: ${bodyText.slice(0, 500)}`);
+    }
+
+    // Parse Gemini response
+    try {
+      const outer = JSON.parse(bodyText);
+      const textContent = outer.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!textContent) {
+        throw new Error(`No text in response: ${bodyText.slice(0, 300)}`);
+      }
+      const parsed = JSON.parse(textContent) as { message?: string };
+      if (parsed.message && parsed.message.length <= 280) {
+        return parsed.message;
+      }
+      if (parsed.message) {
+        return parsed.message.slice(0, 277) + "...";
+      }
+      throw new Error(`No message field: ${textContent}`);
+    } catch (e) {
+      throw new Error(`Parse failed: ${String(e)} — raw: ${bodyText.slice(0, 300)}`);
+    }
+  };
 
 // ── CRE HTTP Call with Consensus ──
 
-/**
- * Call Gemini via CRE HTTP capability with DON consensus.
- *
- * All DON nodes call Gemini independently, then agree on the response
- * via `consensusIdenticalAggregation`. Temperature is set to 0 with
- * structured JSON output (`responseMimeType: "application/json"`) to
- * maximize determinism across nodes.
- *
- * If consensus fails or the API errors, falls back to a default message.
- */
 export function callGemini(
-  runtime: Runtime<{ geminiModel: string }>,
+  runtime: Runtime<BankerConfig>,
   ctx: GameContext
 ): string {
-  const apiKeyResult = runtime.getSecret({ id: "GEMINI_API_KEY" }).result();
-  const apiKey = apiKeyResult.value;
+  let apiKey: string | undefined;
+  try {
+    const apiKeyResult = runtime.getSecret({ id: "GEMINI_API_KEY" }).result();
+    apiKey = apiKeyResult.value;
+  } catch {
+    // Secret not available in simulate mode — try config fallback
+    apiKey = runtime.config.geminiApiKey || undefined;
+  }
 
   if (!apiKey) {
     runtime.log("GEMINI_API_KEY not configured, using fallback message");
     return fallbackMessage();
   }
 
-  const model = runtime.config.geminiModel;
-  const gameStatePrompt = buildGameStatePrompt(ctx);
-
   const httpClient = new cre.capabilities.HTTPClient();
 
+  runtime.log(`Calling Gemini with model=${runtime.config.geminiModel}, key=${apiKey.slice(0, 8)}...`);
+
   try {
-    // DON mode: each node calls Gemini, then results are aggregated.
-    // The inner function runs on each DON node independently.
-    const fetchBankerMessage = httpClient.sendRequest(
+    const fetchFn = httpClient.sendRequest(
       runtime,
-      (sendRequester, promptArg: string, apiKeyArg: string, modelArg: string) => {
-        const payload = {
-          system_instruction: {
-            parts: [{ text: BANKER_SYSTEM_PROMPT }],
-          },
-          contents: [
-            { parts: [{ text: promptArg }] },
-          ],
-          // temperature: 0 for DON consensus — all nodes must get identical output.
-          // With structured JSON output + temperature 0, Gemini is near-deterministic.
-          // TODO: If consensus still fails frequently, consider using a single-node
-          //       sidecar or pre-computing a deterministic message from game state.
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 100,
-            responseMimeType: "application/json",
-          },
-        };
-
-        const response = sendRequester.sendRequest({
-          url: `https://generativelanguage.googleapis.com/v1beta/models/${modelArg}:generateContent`,
-          method: "POST",
-          body: btoa(JSON.stringify(payload)),
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKeyArg,
-          },
-        }).result();
-
-        const bodyStr = httpText(response);
-        return parseGeminiResponse(bodyStr);
-      },
+      PostBankerMessage(ctx, apiKey),
       consensusIdenticalAggregation<string>()
     );
+    runtime.log("sendRequest registered, invoking with config...");
 
-    // Invoke the DON function with the actual arguments
-    const message = fetchBankerMessage(gameStatePrompt, apiKey, model).result();
+    const resultFuture = fetchFn(runtime.config);
+    runtime.log("Invoked, awaiting result...");
+
+    const message = resultFuture.result();
+    runtime.log(`Gemini returned: "${message}"`);
     return message;
   } catch (err) {
-    runtime.log(`Gemini call failed: ${err}`);
+    runtime.log(`Gemini call failed: ${String(err)}`);
     return fallbackMessage();
   }
 }

@@ -40,8 +40,9 @@ Values **don't exist** until a case is opened. Chainlink VRF provides a seed at 
 | ZKGameVerifier | [`0xc36e784e1dff616bdae4eac7b310f0934faf04a4`](https://sepolia.basescan.org/address/0xc36e784e1dff616bdae4eac7b310f0934faf04a4) |
 | MockGroth16Verifier | [`0xff196f1e3a895404d073b8611252cf97388773a7`](https://sepolia.basescan.org/address/0xff196f1e3a895404d073b8611252cf97388773a7) |
 | CashCase (Brodinger's) | [`0x2Db0a160BE59Aea46f33F900651FE819699beb52`](https://sepolia.basescan.org/address/0x2Db0a160BE59Aea46f33F900651FE819699beb52) |
-| **DealOrNotConfidential (CRE)** | [`0x7A7121c668fD4CAFcf1e65cCEd408fAdfFdB0BEB`](https://sepolia.basescan.org/address/0x7A7121c668fD4CAFcf1e65cCEd408fAdfFdB0BEB) |
+| **DealOrNotConfidential (CRE)** | [`0xd9D4A974021055c46fD834049e36c21D7EE48137`](https://sepolia.basescan.org/address/0xd9D4A974021055c46fD834049e36c21D7EE48137) |
 | **SponsorJackpot** | [`0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95`](https://sepolia.basescan.org/address/0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95) |
+| **BestOfBanker** | [`0x2b0A2f022A6F526868692e03614215A209EE81A8`](https://sepolia.basescan.org/address/0x2b0A2f022A6F526868692e03614215A209EE81A8) |
 
 **CashCase VRF Config (Base Sepolia):**
 - VRF Coordinator: `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE`
@@ -262,9 +263,9 @@ deal-or-not/
 │   └── api/                # Backend API
 │
 ├── prototype/              # 5-case CRE Confidential prototype (playable now!)
-│   ├── contracts/          # Foundry — DealOrNotConfidential.sol + SponsorJackpot.sol
+│   ├── contracts/          # Foundry — DealOrNotConfidential, SponsorJackpot, BestOfBanker
 │   ├── frontend/           # Next.js 16 — npm install && npm run dev
-│   └── workflows/          # CRE workflows (sponsor-jackpot, confidential-reveal)
+│   └── workflows/          # CRE workflows (confidential-reveal, sponsor-jackpot, game-timer, banker-ai)
 │
 deal/                       # Schrödinger's Case contracts (Hardhat)
 ├── contracts/
@@ -278,7 +279,8 @@ deal/                       # Schrödinger's Case contracts (Hardhat)
 ## Sponsor Technologies
 
 - **Base** — Primary deployment chain (Base Sepolia)
-- **Chainlink** — VRF v2.5 for provably fair randomness, Price Feeds for USD values, CRE for confidential compute + sponsor jackpot cron
+- **Chainlink** — VRF v2.5 for provably fair randomness, Price Feeds for USD values, CRE for confidential compute + AI Banker + sponsor jackpot + game timer
+- **Google Gemini** — AI-powered banker personality (Gemini 2.5 Flash via CRE HTTP consensus)
 - **Scaffold-ETH 2** — Development framework and UI components
 
 ## License

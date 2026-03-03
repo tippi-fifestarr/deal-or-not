@@ -10,7 +10,9 @@ const config = createConfig({
   chains: [baseSepolia],
   connectors: [injected()],
   transports: {
-    [baseSepolia.id]: http("https://sepolia.base.org"),
+    [baseSepolia.id]: http(
+      process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL || "https://sepolia.base.org"
+    ),
   },
 });
 

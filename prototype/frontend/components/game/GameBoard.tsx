@@ -28,6 +28,7 @@ import VideoWait from "./VideoWait";
 import JackpotDisplay from "./JackpotDisplay";
 import BankerMessageBubble from "./BankerMessageBubble";
 import EventLog from "./EventLog";
+import { useBankerMessage } from "@/hooks/useBankerMessage";
 import { centsToUsd } from "@/lib/utils";
 
 const EMPTY_OPENED = [false, false, false, false, false] as const;
@@ -65,6 +66,9 @@ export default function GameBoard() {
   const { jackpotCents } = useJackpot(gameId);
   const jackpotClaimed = useJackpotClaimed(gameId);
   const sponsorInfo = useGameSponsor(gameId);
+
+  // Banker message from AI Banker CRE workflow
+  const bankerMessage = useBankerMessage(gameId);
 
   // Calculate banker offer when in AwaitingOffer phase
   const isAwaitingOffer = gameState?.phase === Phase.AwaitingOffer;
@@ -482,7 +486,6 @@ export default function GameBoard() {
       {/* Phase: BankerOffer — DEAL or NO DEAL */}
       {phase === Phase.BankerOffer && (
         <>
-          <BankerMessageBubble gameId={gameId} />
           <div className="flex gap-8 justify-center items-start">
             <ValueBoard eliminatedValues={eliminatedValues} />
             <div className="flex-1">
@@ -502,6 +505,7 @@ export default function GameBoard() {
             onReject={handleRejectDeal}
             isPending={txPending}
             jackpotCents={jackpotCents}
+            bankerMessage={bankerMessage ?? undefined}
           />
         </>
       )}

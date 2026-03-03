@@ -22,3 +22,14 @@ node_modules
 # cli
 dist
 .vercel
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Dev/test screenshots (root level only)
+/game-over-e2e.png
+/banker-calling-e2e.png
+/best-of-banker-home.png
+/frontend-landing.png
+/spectator-*.png
+/game5-*.png

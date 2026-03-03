@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { usePublicClient } from "wagmi";
-import { parseAbiItem, type Log } from "viem";
+import { parseAbiItem, type Log, type WatchContractEventReturnType } from "viem";
 import { CONTRACT_ADDRESS } from "@/lib/config";
 import { centsToUsd } from "@/lib/utils";
 
@@ -15,7 +15,6 @@ type GameEvent = {
   description: string;
   color: string;
   blockNumber: bigint;
-  timestamp?: number;
 };
 
 const EVENT_DEFS = [
@@ -74,54 +73,51 @@ function formatEventArgs(name: string, args: Record<string, unknown>): string {
 
 export default function EventLog({ gameId }: EventLogProps) {
   const [events, setEvents] = useState<GameEvent[]>([]);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const seenKeys = useRef(new Set<string>());
   const publicClient = usePublicClient();
 
+  const addEvent = useCallback((evt: GameEvent) => {
+    const key = `${evt.name}-${evt.blockNumber}`;
+    if (seenKeys.current.has(key)) return;
+    seenKeys.current.add(key);
+    setEvents(prev => [...prev, evt].sort((a, b) => Number(a.blockNumber - b.blockNumber)));
+  }, []);
+
+  // Watch for events in real-time using small block range polling
   useEffect(() => {
     if (!publicClient) return;
 
-    let cancelled = false;
+    const unwatchers: WatchContractEventReturnType[] = [];
 
-    const fetchEvents = async () => {
-      const allEvents: GameEvent[] = [];
-
-      for (const def of EVENT_DEFS) {
-        try {
-          const logs = await publicClient.getLogs({
-            address: CONTRACT_ADDRESS,
-            event: parseAbiItem(def.abi),
-            args: { gameId },
-            fromBlock: "earliest",
-            toBlock: "latest",
-          });
-
+    for (const def of EVENT_DEFS) {
+      const unwatch = publicClient.watchContractEvent({
+        address: CONTRACT_ADDRESS,
+        abi: [parseAbiItem(def.abi)],
+        args: { gameId },
+        pollingInterval: 4_000,
+        onLogs: (logs) => {
           for (const log of logs) {
-            allEvents.push({
+            addEvent({
               name: def.name,
-              description: formatEventArgs(def.name, (log as Log & { args: Record<string, unknown> }).args ?? {}),
+              description: formatEventArgs(
+                def.name,
+                (log as Log & { args: Record<string, unknown> }).args ?? {},
+              ),
               color: def.color,
               blockNumber: log.blockNumber ?? 0n,
             });
           }
-        } catch {
-          // Skip events that fail to parse
-        }
-      }
+        },
+      });
+      unwatchers.push(unwatch);
+    }
 
-      if (!cancelled) {
-        allEvents.sort((a, b) => Number(a.blockNumber - b.blockNumber));
-        setEvents(allEvents);
-      }
-    };
-
-    fetchEvents();
-    const interval = setInterval(fetchEvents, 5000);
     return () => {
-      cancelled = true;
-      clearInterval(interval);
+      for (const unwatch of unwatchers) unwatch();
     };
-  }, [publicClient, gameId]);
+  }, [publicClient, gameId, addEvent]);
 
   // Auto-scroll on new events
   useEffect(() => {
@@ -148,7 +144,7 @@ export default function EventLog({ gameId }: EventLogProps) {
           className="max-h-64 overflow-y-auto p-3 space-y-1 font-mono text-xs"
         >
           {events.length === 0 && (
-            <p className="text-gray-600 text-center py-4">No events yet</p>
+            <p className="text-gray-600 text-center py-4">Watching for events...</p>
           )}
           {events.map((evt, i) => (
             <div key={`${evt.name}-${evt.blockNumber}-${i}`} className="flex gap-2 items-baseline">

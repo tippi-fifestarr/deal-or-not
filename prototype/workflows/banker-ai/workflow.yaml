@@ -1,3 +1,11 @@
+simulate-settings:
+  user-workflow:
+    workflow-name: "deal-or-not-banker-ai-simulate"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.simulate.json"
+    secrets-path: "./secrets.yaml"
+
 staging-settings:
   user-workflow:
     workflow-name: "deal-or-not-banker-ai-staging"

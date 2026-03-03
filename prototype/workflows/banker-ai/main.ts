@@ -39,9 +39,11 @@ import { callGemini, type GameContext } from "./gemini";
 
 type Config = {
   contractAddress: string;
+  bestOfBankerAddress?: string;
   chainSelectorName: string;
   gasLimit: string;
   geminiModel: string;
+  geminiApiKey?: string;
 };
 
 // ── Constants ──
@@ -111,6 +113,10 @@ function calculateOffer(remainingValues: bigint[], round: number, vrfSeed: bigin
 const confidentialAbi = parseAbi([
   "function getGameState(uint256 gameId) view returns (address host, address player, uint8 mode, uint8 phase, uint8 playerCase, uint8 currentRound, uint8 totalCollapsed, uint256 bankerOffer, uint256 finalPayout, uint256 ethPerDollar, uint256[5] caseValues, bool[5] opened)",
   "function setBankerOfferWithMessage(uint256 gameId, uint256 offerCents, string message)",
+]);
+
+const bestOfBankerAbi = parseAbi([
+  "function saveQuote(uint256 gameId, uint8 round, string message)",
 ]);
 
 // ── Log Trigger Handler ──
@@ -266,6 +272,43 @@ const onRoundComplete = (runtime: Runtime<Config>, log: EVMLog): string => {
 
   const txHash = writeResult.txHash || new Uint8Array(32);
   runtime.log(`AI Banker offer: game=${gameId}, offer=${offerCents}c, tx=${bytesToHex(txHash)}`);
+
+  // 6. Save quote to BestOfBanker contract (non-critical — don't fail the workflow)
+  if (runtime.config.bestOfBankerAddress) {
+    try {
+      const bobCallData = encodeFunctionData({
+        abi: bestOfBankerAbi,
+        functionName: "saveQuote",
+        args: [gameId, currentRound, bankerMessage],
+      });
+
+      const bobReport = runtime
+        .report({
+          encodedPayload: hexToBase64(bobCallData),
+          encoderName: "evm",
+          signingAlgo: "ecdsa",
+          hashingAlgo: "keccak256",
+        })
+        .result();
+
+      const bobResult = evmClient
+        .writeReport(runtime, {
+          receiver: runtime.config.bestOfBankerAddress,
+          report: bobReport,
+          gasConfig: { gasLimit: "200000" },
+        })
+        .result();
+
+      if (bobResult.txStatus === TxStatus.SUCCESS) {
+        const bobTx = bobResult.txHash || new Uint8Array(32);
+        runtime.log(`BestOfBanker saved: tx=${bytesToHex(bobTx)}`);
+      } else {
+        runtime.log(`BestOfBanker save failed: ${bobResult.errorMessage || bobResult.txStatus}`);
+      }
+    } catch (err) {
+      runtime.log(`BestOfBanker save error (non-critical): ${String(err)}`);
+    }
+  }
 
   return `Game ${gameId}: banker offers ${offerCents} cents — "${bankerMessage}"`;
 };

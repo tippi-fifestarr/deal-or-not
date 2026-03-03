@@ -1,8 +1,9 @@
 import { baseSepolia } from "wagmi/chains";
 
 // ── Contract Addresses (Base Sepolia) ──
-export const CONTRACT_ADDRESS = "0x7A7121c668fD4CAFcf1e65cCEd408fAdfFdB0BEB" as `0x${string}`;
+export const CONTRACT_ADDRESS = "0xd9D4A974021055c46fD834049e36c21D7EE48137" as `0x${string}`;
 export const SPONSOR_JACKPOT_ADDRESS = "0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95" as `0x${string}`;
+export const BEST_OF_BANKER_ADDRESS = "0x2b0A2f022A6F526868692e03614215A209EE81A8" as `0x${string}`;
 
 // ── Chain Config ──
 export const CHAIN = baseSepolia;
