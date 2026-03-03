@@ -268,7 +268,43 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, IReceiver {
         g.pendingCaseIndex = caseIndex;
         g.phase = Phase.WaitingForCRE;
 
+<<<<<<< docs/whitepaper-confidential
         emit CaseOpenRequested(gameId, caseIndex);
+=======
+    /// @dev Chainlink Functions callback with decrypted case value.
+    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
+        uint256 gameId = functionsRequestToGame[requestId];
+        Game storage g = _games[gameId];
+
+        if (err.length > 0) {
+            // Functions request failed, revert to reveal phase
+            g.phase = Phase.WaitingForReveal;
+            revert FunctionsRequestFailed(err);
+        }
+
+        // Decode case value from response
+        uint256 valueCents = abi.decode(response, (uint256));
+        uint8 caseIndex = g.pendingCaseIndex;
+
+        // Assign value
+        g.caseValues[caseIndex] = valueCents;
+        g.opened[caseIndex] = true;
+        g.totalCollapsed++;
+
+        // Mark value as used in bitmap
+        _markValueUsed(g, valueCents);
+
+        emit CaseCollapsed(gameId, caseIndex, valueCents);
+
+        // Check remaining unopened non-player cases
+        uint8 remaining = _countRemaining(g);
+        if (remaining == 1) {
+            g.phase = Phase.CommitFinal;
+        } else {
+            g.phase = Phase.AwaitingOffer;
+        }
+        emit RoundComplete(gameId, g.currentRound);
+>>>>>>> main
     }
 
     /// @notice CRE callback — writes the computed case value.
@@ -519,6 +555,11 @@ contract DealOrNotConfidential is VRFConsumerBaseV2Plus, IReceiver {
             }
         }
         return true;
+    }
+
+    /// @notice Public wrapper for fulfillRequest (testing only).
+    function testFulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) external {
+        fulfillRequest(requestId, response, err);
     }
 
     // ════════════════════════════════════════════════════════
