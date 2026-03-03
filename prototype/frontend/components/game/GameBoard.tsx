@@ -12,7 +12,6 @@ import {
   useJackpotClaimed,
   useGameSponsor,
 } from "@/hooks/useGameContract";
-import { useCommitReveal } from "@/hooks/useCommitReveal";
 import { useWriteContract } from "wagmi";
 import { DEAL_OR_NOT_ABI } from "@/lib/abi";
 import { SPONSOR_JACKPOT_ABI } from "@/lib/sponsorAbi";
@@ -59,10 +58,11 @@ export default function GameBoard() {
   const { nextGameId } = useNextGameId();
   const { remainingValues } = useRemainingPool(gameId);
   const { writeContractAsync } = useWriteContract();
-  const {
-    commitCase: genCommitCase, commitFinal: genCommitFinal,
-    getSalt, getStoredCaseIndex, getStoredSwap, clearCommit,
-  } = useCommitReveal();
+
+  // Jackpot + sponsor state
+  const { jackpotCents } = useJackpot(gameId);
+  const jackpotClaimed = useJackpotClaimed(gameId);
+  const sponsorInfo = useGameSponsor(gameId);
 
   // Jackpot + sponsor state
   const { jackpotCents } = useJackpot(gameId);
@@ -122,9 +122,8 @@ export default function GameBoard() {
     if (msg.includes("CannotOpenOwnCase")) return "You cannot open your own case";
     if (msg.includes("CaseAlreadyOpened")) return "That case is already opened";
     if (msg.includes("InvalidCase")) return "Invalid case index";
-    if (msg.includes("TooEarlyToReveal")) return "Too early — wait for the next block before revealing";
-    if (msg.includes("RevealWindowExpired")) return "Reveal window expired (256 blocks) — commit again";
-    if (msg.includes("InvalidReveal")) return "Invalid reveal — salt or choice doesn't match your commit";
+    if (msg.includes("NotCREForwarder")) return "Not authorized — only the CRE enclave can call this";
+    if (msg.includes("InvalidValue")) return "Invalid value — not in the remaining pool";
     // Fallback: trim to something readable
     const short = msg.replace(/^.*reason:\s*/i, "").replace(/\n.*/s, "");
     return short.slice(0, 150) || "Transaction failed";
@@ -141,10 +140,7 @@ export default function GameBoard() {
         ...contractConfig,
         functionName: "createGame",
       });
-      // Set gameId immediately so the UI transitions to the game view
-      // Game state polling (every 3s) will pick up the VRF phase
       setGameId(currentNextId);
-      // Wait for receipt in background to clear pending state
       if (publicClient) {
         publicClient.waitForTransactionReceipt({ hash }).finally(() => {
           setTxPending(false);
@@ -170,26 +166,10 @@ export default function GameBoard() {
     } catch {}
   };
 
-  const handleCommitCase = async (caseIndex: number) => {
-    if (gameId === undefined || !gameState) return;
+  const handleOpenCase = async (caseIndex: number) => {
+    if (gameId === undefined) return;
     try {
-      const { commitHash } = genCommitCase(gameId, gameState.currentRound, caseIndex);
-      await sendTx("commitCase", [gameId, commitHash]);
-    } catch {}
-  };
-
-  const handleRevealCase = async () => {
-    if (gameId === undefined || !gameState) return;
-    const round = gameState.currentRound;
-    const salt = getSalt(gameId, round);
-    const caseIndex = getStoredCaseIndex(gameId, round);
-    if (salt === null || caseIndex === null) {
-      setError("Could not find stored commit. Did you clear localStorage?");
-      return;
-    }
-    try {
-      await sendTx("revealCase", [gameId, caseIndex, salt]);
-      clearCommit(gameId, round);
+      await sendTx("openCase", [gameId, caseIndex]);
     } catch {}
   };
 
@@ -210,26 +190,14 @@ export default function GameBoard() {
     try { await sendTx("rejectDeal", [gameId]); } catch {}
   };
 
-  const handleCommitFinal = async (swap: boolean) => {
+  const handleKeepCase = async () => {
     if (gameId === undefined) return;
-    try {
-      const { commitHash } = genCommitFinal(gameId, swap);
-      await sendTx("commitFinalDecision", [gameId, commitHash]);
-    } catch {}
+    try { await sendTx("keepCase", [gameId]); } catch {}
   };
 
-  const handleRevealFinal = async () => {
+  const handleSwapCase = async () => {
     if (gameId === undefined) return;
-    const salt = getSalt(gameId, "final");
-    const swap = getStoredSwap(gameId);
-    if (salt === null || swap === null) {
-      setError("Could not find stored final commit. Did you clear localStorage?");
-      return;
-    }
-    try {
-      await sendTx("revealFinalDecision", [gameId, swap, salt]);
-      clearCommit(gameId, "final");
-    } catch {}
+    try { await sendTx("swapCase", [gameId]); } catch {}
   };
 
   const handlePlayAgain = () => {
@@ -381,11 +349,6 @@ export default function GameBoard() {
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
 
-        <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-xl p-3 text-yellow-400/70 text-xs">
-          Do not clear your browser data during an active game — your commit
-          salts are stored in localStorage and are needed to reveal your choices.
-        </div>
-
         <button
           onClick={() => disconnect()}
           className="text-gray-600 text-xs hover:text-gray-400 transition-colors"
@@ -472,16 +435,15 @@ export default function GameBoard() {
         </div>
       )}
 
-      {/* Phase: Round / WaitingForReveal — commit-reveal case opening */}
-      {(phase === Phase.Round || phase === Phase.WaitingForReveal) && (
+      {/* Phase: Round / WaitingForCRE — open case (1 TX, CRE handles the rest) */}
+      {(phase === Phase.Round || phase === Phase.WaitingForCRE) && (
         <div className="flex gap-8 justify-center items-start">
           <ValueBoard eliminatedValues={eliminatedValues} />
           <div className="flex-1">
             <CommitReveal
               gameState={gameState}
               gameId={gameId}
-              onCommit={handleCommitCase}
-              onReveal={handleRevealCase}
+              onOpenCase={handleOpenCase}
               isPending={txPending}
             />
           </div>
@@ -546,16 +508,16 @@ export default function GameBoard() {
         </>
       )}
 
-      {/* Phase: CommitFinal / WaitingForFinalReveal */}
-      {(phase === Phase.CommitFinal || phase === Phase.WaitingForFinalReveal) && (
+      {/* Phase: FinalRound / WaitingForFinalCRE */}
+      {(phase === Phase.FinalRound || phase === Phase.WaitingForFinalCRE) && (
         <div className="flex gap-8 justify-center items-start">
           <ValueBoard eliminatedValues={eliminatedValues} />
           <div className="flex-1">
             <FinalDecision
               gameState={gameState}
               gameId={gameId}
-              onCommitFinal={handleCommitFinal}
-              onRevealFinal={handleRevealFinal}
+              onKeepCase={handleKeepCase}
+              onSwapCase={handleSwapCase}
               isPending={txPending}
             />
           </div>

@@ -29,7 +29,7 @@ export function useGameState(gameId: bigint | undefined) {
     if (!data) return null;
     const [
       host, player, mode, phase, playerCase, currentRound, totalCollapsed,
-      bankerOffer, finalPayout, ethPerDollar, commitBlock, caseValues, opened,
+      bankerOffer, finalPayout, ethPerDollar, caseValues, opened,
     ] = data;
     return {
       host,
@@ -42,7 +42,6 @@ export function useGameState(gameId: bigint | undefined) {
       bankerOffer,
       finalPayout,
       ethPerDollar,
-      commitBlock,
       caseValues,
       opened,
     };
@@ -167,19 +166,11 @@ export function useGameWrite() {
     });
   };
 
-  const commitCase = async (gameId: bigint, commitHash: bigint) => {
+  const openCase = async (gameId: bigint, caseIndex: number) => {
     return writeContractAsync({
       ...contractConfig,
-      functionName: "commitCase",
-      args: [gameId, commitHash],
-    });
-  };
-
-  const revealCase = async (gameId: bigint, caseIndex: number, salt: bigint) => {
-    return writeContractAsync({
-      ...contractConfig,
-      functionName: "revealCase",
-      args: [gameId, caseIndex, salt],
+      functionName: "openCase",
+      args: [gameId, caseIndex],
     });
   };
 
@@ -207,32 +198,31 @@ export function useGameWrite() {
     });
   };
 
-  const commitFinalDecision = async (gameId: bigint, commitHash: bigint) => {
+  const keepCase = async (gameId: bigint) => {
     return writeContractAsync({
       ...contractConfig,
-      functionName: "commitFinalDecision",
-      args: [gameId, commitHash],
+      functionName: "keepCase",
+      args: [gameId],
     });
   };
 
-  const revealFinalDecision = async (gameId: bigint, swap: boolean, salt: bigint) => {
+  const swapCase = async (gameId: bigint) => {
     return writeContractAsync({
       ...contractConfig,
-      functionName: "revealFinalDecision",
-      args: [gameId, swap, salt],
+      functionName: "swapCase",
+      args: [gameId],
     });
   };
 
   return {
     createGame,
     pickCase,
-    commitCase,
-    revealCase,
+    openCase,
     setBankerOffer,
     acceptDeal,
     rejectDeal,
-    commitFinalDecision,
-    revealFinalDecision,
+    keepCase,
+    swapCase,
     isPending,
   };
 }

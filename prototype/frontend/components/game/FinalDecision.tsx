@@ -8,19 +8,19 @@ import VideoWait from "./VideoWait";
 interface FinalDecisionProps {
   gameState: GameState;
   gameId: bigint;
-  onCommitFinal: (swap: boolean) => Promise<void>;
-  onRevealFinal: () => Promise<void>;
+  onKeepCase: () => Promise<void>;
+  onSwapCase: () => Promise<void>;
   isPending: boolean;
 }
 
 export default function FinalDecision({
   gameState,
   gameId,
-  onCommitFinal,
-  onRevealFinal,
+  onKeepCase,
+  onSwapCase,
   isPending,
 }: FinalDecisionProps) {
-  const isWaiting = gameState.phase === Phase.WaitingForFinalReveal;
+  const isWaiting = gameState.phase === Phase.WaitingForFinalCRE;
 
   return (
     <div className="space-y-6">
@@ -42,17 +42,17 @@ export default function FinalDecision({
           <div className="flex gap-4 justify-center">
             <button
               className="bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-400 hover:to-blue-600 text-white font-bold py-4 px-8 rounded-xl text-lg transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
-              onClick={() => onCommitFinal(false)}
+              onClick={onKeepCase}
               disabled={isPending}
             >
-              {isPending ? "Committing..." : "KEEP Case"}
+              {isPending ? "Deciding..." : "KEEP Case"}
             </button>
             <button
               className="bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-white font-bold py-4 px-8 rounded-xl text-lg transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
-              onClick={() => onCommitFinal(true)}
+              onClick={onSwapCase}
               disabled={isPending}
             >
-              {isPending ? "Committing..." : "SWAP Case"}
+              {isPending ? "Deciding..." : "SWAP Case"}
             </button>
           </div>
         </div>
@@ -60,15 +60,8 @@ export default function FinalDecision({
         <div className="text-center space-y-4">
           <VideoWait
             message="The moment of truth approaches..."
-            submessage="Waiting for block confirmation"
+            submessage="CRE enclave is revealing the final case"
           />
-          <button
-            className="bg-gradient-to-r from-amber-500 to-red-500 hover:from-amber-400 hover:to-red-400 text-white font-bold py-4 px-10 rounded-xl text-lg transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
-            onClick={onRevealFinal}
-            disabled={isPending}
-          >
-            {isPending ? "Revealing..." : "REVEAL FINAL!"}
-          </button>
         </div>
       )}
     </div>
