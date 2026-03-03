@@ -1,13 +1,8 @@
 import { baseSepolia } from "wagmi/chains";
 
 // ── Contract Addresses (Base Sepolia) ──
-export const CONTRACT_ADDRESS = "0xd9D4A974021055c46fD834049e36c21D7EE48137" as `0x${string}`;
-export const SPONSOR_JACKPOT_ADDRESS = "0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95" as `0x${string}`;
-export const BEST_OF_BANKER_ADDRESS = "0x05EdC924f92aBCbbB91737479948509dC7E23bF9" as `0x${string}`;
-
-// ── CCIP Cross-Chain ──
-export const GATEWAY_ADDRESS = "0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124" as `0x${string}`; // ETH Sepolia
-export const BRIDGE_ADDRESS = "0xcF3B0d1575b30B53d8Db4EDe30Ebb47D51a2650a" as `0x${string}`; // Base Sepolia
+export const CONTRACT_ADDRESS = "0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124" as `0x${string}`;
+export const SPONSOR_JACKPOT_ADDRESS = "0x43a55c6EdCc8183b3FD9818b4d6Bf02a5e6590Ba" as `0x${string}`;
 
 // ── Chain Config ──
 export const CHAIN = baseSepolia;

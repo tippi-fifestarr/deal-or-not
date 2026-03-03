@@ -119,13 +119,4 @@ export const SPONSOR_JACKPOT_ABI = [
       { name: "weiPaid", type: "uint256", indexed: false },
     ],
   },
-  {
-    type: "event",
-    name: "JackpotCleared",
-    inputs: [
-      { name: "gameId", type: "uint256", indexed: true },
-      { name: "sponsor", type: "address", indexed: true },
-      { name: "amountCents", type: "uint256", indexed: false },
-    ],
-  },
 ] as const;

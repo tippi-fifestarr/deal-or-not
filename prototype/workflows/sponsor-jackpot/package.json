@@ -1,4 +1,5 @@
 {
+<<<<<<< docs/whitepaper-confidential
   "name": "deal-or-not-sponsor-jackpot",
   "version": "0.1.0",
   "main": "dist/main.js",
@@ -14,5 +15,14 @@
   },
   "devDependencies": {
     "@types/bun": "1.2.21"
+=======
+  "name": "sponsor-jackpot-workflow",
+  "version": "1.0.0",
+  "description": "CRE cron workflow: sponsor jackpot for Deal or NOT",
+  "main": "workflow/main.ts",
+  "scripts": {
+    "simulate": "cre workflow simulate workflow --non-interactive --trigger-index 0",
+    "simulate:broadcast": "cre workflow simulate workflow --non-interactive --trigger-index 0 --broadcast"
+>>>>>>> main
   }
 }

@@ -95,6 +95,7 @@ contract DealOrNotConfidentialTest is Test {
         uint256 vrfRequestId = game.getVRFRequestId(gameId);
         vrfCoordinator.fulfillRandomWords(vrfRequestId, address(game));
 
+        // Check phase changed to Created
         (,,, uint8 phase,,,,,,,,) = game.getGameState(gameId);
         assertEq(phase, PHASE_CREATED, "Phase should be Created after VRF");
     }
