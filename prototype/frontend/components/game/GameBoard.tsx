@@ -26,6 +26,8 @@ import FinalDecision from "./FinalDecision";
 import GameOver from "./GameOver";
 import VideoWait from "./VideoWait";
 import JackpotDisplay from "./JackpotDisplay";
+import BankerMessageBubble from "./BankerMessageBubble";
+import EventLog from "./EventLog";
 import { centsToUsd } from "@/lib/utils";
 
 const EMPTY_OPENED = [false, false, false, false, false] as const;
@@ -480,6 +482,7 @@ export default function GameBoard() {
       {/* Phase: BankerOffer — DEAL or NO DEAL */}
       {phase === Phase.BankerOffer && (
         <>
+          <BankerMessageBubble gameId={gameId} />
           <div className="flex gap-8 justify-center items-start">
             <ValueBoard eliminatedValues={eliminatedValues} />
             <div className="flex-1">
@@ -531,6 +534,11 @@ export default function GameBoard() {
           claimPending={txPending}
           sponsorName={sponsorInfo?.name}
         />
+      )}
+
+      {/* Event Log — visible in spectator mode or always for observer */}
+      {gameId !== undefined && (
+        <EventLog gameId={gameId} />
       )}
 
       {/* Error display */}
