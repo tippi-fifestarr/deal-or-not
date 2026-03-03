@@ -43,6 +43,8 @@ Values **don't exist** until a case is opened. Chainlink VRF provides a seed at 
 | **DealOrNotConfidential (CRE)** | [`0xd9D4A974021055c46fD834049e36c21D7EE48137`](https://sepolia.basescan.org/address/0xd9D4A974021055c46fD834049e36c21D7EE48137) |
 | **SponsorJackpot** | [`0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95`](https://sepolia.basescan.org/address/0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95) |
 | **BestOfBanker** | [`0x2b0A2f022A6F526868692e03614215A209EE81A8`](https://sepolia.basescan.org/address/0x2b0A2f022A6F526868692e03614215A209EE81A8) |
+| **DealOrNotGateway** (ETH Sepolia) | [`0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124`](https://sepolia.etherscan.io/address/0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124) |
+| **DealOrNotBridge** (Base Sepolia) | [`0xcF3B0d1575b30B53d8Db4EDe30Ebb47D51a2650a`](https://sepolia.basescan.org/address/0xcF3B0d1575b30B53d8Db4EDe30Ebb47D51a2650a) |
 
 **CashCase VRF Config (Base Sepolia):**
 - VRF Coordinator: `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE`
@@ -228,7 +230,8 @@ ERC-721 NFTs minted for each briefcase:
 | Randomness | Chainlink VRF v2.5 |
 | Price Feed | Chainlink ETH/USD |
 | Contract Framework | Foundry (ZK Mode), Hardhat (Schrödinger's) |
-| Chain | Base Sepolia (primary), localhost |
+| Cross-Chain | Chainlink CCIP (ETH Sepolia → Base Sepolia) |
+| Chain | Base Sepolia (primary), ETH Sepolia (CCIP spoke), localhost |
 | NFTs | ERC-721 with onchain SVG |
 | Deployment | EIP-1167 Minimal Proxy Clones |
 
@@ -279,7 +282,7 @@ deal/                       # Schrödinger's Case contracts (Hardhat)
 ## Sponsor Technologies
 
 - **Base** — Primary deployment chain (Base Sepolia)
-- **Chainlink** — VRF v2.5 for provably fair randomness, Price Feeds for USD values, CRE for confidential compute + AI Banker + sponsor jackpot + game timer
+- **Chainlink** — VRF v2.5 for provably fair randomness, Price Feeds for USD values, CRE for confidential compute + AI Banker + sponsor jackpot + game timer, CCIP for cross-chain play (ETH Sepolia → Base Sepolia)
 - **Google Gemini** — AI-powered banker personality (Gemini 2.5 Flash via CRE HTTP consensus)
 - **Scaffold-ETH 2** — Development framework and UI components
 

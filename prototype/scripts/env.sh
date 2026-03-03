@@ -31,6 +31,11 @@ fi
 export CONTRACT="0xd9D4A974021055c46fD834049e36c21D7EE48137"
 export BEST_OF_BANKER="0x2b0A2f022A6F526868692e03614215A209EE81A8"
 
+# CCIP Cross-Chain
+export GATEWAY="0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124"       # ETH Sepolia
+export BRIDGE="0xcF3B0d1575b30B53d8Db4EDe30Ebb47D51a2650a"        # Base Sepolia
+export ETH_SEPOLIA_RPC="https://sepolia.gateway.tenderly.co"
+
 # Gemini key for CRE AI Banker simulate (read from secrets.yaml)
 if [[ -f "$PROJECT_DIR/workflows/banker-ai/secrets.yaml" ]]; then
   export GEMINI_API_KEY=$(grep GEMINI_API_KEY "$PROJECT_DIR/workflows/banker-ai/secrets.yaml" | sed 's/.*: *"\(.*\)"/\1/')

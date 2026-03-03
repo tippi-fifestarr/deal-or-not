@@ -5,6 +5,10 @@ export const CONTRACT_ADDRESS = "0xd9D4A974021055c46fD834049e36c21D7EE48137" as 
 export const SPONSOR_JACKPOT_ADDRESS = "0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95" as `0x${string}`;
 export const BEST_OF_BANKER_ADDRESS = "0x2b0A2f022A6F526868692e03614215A209EE81A8" as `0x${string}`;
 
+// ── CCIP Cross-Chain ──
+export const GATEWAY_ADDRESS = "0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124" as `0x${string}`; // ETH Sepolia
+export const BRIDGE_ADDRESS = "0xcF3B0d1575b30B53d8Db4EDe30Ebb47D51a2650a" as `0x${string}`; // Base Sepolia
+
 // ── Chain Config ──
 export const CHAIN = baseSepolia;
 export const CHAIN_ID = baseSepolia.id; // 84532
