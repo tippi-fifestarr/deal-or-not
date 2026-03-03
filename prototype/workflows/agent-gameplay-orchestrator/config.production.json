@@ -1,0 +1,22 @@
+{
+  "name": "agent-gameplay-orchestrator",
+  "version": "1.0.0",
+  "environment": "production",
+  "contractAddress": "<MAINNET_CONTRACT_ADDRESS>",
+  "agentRegistryAddress": "<MAINNET_AGENT_REGISTRY_ADDRESS>",
+  "chainSelectorName": "base-mainnet",
+  "gasLimit": "500000",
+  "httpTimeout": 5000,
+  "network": {
+    "chain": "base-mainnet",
+    "chainId": 8453,
+    "rpcUrl": "https://mainnet.base.org"
+  },
+  "monitoring": {
+    "enabled": true,
+    "alertOnFailure": true,
+    "maxRetries": 3,
+    "retryDelay": 1000,
+    "pagerDutyKey": "${PAGERDUTY_KEY}"
+  }
+}
