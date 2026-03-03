@@ -67,10 +67,8 @@ export default function GameBoard() {
   const jackpotClaimed = useJackpotClaimed(gameId);
   const sponsorInfo = useGameSponsor(gameId);
 
-  // Jackpot + sponsor state
-  const { jackpotCents } = useJackpot(gameId);
-  const jackpotClaimed = useJackpotClaimed(gameId);
-  const sponsorInfo = useGameSponsor(gameId);
+  // Banker message from AI
+  const bankerMessage = useBankerMessage(gameId);
 
   // Calculate banker offer when in AwaitingOffer phase
   const isAwaitingOffer = gameState?.phase === Phase.AwaitingOffer;
