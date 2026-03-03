@@ -3,11 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-<<<<<<< docs/whitepaper-confidential
 /// @dev Minimal interface to read DealOrNotConfidential game state.
-=======
-/// @dev Minimal interface to read DealOrNot game state.
->>>>>>> main
 interface IDealOrNot {
     function getGameState(uint256 gameId) external view returns (
         address host,
@@ -20,16 +16,11 @@ interface IDealOrNot {
         uint256 bankerOffer,
         uint256 finalPayout,
         uint256 ethPerDollar,
-<<<<<<< docs/whitepaper-confidential
-=======
-        uint256 commitBlock,
->>>>>>> main
         uint256[5] memory caseValues,
         bool[5] memory opened
     );
 }
 
-<<<<<<< docs/whitepaper-confidential
 /// @notice IReceiver — Keystone Forwarder delivers CRE reports via this interface.
 interface IReceiver {
     function onReport(bytes calldata metadata, bytes calldata report) external;
@@ -44,16 +35,6 @@ interface IReceiver {
 ///
 ///         "This episode of Deal or NOT is sponsored by..."
 contract SponsorJackpot is Ownable, IReceiver {
-=======
-/// @title SponsorJackpot — CRE-powered sponsorship protocol for Deal or NOT
-/// @notice Sponsors register with branding (name, logo), deposit ETH, and
-///         assign themselves to games. A CRE cron workflow deposits a random
-///         amount into the active game's jackpot every 30 seconds.
-///         The jackpot only pays out if the player goes "no deal" all the way.
-///
-///         "This episode of Deal or NOT is sponsored by..."
-contract SponsorJackpot is Ownable {
->>>>>>> main
 
     // ── Constants ──
     uint8 constant PHASE_GAME_OVER = 8;
@@ -83,10 +64,7 @@ contract SponsorJackpot is Ownable {
     event GameSponsored(uint256 indexed gameId, address indexed sponsor, string name);
     event JackpotIncreased(uint256 indexed gameId, uint256 amountCents, uint256 newTotal);
     event JackpotClaimed(uint256 indexed gameId, address indexed player, uint256 cents, uint256 weiPaid);
-<<<<<<< docs/whitepaper-confidential
     event JackpotCleared(uint256 indexed gameId, address indexed sponsor, uint256 amountCents);
-=======
->>>>>>> main
 
     // ── Errors ──
     error NotAuthorized();
@@ -143,7 +121,6 @@ contract SponsorJackpot is Ownable {
     //                     CRE WRITES
     // ════════════════════════════════════════════════════════
 
-<<<<<<< docs/whitepaper-confidential
     /// @notice Add to a game's jackpot. Called by CRE log-trigger workflow on case opens.
     function addToJackpot(uint256 gameId, uint256 amountCents) external {
         if (msg.sender != keystoneForwarder && msg.sender != owner()) revert NotAuthorized();
@@ -182,15 +159,6 @@ contract SponsorJackpot is Ownable {
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
         return interfaceId == type(IReceiver).interfaceId
             || interfaceId == 0x01ffc9a7; // IERC165
-=======
-    /// @notice Add to a game's jackpot. Called by CRE cron workflow every 30s.
-    /// @dev Requires game to have an assigned sponsor.
-    function addToJackpot(uint256 gameId, uint256 amountCents) external {
-        if (msg.sender != keystoneForwarder && msg.sender != owner()) revert NotAuthorized();
-        if (gameSponsor[gameId] == address(0)) revert NoSponsor();
-        jackpots[gameId] += amountCents;
-        emit JackpotIncreased(gameId, amountCents, jackpots[gameId]);
->>>>>>> main
     }
 
     // ════════════════════════════════════════════════════════
@@ -220,10 +188,6 @@ contract SponsorJackpot is Ownable {
             , // bankerOffer
             , // finalPayout
             uint256 ethPerDollar,
-<<<<<<< docs/whitepaper-confidential
-=======
-            , // commitBlock
->>>>>>> main
             , // caseValues
               // opened
         ) = gameContract.getGameState(gameId);
@@ -294,7 +258,6 @@ contract SponsorJackpot is Ownable {
         (bool ok,) = payable(to).call{value: bal}("");
         if (!ok) revert TransferFailed();
     }
-<<<<<<< docs/whitepaper-confidential
 
     // ════════════════════════════════════════════════════════
     //                  INTERNAL HELPERS
@@ -328,6 +291,4 @@ contract SponsorJackpot is Ownable {
         jackpots[gameId] = 0;
         emit JackpotCleared(gameId, sponsorAddr, pot);
     }
-=======
->>>>>>> main
 }
