@@ -6,6 +6,15 @@
 
 ---
 
+> **Update (March 2026):** Both critical blockers identified in this audit have been resolved by the migration to CRE Confidential Compute in `prototype/contracts/src/DealOrNotConfidential.sol`:
+>
+> - **Issue #1 (Mock ZK Proofs):** ZK proofs are no longer needed. CRE Confidential Compute replaces the ZK circuit entirely — case values are derived from VRF seed + CRE-held secret inside an enclave, written to chain via Keystone Forwarder. See `Whitepaper.md` Section 5.
+> - **Issue #2 (Commit-Reveal Hash Mismatch):** Commit-reveal is eliminated. Players call `openCase()` in 1 TX, CRE writes the value. No commit phase, no reveal phase, no hash to mismatch.
+>
+> This audit applies to the legacy `packages/foundry/contracts/DealOrNoDeal.sol`. The prototype contracts have been deployed and E2E tested on Base Sepolia.
+
+---
+
 ## Executive Summary
 
 The Deal or No Deal blockchain game implements a sophisticated commit-reveal lottery system with ZK-proof-based case reveals, banker algorithm, NFT integration, and progressive jackpot. The codebase demonstrates strong architectural design with proper separation of concerns, but **critical blockers prevent testnet deployment**.

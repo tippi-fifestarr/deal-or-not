@@ -24,7 +24,7 @@ The game requires **hidden information**: case values that are assigned but unkn
 
 These requirements are in tension. Fairness demands transparency. Privacy demands opacity. The solution must bridge both.
 
-## 2. Approach 1: Fisher-Yates Shuffle
+## 2. Approach 0: Fisher-Yates Shuffle
 
 **Contract**: `legacy/contracts/DealOrNoDeal.sol`
 
@@ -68,7 +68,73 @@ A bot can:
 
 **Lesson**: Storing values on-chain — in any format — is equivalent to publishing them.
 
-## 3. Approach 2: Quantum Collapse + Commit-Reveal
+## 3. Approach 1: ZK Proofs (Groth16 + Merkle Root)
+
+**Contract**: `packages/foundry/contracts/DealOrNoDeal.sol`
+**Circuits**: `packages/circuits/src/case_reveal.circom`
+**Audit**: `AUDIT_REPORT.md` (Section 6: ZK Proof Implementation Roadmap)
+
+Our second attempt added cryptographic verification. The host pre-assigns all 26 case values and commits a **Merkle root** on-chain at game creation. When a case is opened, a **Groth16 ZK proof** proves the value was committed in the Merkle tree — without revealing the host's salt or other case values.
+
+```circom
+// Simplified Circom circuit: prove a case value was in the committed tree
+template CaseReveal() {
+    signal input salt;              // Private: host's per-case salt
+    signal input assignedValue;     // Private: the case value
+    signal input merkleProof[5];    // Private: Merkle path (depth 5 = 32 leaves)
+    signal input caseIndex;         // Public: which case is being opened
+    signal input merkleRoot;        // Public: committed at game creation
+
+    // leaf = Poseidon(caseIndex, assignedValue, salt)
+    component leaf = Poseidon(3);
+    leaf.inputs[0] <== caseIndex;
+    leaf.inputs[1] <== assignedValue;
+    leaf.inputs[2] <== salt;
+
+    // Verify leaf is in the committed Merkle tree
+    component merkle = MerkleTreeChecker(5);
+    merkle.leaf <== leaf.out;
+    merkle.pathElements <== merkleProof;
+    merkle.root === merkleRoot;
+
+    signal output value;
+    value <== assignedValue;
+}
+```
+
+This architecture also included a commit-reveal lottery for contestant selection, EIP-1167 minimal proxy clones for gas-efficient game creation, on-chain SVG BriefcaseNFTs, and a 26-case game-show-accurate prize distribution.
+
+### The Problem
+
+We never shipped a real verifier. The deployed contract used `MockGroth16Verifier` — a contract that returns `true` for every proof:
+
+```solidity
+contract MockGroth16Verifier {
+    function verifyProof(...) external pure returns (bool) {
+        return true; // Accepts anything
+    }
+}
+```
+
+This was supposed to be temporary, but the ZK pipeline (Circom compilation → trusted setup → snarkjs proof generation → on-chain verification) added weeks of development time we didn't have at ETHDenver. The audit (`AUDIT_REPORT.md`) identified this as the #1 critical blocker.
+
+Even with a real verifier, the ZK approach has a fundamental trust problem: **someone has to generate the Merkle tree**. The host runs `upload-secrets.js`, knows all 26 values and salts, and commits the root. The ZK proof guarantees the host didn't change values after committing — but the host knows every value from the start. That's the same trust model as the actual TV show.
+
+**Cost of a real ZK pipeline**: ~6 weeks (per `AUDIT_REPORT.md` Section 6), ~$15 LINK per game (VRF + 26 proof verifications at ~300k gas each), and a trusted setup ceremony.
+
+**Lesson**: ZK proofs verify that values were committed honestly, but they don't hide values from the committer. The host still knows everything. We needed a solution where *nobody* knows.
+
+**ETHDenver deployment** (Base Sepolia, historical — superseded by CRE prototype):
+
+| Contract | Address |
+|---|---|
+| DealOrNoDealFactory | [`0x78da752e9dbd73a9b0c0f5ddd15e854d2b879524`](https://sepolia.basescan.org/address/0x78da752e9dbd73a9b0c0f5ddd15e854d2b879524) |
+| DealOrNoDeal (impl) | [`0xb98e0fb673e5a0c6e15f1d0a9f36e7da954a0d5e`](https://sepolia.basescan.org/address/0xb98e0fb673e5a0c6e15f1d0a9f36e7da954a0d5e) |
+| BriefcaseNFT (impl) | [`0xd2bd10d3f2e3a057f0040663b1eebf4d1874feab`](https://sepolia.basescan.org/address/0xd2bd10d3f2e3a057f0040663b1eebf4d1874feab) |
+| ZKGameVerifier | [`0xc36e784e1dff616bdae4eac7b310f0934faf04a4`](https://sepolia.basescan.org/address/0xc36e784e1dff616bdae4eac7b310f0934faf04a4) |
+| MockGroth16Verifier | [`0xff196f1e3a895404d073b8611252cf97388773a7`](https://sepolia.basescan.org/address/0xff196f1e3a895404d073b8611252cf97388773a7) |
+
+## 4. Approach 2: Quantum Collapse + Commit-Reveal (Brodinger's Case)
 
 **Contract**: `prototype/contracts/src/DealOrNot.sol`
 **Design Document**: `legacy/docs/SITUATION.md`
@@ -132,7 +198,15 @@ The player can now compute `_collapseCase()` locally and see exactly what value 
 
 **Lesson**: When all inputs to a function are public, the output is public — even if the computation hasn't happened yet.
 
-## 4. Approach 3: Chainlink Functions Threshold Encryption
+**ETHDenver deployment** (Base Sepolia, historical — superseded by CRE prototype):
+
+| Contract | Address |
+|---|---|
+| CashCase (Brodinger's) | [`0x2Db0a160BE59Aea46f33F900651FE819699beb52`](https://sepolia.basescan.org/address/0x2Db0a160BE59Aea46f33F900651FE819699beb52) |
+
+VRF Coordinator: `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE` · Key Hash: `0x9e1344a...` · Subscription ID: `20136374...` · Price Feed (ETH/USD): `0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1`
+
+## 5. Approach 3: Chainlink Functions Threshold Encryption
 
 **Contract**: `prototype/contracts/src/DealOrNotConfidential.sol` (old version, now replaced)
 **Design Document**: `prototype/functions/README.md`
@@ -176,7 +250,7 @@ function _requestCaseValue(uint256 gameId, uint8 caseIndex) internal returns (by
 
 **Lesson**: Moving values off-chain solves the precomputation problem but introduces trusted intermediaries. The solution needs to keep the best of both worlds — on-chain verifiability with off-chain privacy.
 
-## 5. Approach 4: CRE Confidential Compute (The Solution)
+## 6. Approach 4: CRE Confidential Compute (The Solution)
 
 **Contract**: `prototype/contracts/src/DealOrNotConfidential.sol` (current version)
 **Workflow**: `prototype/workflows/confidential-reveal/`
@@ -282,20 +356,22 @@ const onCaseOpenRequested = (runtime: Runtime<Config>, log: EVMLog): string => {
 };
 ```
 
-## 6. Comparison Table
+## 7. Comparison Table
 
-| | Phase 0: Fisher-Yates | Phase 2: Quantum Collapse | Phase 3: Functions | Phase 4: CRE Confidential |
-|---|---|---|---|---|
-| **Values precomputable?** | Yes (storage) | Yes (selective reveal) | No | No |
-| **Player can abort?** | Yes (revert TX) | Yes (skip reveal) | Yes (skip reveal) | No (CRE writes) |
-| **TXs per round** | 1 | 2 (commit + reveal) | 2 (commit + reveal) | **1** (openCase) |
-| **Cost per game** | ~$0.25 LINK | ~$0.25 LINK | ~$15 LINK | ~$0.50 LINK |
-| **Trusted party** | None | None | Upload script | None |
-| **Verifiable post-game?** | N/A (all public) | N/A (all public) | No | **Yes** (secret published) |
-| **Chainlink products** | VRF | VRF, Price Feeds | VRF, Functions | **VRF, CRE, Price Feeds** |
-| **Contract** | `legacy/DealOrNoDeal.sol` | `prototype/DealOrNot.sol` | old Confidential | **`prototype/DealOrNotConfidential.sol`** |
+| | Approach 0: Fisher-Yates | Approach 1: ZK Proofs | Approach 2: Quantum Collapse | Approach 3: Functions | Approach 4: CRE Confidential |
+|---|---|---|---|---|---|
+| **Values precomputable?** | Yes (storage) | No (Merkle proof required) | Yes (selective reveal) | No | No |
+| **Player can abort?** | Yes (revert TX) | N/A | Yes (skip reveal) | Yes (skip reveal) | No (CRE writes) |
+| **Host knows values?** | Yes | **Yes (generates tree)** | No | Yes (upload script) | **No** |
+| **TXs per round** | 1 | 1 + ZK proof | 2 (commit + reveal) | 2 (commit + reveal) | **1** (openCase) |
+| **Cost per game** | ~$0.25 LINK | ~$15 LINK (26 proofs) | ~$0.25 LINK | ~$15 LINK | ~$0.50 LINK |
+| **Trusted party** | None | Host | None | Upload script | **None** |
+| **Verifiable post-game?** | N/A (all public) | Yes (Merkle root) | N/A (all public) | No | **Yes** (secret published) |
+| **Shipped?** | Deployed (broken) | MockVerifier only | Deployed (broken) | Never shipped | **Deployed + E2E tested** |
+| **Chainlink products** | VRF | VRF | VRF, Price Feeds | VRF, Functions | **VRF, CRE, CCIP, Price Feeds** |
+| **Contract** | `legacy/DealOrNoDeal.sol` | `packages/foundry/DealOrNoDeal.sol` | `prototype/DealOrNot.sol` | old Confidential | **`prototype/DealOrNotConfidential.sol`** |
 
-## 7. CRE Sponsor Jackpot
+## 8. CRE Sponsor Jackpot
 
 **Contract**: `prototype/contracts/src/SponsorJackpot.sol`
 **Workflow**: `prototype/workflows/sponsor-jackpot/main.ts`
@@ -313,7 +389,7 @@ Orthogonal to the case value hiding problem, the Sponsor Jackpot adds real econo
 
 This system is a **proving ground for CRE workflows** — it demonstrates event-driven CRE → on-chain writes, the exact pattern needed for confidential case reveals.
 
-## 8. Architecture
+## 9. Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -337,7 +413,19 @@ This system is a **proving ground for CRE workflows** — it demonstrates event-
 │  │  Post-game: publishes secret for auditability           │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                                                                 │
-│  setBankerOffer() / acceptDeal() / rejectDeal()                │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │               CRE AI BANKER (Gemini 2.5 Flash)        │    │
+│  │                                                         │    │
+│  │  1. Picks up RoundComplete event                        │    │
+│  │  2. Reads remaining values + round from chain           │    │
+│  │  3. Computes offer (BankerAlgorithm mirror in TS)       │    │
+│  │  4. Calls Gemini for snarky personality message          │    │
+│  │  5. Dual writeReport:                                   │    │
+│  │     a. setBankerOfferWithMessage() → game contract       │    │
+│  │     b. saveQuote() → BestOfBanker gallery                │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                 │
+│  acceptDeal() / rejectDeal()                                    │
 │  keepCase() / swapCase() → CRE reveals final values            │
 │                                                                 │
 │  verifyGame() ← Anyone can verify with published secret        │
@@ -370,13 +458,14 @@ This system is a **proving ground for CRE workflows** — it demonstrates event-
 ```
 VRF v2.5          → Seed generation (fairness) + lottery winner selection
 CRE + Vault DON   → Secret management (privacy)
-CRE Event Trigger  → Case reveals + sponsor jackpot deposits (automation)
+CRE Event Trigger  → Case reveals + sponsor jackpot + AI Banker offers (automation)
 CRE Cron Trigger   → Game expiry + jackpot clearing every 10 min (automation)
-Price Feeds        → ETH/USD conversion (payout)
-CCIP              → Cross-chain staking and play (interoperability)
+CRE HTTP Consensus → Gemini 2.5 Flash API calls for AI Banker personality (AI)
+Price Feeds        → ETH/USD conversion (payout + upvotes)
+CCIP              → Cross-chain play from ETH Sepolia → Base Sepolia (interoperability)
 ```
 
-## 9. Game Design: From Prototype to Production
+## 10. Game Design: From Prototype to Production
 
 ### Current Prototype: Single Player
 
@@ -497,17 +586,95 @@ Every participant has skin in the game. Players play, sponsors fund, spectators 
 | **PredictionMarket** | Binary markets on game outcomes, CRE-settled, spectator staking (based on [CRE template](https://docs.chain.link/cre-templates/prediction-market-demo)) |
 | **AgentRegistry** | AI agent registration, funding, strategy URIs, leaderboard (legacy: `AgentRegistry.sol`) |
 
-## 10. Conclusion
+## 11. AI Banker: Gemini via CRE HTTP Consensus
+
+**Contract**: `prototype/contracts/src/DealOrNotConfidential.sol` (`setBankerOfferWithMessage`)
+**Gallery**: `prototype/contracts/src/BestOfBanker.sol`
+**Workflow**: `prototype/workflows/banker-ai/main.ts`
+**Deployed**: BestOfBanker at `0x05EdC924f92aBCbbB91737479948509dC7E23bF9` (Base Sepolia)
+
+The prototype's banker is not just an algorithm — it's an AI personality. The CRE AI Banker workflow combines the deterministic `BankerAlgorithm.sol` offer logic with Google Gemini 2.5 Flash for personality-driven messages, all running inside CRE's HTTP consensus.
+
+### How It Works
+
+1. **Log Trigger**: The workflow listens for `RoundComplete(uint256 indexed gameId, uint8 round)` events
+2. **Read State**: Reads the game state from chain — remaining values, opened cases, round info
+3. **Compute Offer**: Mirrors the on-chain `BankerAlgorithm.sol` logic in TypeScript — expected value, discount curve, VRF-seeded variance, context adjustments
+4. **Call Gemini**: Makes an HTTP request to `generativelanguage.googleapis.com` with a system prompt that includes the game context (remaining values, offer as % of EV, round number). Gemini returns a snarky banker personality message.
+5. **Dual WriteReport**: Two `report()` + `writeReport()` calls in the same workflow:
+   - `setBankerOfferWithMessage(gameId, offerCents, message)` → DealOrNotConfidential (the game)
+   - `saveQuote(gameId, round, message)` → BestOfBanker (the gallery)
+
+### CRE HTTP Consensus for LLM Calls
+
+The Gemini API call uses CRE's standard HTTP capability. Multiple DON nodes make the same request independently and reach consensus on the result. For LLM responses, this means the model's output must be sufficiently deterministic across nodes — the workflow uses `temperature: 0.7` and a structured system prompt to keep responses consistent enough for BFT consensus.
+
+The Gemini API key is injected via `runtime.config.geminiApiKey` (the CRE WASM sandbox cannot read environment variables or use `process.env`). In simulation, `cre-banker.sh` reads the key from `workflows/.env` and temporarily injects it into `config.staging.json`.
+
+### BestOfBanker Gallery
+
+The `BestOfBanker.sol` contract stores Gemini-generated quotes on-chain, creating a gallery of AI banker moments. It supports:
+
+- `saveQuote(gameId, round, message)` — called by CRE or registered writers
+- `getLatestMessage(gameId)` — returns the most recent quote for a game
+- `getTopQuotes(limit)` — returns top-voted quotes across all games
+- `upvoteQuote(quoteId)` — $0.02 upvote (Chainlink Price Feed converts ETH to USD)
+
+The frontend reads quotes from BestOfBanker view calls (not event logs — Alchemy free tier limits `eth_getLogs` to 10 blocks).
+
+### Gas Limit Lesson
+
+The first deployment of BestOfBanker used a hardcoded `gasLimit: "200000"` in the banker-ai workflow for the BestOfBanker writeReport. The `onReport()` → `_saveQuote()` path involves a dynamic array push + mapping write + event emit through the Keystone Forwarder, which needs ~219k gas. The fix: use `runtime.config.gasLimit` (500000) for all writeReport calls. CRE-receiving contracts should also implement `supportsInterface()` for ERC165 compliance with the Keystone Forwarder.
+
+## 12. Cross-Chain Play via CCIP
+
+**Contracts**: `prototype/contracts/src/ccip/DealOrNotGateway.sol` (ETH Sepolia), `prototype/contracts/src/ccip/DealOrNotBridge.sol` (Base Sepolia)
+**Deployed**: Gateway at `0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124`, Bridge at `0xcF3B0d1575b30B53d8Db4EDe30Ebb47D51a2650a`
+
+Cross-chain play via Chainlink CCIP lets players start games from ETH Sepolia that execute on Base Sepolia, where all the CRE infrastructure lives.
+
+### Architecture
+
+```
+ETH Sepolia                           Base Sepolia
+┌──────────────────┐    CCIP msg    ┌────────────────────────┐
+│ DealOrNotGateway │ ──────────────→│ DealOrNotBridge        │
+│                  │                │   ↓                    │
+│ createGame()     │                │ DealOrNotConfidential  │
+│ msg.value=$0.25  │                │   createGame()         │
+│ + CCIP fee       │                │                        │
+└──────────────────┘                └────────────────────────┘
+```
+
+### How It Works
+
+1. Player calls `createGame{value: entryFee + ccipFee}()` on the Gateway contract (ETH Sepolia)
+2. Gateway sends a CCIP message to Base Sepolia with the player's address and entry fee encoded
+3. The Bridge contract on Base Sepolia receives the CCIP message via `_ccipReceive()`
+4. Bridge calls `createGame()` on `DealOrNotConfidential`, which triggers VRF
+5. Game plays out on Base Sepolia via CRE workflows
+
+### Entry Fee
+
+The Gateway requires a `$0.25` entry fee (converted via Price Feed) plus the CCIP message fee. The entry fee is forwarded to Base Sepolia with the CCIP message. The Bridge contract uses a `try/catch` pattern for the `createGame()` call — if it fails (e.g., contract paused), the CCIP message is still processed gracefully.
+
+### Why CCIP Matters
+
+CCIP demonstrates a fifth Chainlink product integration (alongside VRF, CRE, Price Feeds, and Confidential Compute). More importantly, it proves the game can be a multi-chain event — players don't need to bridge assets to Base Sepolia to play. Each spoke chain is a potential distribution channel and sponsor partnership.
+
+## 13. Conclusion
 
 The journey from Fisher-Yates to CRE Confidential Compute is a journey through the fundamental tension between transparency and privacy on a public blockchain.
 
-**Phase 0** taught us that on-chain storage is a glass box — any value stored is a value published.
+**Approach 0 (Fisher-Yates)** taught us that on-chain storage is a glass box — any value stored is a value published.
 
-**Phase 2** taught us that lazy evaluation helps, but commit-reveal is a lock that the player holds the key to. If they can simulate the outcome before committing to it, the lock is meaningless. Timers and deposits can deter the attack, but they can't prevent it.
+**Approach 1 (ZK Proofs)** taught us that cryptographic commitments can verify honesty, but the host who builds the Merkle tree still knows everything. ZK hides values from the *player*, not from the *house*. And shipping a real Groth16 pipeline is a multi-week effort we didn't have.
 
-**Phase 3** taught us that moving values off-chain solves precomputation but introduces trusted intermediaries. The upload script knows all values. The returned values are unverifiable.
+**Approach 2 (Quantum Collapse)** taught us that lazy evaluation helps, but commit-reveal is a lock that the player holds the key to. If they can simulate the outcome before committing to it, the lock is meaningless. The cost on Base L2: ~$0.005 per exploit attempt.
 
-**Phase 4** gets it right: VRF provides the randomness on-chain (anyone can verify the seed is fair). CRE holds the secret off-chain (the player can't precompute because they're missing a piece). Attestation proves the enclave ran the correct code. And post-game secret publication enables anyone to replay every collapse and verify the game was honest.
+**Approach 3 (Chainlink Functions)** taught us that moving values off-chain solves precomputation but introduces trusted intermediaries. The upload script knows all values. The returned values are unverifiable. And it was the wrong Chainlink product.
+
+**Approach 4 (CRE Confidential Compute)** gets it right: VRF provides the randomness on-chain (anyone can verify the seed is fair). CRE holds the secret off-chain (the player can't precompute because they're missing a piece). Attestation proves the enclave ran the correct code. And post-game secret publication enables anyone to replay every collapse and verify the game was honest.
 
 With security handled by CRE, the game design can focus on what matters: the game show experience. Multiplayer lobbies, lottery entry, staking economics, spectator engagement, cross-chain play via CCIP — all built on a foundation where cheating isn't deterred by penalties but made *impossible* by cryptography.
 
@@ -521,5 +688,14 @@ One transaction per round. No commit-reveal. No trusted scripts. No precomputati
 - `prototype/contracts/src/DealOrNot.sol` — Phase 2 base game (vulnerable to selective reveal)
 - `prototype/contracts/src/DealOrNotConfidential.sol` — Phase 4 CRE Confidential (the solution)
 - `prototype/contracts/src/SponsorJackpot.sol` — Sponsor jackpot system
-- `prototype/workflows/` — CRE workflows (confidential-reveal, sponsor-jackpot, game-timer)
+- `prototype/contracts/src/BestOfBanker.sol` — AI Banker quote gallery + upvotes
+- `prototype/contracts/src/BankerAlgorithm.sol` — Pure EV-based offer calculation library
+- `prototype/contracts/src/ccip/DealOrNotGateway.sol` — CCIP spoke (ETH Sepolia)
+- `prototype/contracts/src/ccip/DealOrNotBridge.sol` — CCIP hub (Base Sepolia)
+- `prototype/workflows/confidential-reveal/` — CRE: case value reveals
+- `prototype/workflows/sponsor-jackpot/` — CRE: jackpot deposits per case opening
+- `prototype/workflows/game-timer/` — CRE: 10-min game expiry cron
+- `prototype/workflows/banker-ai/` — CRE: AI Banker offers + Gemini personality
+- `prototype/frontend/` — Next.js frontend
+- `prototype/scripts/` — Testing scripts (play-game, cre-reveal, cre-banker, cre-jackpot, cre-timer)
 - `legacy/` — Historical contracts and docs (see `legacy/README.md`)

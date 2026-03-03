@@ -295,7 +295,7 @@ const onRoundComplete = (runtime: Runtime<Config>, log: EVMLog): string => {
         .writeReport(runtime, {
           receiver: runtime.config.bestOfBankerAddress,
           report: bobReport,
-          gasConfig: { gasLimit: "200000" },
+          gasConfig: { gasLimit: runtime.config.gasLimit },
         })
         .result();
 

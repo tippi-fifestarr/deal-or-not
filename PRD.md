@@ -5,6 +5,8 @@
 **Team:** Tippi + Ryan
 **Repo:** https://github.com/rdobbeck/deal-or-not
 
+> **Delivery Status (March 2026):** Core vision delivered. 5 of 5 Chainlink products integrated (VRF, Price Feeds, CRE, CCIP, Confidential Compute). 4 CRE workflows built (confidential-reveal, sponsor-jackpot, game-timer, banker-ai with Gemini 2.5 Flash). Deployed and E2E tested on Base Sepolia. Cross-chain play via CCIP (ETH Sepolia → Base Sepolia). See `GAP_ANALYSIS.md` for detailed status and `prototype/contracts/README.md` for testing guide.
+
 ---
 
 ## Table of Contents
