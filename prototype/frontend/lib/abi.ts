@@ -307,6 +307,22 @@ export const DEAL_OR_NOT_ABI = [
       { name: "gameId", type: "uint256", indexed: true },
     ],
   },
+  {
+    type: "event",
+    name: "BankerMessage",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+      { name: "message", type: "string", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "PlayerJoinedCrossChain",
+    inputs: [
+      { name: "gameId", type: "uint256", indexed: true },
+      { name: "player", type: "address", indexed: true },
+    ],
+  },
 
   // ── Errors ──
   { type: "error", name: "WrongPhase", inputs: [{ name: "expected", type: "uint8" }, { name: "actual", type: "uint8" }] },
@@ -323,4 +339,7 @@ export const DEAL_OR_NOT_ABI = [
   { type: "error", name: "GameNotOver", inputs: [] },
   { type: "error", name: "SecretAlreadyPublished", inputs: [] },
   { type: "error", name: "SecretVerificationFailed", inputs: [] },
+  { type: "error", name: "NotCCIPBridge", inputs: [] },
+  { type: "error", name: "GameAlreadyHasPlayer", inputs: [] },
+  { type: "error", name: "MessageTooLong", inputs: [] },
 ] as const;

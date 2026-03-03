@@ -26,6 +26,9 @@ import FinalDecision from "./FinalDecision";
 import GameOver from "./GameOver";
 import VideoWait from "./VideoWait";
 import JackpotDisplay from "./JackpotDisplay";
+import BankerMessageBubble from "./BankerMessageBubble";
+import EventLog from "./EventLog";
+import { useBankerMessage } from "@/hooks/useBankerMessage";
 import { centsToUsd } from "@/lib/utils";
 import {
   GlassBriefcase,
@@ -74,6 +77,9 @@ export default function GameBoard() {
   const { jackpotCents } = useJackpot(gameId);
   const jackpotClaimed = useJackpotClaimed(gameId);
   const sponsorInfo = useGameSponsor(gameId);
+
+  // Banker message from AI
+  const bankerMessage = useBankerMessage(gameId);
 
   // Show banker offer modal when phase changes to BankerOffer
   useEffect(() => {
@@ -494,21 +500,34 @@ export default function GameBoard() {
               disabled
             />
             <div className="space-y-3 pt-4">
+              <div className="animate-pulse text-amber-300 font-medium">
+                Waiting for CRE AI Banker response...
+              </div>
+              <p className="text-gray-500 text-sm">
+                The AI Banker (Gemini 2.5 Flash) is computing your offer via CRE Confidential Compute.
+              </p>
               {calculatedOffer !== undefined && (
-                <p className="text-gray-400">
-                  Calculated offer:{" "}
-                  <span className="text-amber-300 font-bold">
-                    {centsToUsd(calculatedOffer)}
-                  </span>
-                </p>
+                <>
+                  <div className="border-t border-gray-700 pt-3 mt-3">
+                    <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">
+                      Manual fallback
+                    </p>
+                    <p className="text-gray-400 text-sm">
+                      On-chain offer:{" "}
+                      <span className="text-amber-300 font-bold">
+                        {centsToUsd(calculatedOffer)}
+                      </span>
+                    </p>
+                  </div>
+                  <button
+                    className="bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium py-2 px-6 rounded-lg text-sm transition-all disabled:opacity-50"
+                    onClick={handleRingBanker}
+                    disabled={txPending}
+                  >
+                    {txPending ? "Calling..." : "Skip AI — Use On-Chain Offer"}
+                  </button>
+                </>
               )}
-              <button
-                className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white font-bold py-4 px-10 rounded-xl text-lg transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50"
-                onClick={handleRingBanker}
-                disabled={txPending || calculatedOffer === undefined}
-              >
-                {txPending ? "Calling..." : "Ring the Banker"}
-              </button>
             </div>
           </div>
         </div>
@@ -535,14 +554,14 @@ export default function GameBoard() {
             </div>
           </div>
 
-          {/* Glass Banker Offer Modal */}
+          {/* Glass Banker Offer Modal with AI message */}
           <GlassBankerOffer
             offer={Number(gameState.bankerOffer)}
             expectedValue={remainingValues
               ? remainingValues.reduce((sum, val) => sum + Number(val), 0) / remainingValues.length
               : Number(gameState.bankerOffer)}
             round={gameState.currentRound}
-            quip="Make your choice wisely..."
+            quip={bankerMessage ?? "Make your choice wisely..."}
             onDeal={handleAcceptDeal}
             onNoDeal={handleRejectDeal}
             isOpen={showBankerOfferModal}
@@ -578,6 +597,11 @@ export default function GameBoard() {
           claimPending={txPending}
           sponsorName={sponsorInfo?.name}
         />
+      )}
+
+      {/* Event Log — visible in spectator mode or always for observer */}
+      {gameId !== undefined && (
+        <EventLog gameId={gameId} />
       )}
 
       {/* Error display */}
