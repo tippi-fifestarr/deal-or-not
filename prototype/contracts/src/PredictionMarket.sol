@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+
 /// @title PredictionMarket
 /// @notice Prediction market for Deal or NOT game outcomes
 /// @dev Contributes to Prediction Markets track ($16K+ prizes)
@@ -9,7 +12,14 @@ pragma solidity ^0.8.24;
 ///      - Will agent earn > X cents?
 ///      - Will agent accept banker offer?
 ///      - What round will agent finish in?
-contract PredictionMarket {
+///
+/// Security improvements:
+/// - ReentrancyGuard on all payable functions
+/// - Pull payment pattern (credit/claim)
+/// - Parameter snapshots locked at market creation
+/// - Slippage protection with minPayout
+/// - Emergency pause mechanism
+contract PredictionMarket is ReentrancyGuard, Pausable {
     // ── Events ──
     event MarketCreated(
         uint256 indexed marketId,
@@ -34,6 +44,12 @@ contract PredictionMarket {
         uint256 indexed marketId,
         address indexed winner,
         uint256 amount
+    );
+    event Credited(address indexed user, uint256 amount);
+    event ParametersLocked(
+        uint256 indexed marketId,
+        uint256 snapshotFeeBps,
+        uint256 snapshotMinBet
     );
 
     // ── Enums ──
@@ -65,6 +81,8 @@ contract PredictionMarket {
         uint256 yesPool;
         uint256 noPool;
         bool resolved;
+        uint256 snapshotFeeBps;   // Fee locked at market creation
+        uint256 snapshotMinBet;   // Min bet locked at market creation
     }
 
     struct Bet {
@@ -86,6 +104,7 @@ contract PredictionMarket {
     mapping(uint256 => uint256[]) public marketBets;   // marketId => betIds
     mapping(address => uint256[]) public userBets;     // user => betIds
     mapping(uint256 => uint256[]) public gameMarkets;  // gameId => marketIds
+    mapping(address => uint256) public claimable;      // Pull payment balances
 
     uint256 public nextMarketId;
     uint256 public nextBetId;
@@ -105,6 +124,9 @@ contract PredictionMarket {
     error Unauthorized();
     error InvalidMarket();
     error ZeroAmount();
+    error SlippageExceeded();
+    error NothingToClaim();
+    error TransferFailed();
 
     // ── Modifiers ──
     modifier onlyAdmin() {
@@ -141,6 +163,10 @@ contract PredictionMarket {
     ) external onlyAuthorized returns (uint256 marketId) {
         marketId = nextMarketId++;
 
+        // Lock parameters at market creation to prevent manipulation
+        uint256 snapshotFeeBps = PLATFORM_FEE;
+        uint256 snapshotMinBet = MIN_BET;
+
         markets[marketId] = Market({
             gameId: gameId,
             agentId: agentId,
@@ -153,25 +179,47 @@ contract PredictionMarket {
             totalPool: 0,
             yesPool: 0,
             noPool: 0,
-            resolved: false
+            resolved: false,
+            snapshotFeeBps: snapshotFeeBps,
+            snapshotMinBet: snapshotMinBet
         });
 
         gameMarkets[gameId].push(marketId);
 
         emit MarketCreated(marketId, gameId, marketType, targetValue);
+        emit ParametersLocked(marketId, snapshotFeeBps, snapshotMinBet);
     }
 
     // ── Betting ──
 
-    /// @notice Place a bet on a market
+    /// @notice Place a bet on a market with slippage protection
     /// @param marketId Market to bet on
     /// @param prediction true = YES, false = NO
-    function placeBet(uint256 marketId, bool prediction) external payable returns (uint256 betId) {
-        if (msg.value < MIN_BET) revert BetTooSmall();
-
+    /// @param minPayout Minimum acceptable payout (slippage protection)
+    function placeBet(
+        uint256 marketId,
+        bool prediction,
+        uint256 minPayout
+    ) external payable nonReentrant whenNotPaused returns (uint256 betId) {
         Market storage market = markets[marketId];
+
+        // Use snapshot parameters from market creation
+        if (msg.value < market.snapshotMinBet) revert BetTooSmall();
         if (market.status != MarketStatus.Open) revert MarketNotOpen();
         if (block.timestamp >= market.lockTime) revert MarketLocked();
+
+        // Calculate potential payout with new bet included
+        uint256 newTotalPool = market.totalPool + msg.value;
+        uint256 newWinningPool = prediction
+            ? market.yesPool + msg.value
+            : market.noPool + msg.value;
+
+        uint256 fee = (newTotalPool * market.snapshotFeeBps) / 10000;
+        uint256 payoutPool = newTotalPool - fee;
+        uint256 estimatedPayout = (msg.value * payoutPool) / newWinningPool;
+
+        // Slippage protection
+        if (estimatedPayout < minPayout) revert SlippageExceeded();
 
         betId = nextBetId++;
 
@@ -233,23 +281,22 @@ contract PredictionMarket {
         market.status = MarketStatus.Cancelled;
     }
 
-    // ── Payout ──
+    // ── Payout (Pull Payment Pattern) ──
 
-    /// @notice Claim winnings for a bet
-    /// @param betId Bet ID to claim
-    function claimPayout(uint256 betId) external {
+    /// @notice Credit winnings for a bet (internal - called after market resolution)
+    /// @param betId Bet ID to credit
+    function creditPayout(uint256 betId) public nonReentrant {
         Bet storage bet = bets[betId];
         if (bet.claimed) revert BetAlreadyClaimed();
-        if (bet.bettor != msg.sender) revert Unauthorized();
 
         Market storage market = markets[bet.marketId];
 
         // Handle cancelled market (refund)
         if (market.status == MarketStatus.Cancelled) {
             bet.claimed = true;
-            (bool success, ) = payable(msg.sender).call{value: bet.amount}("");
-            require(success, "Refund failed");
-            emit PayoutClaimed(bet.marketId, msg.sender, bet.amount);
+            claimable[bet.bettor] += bet.amount;
+            emit Credited(bet.bettor, bet.amount);
+            emit PayoutClaimed(bet.marketId, bet.bettor, bet.amount);
             return;
         }
 
@@ -264,16 +311,34 @@ contract PredictionMarket {
         if (payout == 0) revert ZeroAmount();
 
         bet.claimed = true;
+        claimable[bet.bettor] += payout;
 
-        (bool success, ) = payable(msg.sender).call{value: payout}("");
-        require(success, "Payout failed");
+        emit Credited(bet.bettor, payout);
+        emit PayoutClaimed(bet.marketId, bet.bettor, payout);
+    }
 
-        emit PayoutClaimed(bet.marketId, msg.sender, payout);
+    /// @notice Claim all credited funds (pull payment)
+    function claim() external nonReentrant {
+        uint256 amount = claimable[msg.sender];
+        if (amount == 0) revert NothingToClaim();
+
+        claimable[msg.sender] = 0;
+
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        if (!success) revert TransferFailed();
+    }
+
+    /// @notice Batch credit payouts for multiple bets (gas-efficient for resolvers)
+    /// @param betIds Array of bet IDs to credit
+    function batchCreditPayouts(uint256[] calldata betIds) external {
+        for (uint256 i = 0; i < betIds.length; i++) {
+            try this.creditPayout(betIds[i]) {} catch {}
+        }
     }
 
     // ── Internal Functions ──
 
-    /// @notice Calculate payout for a winning bet
+    /// @notice Calculate payout for a winning bet using snapshot parameters
     function _calculatePayout(uint256 betId) internal view returns (uint256) {
         Bet memory bet = bets[betId];
         Market memory market = markets[bet.marketId];
@@ -283,8 +348,8 @@ contract PredictionMarket {
         uint256 winningPool = market.outcome ? market.yesPool : market.noPool;
         if (winningPool == 0) return 0;
 
-        // Calculate platform fee
-        uint256 fee = (market.totalPool * PLATFORM_FEE) / 10000;
+        // Calculate platform fee using snapshot parameter
+        uint256 fee = (market.totalPool * market.snapshotFeeBps) / 10000;
         uint256 payoutPool = market.totalPool - fee;
 
         // Proportional payout: (bet amount / winning pool) * payout pool
@@ -394,12 +459,22 @@ contract PredictionMarket {
     }
 
     /// @notice Withdraw collected fees
-    function withdrawFees() external onlyAdmin {
+    function withdrawFees() external onlyAdmin nonReentrant {
         uint256 balance = address(this).balance;
         // Calculate unclaimed winnings to keep in contract
         // For simplicity, admin can only withdraw after all markets resolved
         (bool success, ) = payable(admin).call{value: balance}("");
-        require(success, "Withdrawal failed");
+        if (!success) revert TransferFailed();
+    }
+
+    /// @notice Pause contract (emergency only)
+    function pause() external onlyAdmin {
+        _pause();
+    }
+
+    /// @notice Unpause contract
+    function unpause() external onlyAdmin {
+        _unpause();
     }
 
     // ── Receive ETH ──
