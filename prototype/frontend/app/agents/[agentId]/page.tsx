@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { use } from "react";
+import { useState, use } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { GlassCard, GlassButton } from "@/components/glass";
 import { formatEther, parseEther } from "viem";
 
@@ -25,6 +26,7 @@ type AgentGame = {
 };
 
 export default function AgentDetailsPage({ params }: { params: Promise<{ agentId: string }> }) {
+  const router = useRouter();
   const resolvedParams = use(params);
   const agentId = resolvedParams.agentId;
 
@@ -75,12 +77,12 @@ export default function AgentDetailsPage({ params }: { params: Promise<{ agentId
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       {/* Header */}
       <div className="mb-8">
-        <button
-          onClick={() => (window.location.href = "/agents")}
-          className="text-gray-400 hover:text-white mb-4 flex items-center gap-2"
+        <Link
+          href="/agents"
+          className="text-white/40 hover:text-white mb-4 flex items-center gap-2 transition-colors"
         >
-          ← Back to Agents
-        </button>
+          &larr; Back to Agents
+        </Link>
 
         <GlassCard className="p-8">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -219,7 +221,7 @@ export default function AgentDetailsPage({ params }: { params: Promise<{ agentId
                 <div
                   key={game.gameId}
                   className="flex items-center justify-between p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-                  onClick={() => (window.location.href = `/?gameId=${game.gameId}`)}
+                  onClick={() => router.push(`/?gameId=${game.gameId}`)}
                 >
                   <div className="flex items-center gap-4">
                     <div

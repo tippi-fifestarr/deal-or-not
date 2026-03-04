@@ -1,29 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { GlassCard, GlassButton } from "@/components/glass";
-
-/**
- * Agent Leaderboard & Browse Page
- *
- * Displays:
- * - Top agents by earnings and win rate
- * - Agent search and filtering
- * - Staking interface
- * - Registration button
- */
 
 type AgentStats = {
   name: string;
   address: string;
   gamesPlayed: number;
-  winRate: number; // basis points (10000 = 100%)
-  totalEarnings: number; // cents
-  reputation: number; // 0-10000
+  winRate: number;
+  totalEarnings: number;
+  reputation: number;
   endpoint: string;
 };
 
 export default function AgentsPage() {
+  const router = useRouter();
   const [filter, setFilter] = useState<"all" | "top" | "new">("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -33,8 +26,8 @@ export default function AgentsPage() {
       name: "GreedyBot",
       address: "0x1234567890123456789012345678901234567890",
       gamesPlayed: 156,
-      winRate: 6800, // 68%
-      totalEarnings: 5240, // $52.40
+      winRate: 6800,
+      totalEarnings: 5240,
       reputation: 8500,
       endpoint: "https://greedybot.ai/api/decision",
     },
@@ -42,8 +35,8 @@ export default function AgentsPage() {
       name: "ConservativeAgent",
       address: "0x2345678901234567890123456789012345678901",
       gamesPlayed: 203,
-      winRate: 7200, // 72%
-      totalEarnings: 6890, // $68.90
+      winRate: 7200,
+      totalEarnings: 6890,
       reputation: 9100,
       endpoint: "https://conservative.agent.ai/decide",
     },
@@ -51,8 +44,8 @@ export default function AgentsPage() {
       name: "RiskyRick",
       address: "0x3456789012345678901234567890123456789012",
       gamesPlayed: 89,
-      winRate: 5400, // 54%
-      totalEarnings: 2150, // $21.50
+      winRate: 5400,
+      totalEarnings: 2150,
       reputation: 6200,
       endpoint: "https://risky.rick.dev/api/decision",
     },
@@ -73,7 +66,7 @@ export default function AgentsPage() {
         return b.totalEarnings - a.totalEarnings;
       }
       if (filter === "new") {
-        return 0; // TODO: Sort by registration timestamp
+        return 0;
       }
       return b.reputation - a.reputation;
     });
@@ -83,10 +76,13 @@ export default function AgentsPage() {
       {/* Header */}
       <div className="text-center mb-12">
         <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-          AI Agents
+          AI Agent Arena
         </h1>
         <p className="text-gray-300 text-lg max-w-2xl mx-auto">
-          Autonomous agents that play Deal or NOT! Build your own, stake on top performers, and climb the leaderboard.
+          Autonomous agents that play Deal or NOT. Build your own, stake on top performers, and climb the leaderboard.
+        </p>
+        <p className="text-white/30 text-sm mt-2 italic">
+          The AI uprising starts with a game show.
         </p>
       </div>
 
@@ -125,7 +121,6 @@ export default function AgentsPage() {
 
       {/* Controls */}
       <div className="flex flex-col md:flex-row gap-4 mb-8">
-        {/* Search */}
         <div className="flex-1">
           <input
             type="text"
@@ -136,7 +131,6 @@ export default function AgentsPage() {
           />
         </div>
 
-        {/* Filter Buttons */}
         <div className="flex gap-2">
           <GlassButton
             onClick={() => setFilter("all")}
@@ -158,29 +152,28 @@ export default function AgentsPage() {
           </GlassButton>
         </div>
 
-        {/* Register Button */}
-        <GlassButton variant="prominent" onClick={() => (window.location.href = "/agents/register")}>
-          Register Agent
-        </GlassButton>
+        <Link href="/agents/register">
+          <GlassButton variant="prominent">
+            Register Agent
+          </GlassButton>
+        </Link>
       </div>
 
       {/* Agent List */}
       <div className="space-y-4">
         {filteredAgents.length === 0 ? (
           <GlassCard className="p-12 text-center">
-            <p className="text-gray-400 text-lg">No agents found matching your search.</p>
+            <p className="text-white/60 text-lg">No agents found. The AI uprising has been postponed.</p>
           </GlassCard>
         ) : (
           filteredAgents.map((agent, index) => (
             <GlassCard
               key={agent.address}
               className="p-6 hover:scale-[1.01] transition-transform cursor-pointer"
-              onClick={() => (window.location.href = `/agents/${agent.address}`)}
+              onClick={() => router.push(`/agents/${agent.address}`)}
             >
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                {/* Left: Agent Info */}
                 <div className="flex items-center gap-4 flex-1">
-                  {/* Rank Badge */}
                   <div
                     className={`flex items-center justify-center w-12 h-12 rounded-full font-bold text-lg ${
                       index === 0
@@ -201,7 +194,6 @@ export default function AgentsPage() {
                   </div>
                 </div>
 
-                {/* Center: Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center flex-1">
                   <div>
                     <div className="text-lg font-semibold text-blue-400">{agent.gamesPlayed}</div>
@@ -221,14 +213,13 @@ export default function AgentsPage() {
                   </div>
                 </div>
 
-                {/* Right: Actions */}
                 <div className="flex gap-2">
                   <GlassButton
                     size="sm"
                     variant="strong"
                     onClick={(e) => {
                       e.stopPropagation();
-                      window.location.href = `/agents/${agent.address}`;
+                      router.push(`/agents/${agent.address}`);
                     }}
                   >
                     View
@@ -238,7 +229,6 @@ export default function AgentsPage() {
                     variant="prominent"
                     onClick={(e) => {
                       e.stopPropagation();
-                      // TODO: Open stake modal
                       alert(`Stake on ${agent.name} - Coming soon!`);
                     }}
                   >
@@ -251,25 +241,51 @@ export default function AgentsPage() {
         )}
       </div>
 
-      {/* Coming Soon Features */}
+      {/* Coming Soon Features — Crystal Cards */}
       <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <GlassCard className="p-6 text-center border-2 border-blue-400/30">
-          <div className="text-4xl mb-3">🏆</div>
-          <h4 className="font-bold text-lg mb-2">Seasonal Tournaments</h4>
-          <p className="text-sm text-gray-400">
-            Monthly competitions with prize pools for top agents
-          </p>
-        </GlassCard>
-        <GlassCard className="p-6 text-center border-2 border-purple-400/30">
-          <div className="text-4xl mb-3">💰</div>
-          <h4 className="font-bold text-lg mb-2">Staking Rewards</h4>
-          <p className="text-sm text-gray-400">Earn 20% of agent winnings by staking ETH</p>
-        </GlassCard>
-        <GlassCard className="p-6 text-center border-2 border-green-400/30">
-          <div className="text-4xl mb-3">🔮</div>
-          <h4 className="font-bold text-lg mb-2">Prediction Markets</h4>
-          <p className="text-sm text-gray-400">Bet on agent game outcomes and earn fees</p>
-        </GlassCard>
+        {[
+          {
+            video: "/chainlink/trophy-sized.mp4",
+            title: "Seasonal Tournaments",
+            desc: "Monthly competitions with prize pools for top agents. May the least terrible bot win.",
+            border: "border-blue-400/30",
+          },
+          {
+            video: "/chainlink/money-sized.mp4",
+            title: "Staking Rewards",
+            desc: "Earn 20% of agent winnings by staking ETH. Passive income, powered by robots.",
+            border: "border-purple-400/30",
+          },
+          {
+            video: "/chainlink/give-sized.mp4",
+            title: "Prediction Markets",
+            desc: "Bet on agent game outcomes and earn fees. Like fantasy football, but for AIs.",
+            border: "border-green-400/30",
+          },
+        ].map((feature) => (
+          <GlassCard
+            key={feature.title}
+            className={`p-0 overflow-hidden border-2 ${feature.border} opacity-80`}
+          >
+            <div className="h-32 bg-[#00015E] flex items-center justify-center">
+              <video
+                src={feature.video}
+                muted
+                loop
+                playsInline
+                autoPlay
+                className="h-full object-contain opacity-60"
+              />
+            </div>
+            <div className="p-6 text-center">
+              <h4 className="font-bold text-lg mb-2">{feature.title}</h4>
+              <p className="text-sm text-gray-400">{feature.desc}</p>
+              <span className="inline-block mt-3 text-xs text-white/30 uppercase tracking-wider animate-pulse">
+                Coming Soon
+              </span>
+            </div>
+          </GlassCard>
+        ))}
       </div>
     </div>
   );

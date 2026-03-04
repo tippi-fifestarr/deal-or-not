@@ -35,8 +35,6 @@ import {
   GlassBriefcaseGrid,
   GlassBankerOffer,
   GlassGameStatus,
-  GlassExpectedValue,
-  GlassFloatingActionBar,
   GlassButton,
   GlassCard,
 } from "../glass";
@@ -254,26 +252,32 @@ export default function GameBoard() {
   if (!mounted) {
     return (
       <div className="text-center py-20">
-        <div className="animate-spin h-10 w-10 border-4 border-amber-400 border-t-transparent rounded-full mx-auto" />
+        <div className="animate-spin h-10 w-10 border-4 border-white/40 border-t-transparent rounded-full mx-auto" />
       </div>
     );
   }
 
   if (!isConnected && !spectatorMode) {
     return (
-      <div className="text-center py-20 space-y-6">
-        <h1 className="text-5xl font-bold text-amber-400 tracking-tight">
-          Deal or NOT
-        </h1>
-        <p className="text-gray-400">Quantum cases on Base Sepolia</p>
-        <button
-          onClick={() => connect({ connector: connectors[0] })}
-          className="mx-auto bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-8 rounded-xl transition-colors"
-        >
-          Connect Wallet
-        </button>
+      <div className="max-w-md mx-auto text-center py-16 space-y-8">
+        <GlassCard className="p-8 space-y-6">
+          <p className="text-white/70 text-lg">
+            Connect your wallet. The Banker is waiting.
+          </p>
+          <p className="text-white/40 text-sm italic">
+            (He&apos;s an AI. He has infinite patience.)
+          </p>
+          <GlassButton
+            variant="prominent"
+            size="lg"
+            className="w-full"
+            onClick={() => connect({ connector: connectors[0] })}
+          >
+            Connect Wallet
+          </GlassButton>
+        </GlassCard>
 
-        <div className="text-gray-600 text-sm pt-4">or watch a game</div>
+        <div className="text-white/40 text-sm">or watch a game</div>
         <div className="flex gap-2 max-w-xs mx-auto">
           <input
             type="number"
@@ -286,10 +290,10 @@ export default function GameBoard() {
                 setSpectatorMode(true);
               }
             }}
-            className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-amber-500 focus:outline-none"
+            className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white focus:border-white/40 focus:outline-none backdrop-blur-md"
           />
-          <button
-            className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-xl transition-colors"
+          <GlassButton
+            variant="strong"
             onClick={() => {
               if (joinInput) {
                 setGameId(BigInt(joinInput));
@@ -298,7 +302,7 @@ export default function GameBoard() {
             }}
           >
             Watch
-          </button>
+          </GlassButton>
         </div>
       </div>
     );
@@ -306,23 +310,29 @@ export default function GameBoard() {
 
   if (isWrongChain && !spectatorMode) {
     return (
-      <div className="text-center py-20 space-y-6">
-        <h1 className="text-5xl font-bold text-amber-400 tracking-tight">
-          Deal or NOT
-        </h1>
-        <p className="text-red-400">Wrong network — please switch to Base Sepolia</p>
-        <button
-          onClick={() => switchChain({ chainId: CHAIN_ID })}
-          className="mx-auto bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-8 rounded-xl transition-colors"
-        >
-          Switch to Base Sepolia
-        </button>
-        <button
-          onClick={() => disconnect()}
-          className="text-gray-600 text-xs hover:text-gray-400 transition-colors"
-        >
-          Disconnect
-        </button>
+      <div className="max-w-md mx-auto text-center py-16 space-y-6">
+        <GlassCard className="p-8 space-y-6 bg-red-500/5 border-red-500/20">
+          <p className="text-white/80 text-lg font-semibold">
+            You&apos;re on the wrong chain.
+          </p>
+          <p className="text-white/50 text-sm">
+            The cases are on Base Sepolia. It&apos;s NOT here.
+          </p>
+          <GlassButton
+            variant="prominent"
+            size="lg"
+            className="w-full"
+            onClick={() => switchChain({ chainId: CHAIN_ID })}
+          >
+            Switch to Base Sepolia
+          </GlassButton>
+          <button
+            onClick={() => disconnect()}
+            className="text-white/40 text-xs hover:text-white/70 transition-colors"
+          >
+            Disconnect
+          </button>
+        </GlassCard>
       </div>
     );
   }
@@ -393,9 +403,10 @@ export default function GameBoard() {
   // Loading game state
   if (!gameState) {
     return (
-      <div className="text-center py-20">
-        <div className="animate-spin h-10 w-10 border-4 border-amber-400 border-t-transparent rounded-full mx-auto mb-4" />
-        <p className="text-gray-400">Loading game state...</p>
+      <div className="text-center py-20 space-y-4">
+        <div className="animate-spin h-10 w-10 border-4 border-white/40 border-t-transparent rounded-full mx-auto" />
+        <p className="text-white/60">Consulting the blockchain oracle...</p>
+        <p className="text-white/30 text-xs italic" title="it's just math">(it&apos;s just math)</p>
       </div>
     );
   }
@@ -410,15 +421,14 @@ export default function GameBoard() {
   return (
     <div className="max-w-3xl mx-auto py-6 space-y-8">
       {spectatorMode && (
-        <div className="flex items-center justify-between bg-blue-900/20 border border-blue-700/30 rounded-xl px-4 py-2">
-          <span className="text-blue-400 text-sm">Spectator Mode — watching game #{gameId?.toString()}</span>
-          <button
-            onClick={handlePlayAgain}
-            className="text-gray-400 hover:text-white text-xs transition-colors"
-          >
+        <GlassCard className="flex items-center justify-between px-4 py-2" tint="blue">
+          <span className="text-blue-400 text-sm">
+            You&apos;re watching game #{gameId?.toString()}. The Banker knows.
+          </span>
+          <GlassButton size="sm" variant="regular" onClick={handlePlayAgain}>
             Exit
-          </button>
-        </div>
+          </GlassButton>
+        </GlassCard>
       )}
 
       <GlassGameStatus

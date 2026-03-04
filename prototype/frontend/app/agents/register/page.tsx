@@ -1,18 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { GlassCard, GlassButton } from "@/components/glass";
 
-/**
- * Agent Registration Page
- *
- * Allows users to register their autonomous agents:
- * - Agent name
- * - API endpoint
- * - Metadata (strategy, version, description)
- */
-
 export default function AgentRegisterPage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [strategy, setStrategy] = useState("");
@@ -41,18 +35,21 @@ export default function AgentRegisterPage() {
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       {/* Header */}
       <div className="mb-8">
-        <button
-          onClick={() => (window.location.href = "/agents")}
-          className="text-gray-400 hover:text-white mb-4 flex items-center gap-2"
+        <Link
+          href="/agents"
+          className="text-white/40 hover:text-white mb-4 flex items-center gap-2 transition-colors"
         >
-          ← Back to Agents
-        </button>
+          &larr; Back to Agents
+        </Link>
 
         <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
           Register Your Agent
         </h1>
         <p className="text-gray-300 text-lg">
-          Deploy your autonomous agent to play Deal or NOT! games and compete on the leaderboard.
+          Deploy your autonomous agent to play Deal or NOT and compete on the leaderboard.
+        </p>
+        <p className="text-white/30 text-sm mt-1 italic">
+          Before your agent embarrasses itself on-chain, make sure you read the guide below.
         </p>
       </div>
 
@@ -61,7 +58,6 @@ export default function AgentRegisterPage() {
         <h3 className="text-2xl font-bold mb-6">Agent Details</h3>
 
         <div className="space-y-6">
-          {/* Agent Name */}
           <div>
             <label className="block text-sm font-semibold text-gray-300 mb-2">
               Agent Name <span className="text-red-400">*</span>
@@ -76,7 +72,6 @@ export default function AgentRegisterPage() {
             <p className="text-xs text-gray-400 mt-1">A unique, memorable name for your agent</p>
           </div>
 
-          {/* API Endpoint */}
           <div>
             <label className="block text-sm font-semibold text-gray-300 mb-2">
               API Endpoint <span className="text-red-400">*</span>
@@ -93,7 +88,6 @@ export default function AgentRegisterPage() {
             </p>
           </div>
 
-          {/* Strategy Type */}
           <div>
             <label className="block text-sm font-semibold text-gray-300 mb-2">Strategy Type</label>
             <select
@@ -105,10 +99,10 @@ export default function AgentRegisterPage() {
                 Select a strategy...
               </option>
               <option value="conservative" className="bg-gray-900">
-                Conservative (Accept ≥85% EV)
+                Conservative (Accept &ge;85% EV)
               </option>
               <option value="aggressive" className="bg-gray-900">
-                Aggressive (Accept ≥95% EV, always swap)
+                Aggressive (Accept &ge;95% EV, always swap)
               </option>
               <option value="adaptive" className="bg-gray-900">
                 Adaptive (ML-based decision making)
@@ -120,7 +114,6 @@ export default function AgentRegisterPage() {
             <p className="text-xs text-gray-400 mt-1">General approach your agent takes</p>
           </div>
 
-          {/* Version */}
           <div>
             <label className="block text-sm font-semibold text-gray-300 mb-2">Version</label>
             <input
@@ -133,7 +126,6 @@ export default function AgentRegisterPage() {
             <p className="text-xs text-gray-400 mt-1">Semantic version of your agent (e.g., 1.0.0)</p>
           </div>
 
-          {/* Description */}
           <div>
             <label className="block text-sm font-semibold text-gray-300 mb-2">Description</label>
             <textarea
@@ -144,12 +136,12 @@ export default function AgentRegisterPage() {
               className="w-full px-4 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50 resize-none"
             />
             <p className="text-xs text-gray-400 mt-1">
-              Brief description of your agent's strategy and goals
+              Brief description of your agent&apos;s strategy and goals
             </p>
           </div>
         </div>
 
-        {/* Submit Button */}
+        {/* Submit */}
         <div className="mt-8 flex gap-4">
           <GlassButton
             variant="prominent"
@@ -161,7 +153,7 @@ export default function AgentRegisterPage() {
           </GlassButton>
           <GlassButton
             variant="regular"
-            onClick={() => (window.location.href = "/agents")}
+            onClick={() => router.push("/agents")}
           >
             Cancel
           </GlassButton>
@@ -172,13 +164,13 @@ export default function AgentRegisterPage() {
       <GlassCard className="p-8 bg-blue-400/5 border-2 border-blue-400/30">
         <h3 className="text-2xl font-bold mb-4">Developer Guide</h3>
         <div className="space-y-4 text-gray-300">
-          <p>Before registering your agent, make sure you:</p>
+          <p>Before your agent embarrasses itself on-chain, make sure you:</p>
           <ul className="space-y-2 ml-4">
-            <li>✓ Implement the decision API endpoint (POST /api/decision)</li>
-            <li>✓ Deploy your agent server with HTTPS (Fly.io, Railway, Vercel)</li>
-            <li>✓ Test your endpoint with mock game states</li>
-            <li>✓ Implement rate limiting and error handling</li>
-            <li>✓ Set response timeout to &lt;5 seconds</li>
+            <li>&#10003; Implement the decision API endpoint (POST /api/decision)</li>
+            <li>&#10003; Deploy your agent server with HTTPS (Fly.io, Railway, Vercel)</li>
+            <li>&#10003; Test your endpoint with mock game states</li>
+            <li>&#10003; Implement rate limiting and error handling</li>
+            <li>&#10003; Set response timeout to &lt;5 seconds</li>
           </ul>
 
           <div className="mt-6 p-4 bg-white/5 rounded-lg">
@@ -222,7 +214,7 @@ export default function AgentRegisterPage() {
               variant="strong"
               onClick={() => window.open("/AGENTS_GUIDE.md", "_blank")}
             >
-              📚 Read Full Developer Guide
+              Read Full Developer Guide
             </GlassButton>
           </div>
         </div>
@@ -230,10 +222,10 @@ export default function AgentRegisterPage() {
 
       {/* Cost Info */}
       <GlassCard className="p-6 mt-6 bg-yellow-400/5 border-2 border-yellow-400/30">
-        <h4 className="font-semibold text-yellow-400 mb-2">💰 Registration Cost</h4>
+        <h4 className="font-semibold text-yellow-400 mb-2">Registration Cost</h4>
         <p className="text-sm text-gray-300">
           Registration is free! You only pay gas fees (~$0.01 on Base Sepolia). After registration,
-          your agent can start playing immediately.
+          your agent can start playing immediately. No strings attached. No deal required.
         </p>
       </GlassCard>
     </div>
