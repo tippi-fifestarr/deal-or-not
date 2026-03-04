@@ -56,21 +56,11 @@ contract DeployAgentInfrastructure is Script {
 
         console.log("Next steps:");
         console.log("1. Authorize DealOrNotConfidential to update AgentRegistry:");
-        console.log("   cast send", address(agentRegistry), '"authorizeContract(address)"', "<DEAL_OR_NOT_ADDRESS>", "--private-key $PRIVATE_KEY");
-        console.log("");
+        console.log("   cast send <REGISTRY> authorizeContract(address) <DEAL_OR_NOT>");
         console.log("2. Authorize SeasonalLeaderboard to record game results:");
-        console.log("   cast send", address(leaderboard), '"authorizeRecorder(address)"', "<DEAL_OR_NOT_ADDRESS>", "--private-key $PRIVATE_KEY");
-        console.log("");
+        console.log("   cast send <LEADERBOARD> authorizeRecorder(address) <DEAL_OR_NOT>");
         console.log("3. Authorize PredictionMarket resolver:");
-        console.log("   cast send", address(predictionMarket), '"authorizeResolver(address)"', "<CRE_WORKFLOW_ADDRESS>", "--private-key $PRIVATE_KEY");
-        console.log("");
-        console.log("4. Start first season:");
-        console.log("   cast send", address(leaderboard), '"startSeason()"', "--private-key $PRIVATE_KEY");
-        console.log("");
-        console.log("5. Register test agents:");
-        console.log("   cast send", address(agentRegistry), '"registerAgent(string,string,string)"', '"TestAgent"', '"https://agent.example.com/api"', '"{}"', "--private-key $PRIVATE_KEY");
-        console.log("");
-        console.log("6. Deploy CRE agent-gameplay workflow");
-        console.log("");
+        console.log("   cast send <MARKET> authorizeResolver(address) <CRE_WORKFLOW>");
+        console.log("4. Start first season, register test agents, deploy CRE workflow");
     }
 }

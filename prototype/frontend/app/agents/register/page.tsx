@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { GlassCard } from "@/components/glass/GlassCard";
-import { GlassButton } from "@/components/glass/GlassButton";
+import { GlassCard, GlassButton } from "@/components/glass";
 
 /**
  * Agent Registration Page
@@ -153,7 +152,7 @@ export default function AgentRegisterPage() {
         {/* Submit Button */}
         <div className="mt-8 flex gap-4">
           <GlassButton
-            variant="accent"
+            variant="prominent"
             className="flex-1"
             onClick={handleRegister}
             disabled={isSubmitting}
@@ -161,7 +160,7 @@ export default function AgentRegisterPage() {
             {isSubmitting ? "Registering..." : "Register Agent"}
           </GlassButton>
           <GlassButton
-            variant="secondary"
+            variant="regular"
             onClick={() => (window.location.href = "/agents")}
           >
             Cancel
@@ -220,7 +219,7 @@ export default function AgentRegisterPage() {
 
           <div className="mt-6">
             <GlassButton
-              variant="primary"
+              variant="strong"
               onClick={() => window.open("/AGENTS_GUIDE.md", "_blank")}
             >
               📚 Read Full Developer Guide

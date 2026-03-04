@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { GlassCard } from "@/components/glass/GlassCard";
-import { GlassButton } from "@/components/glass/GlassButton";
-import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
-import { formatEther } from "viem";
+import { GlassCard, GlassButton } from "@/components/glass";
 
 /**
  * Agent Leaderboard & Browse Page
@@ -143,26 +140,26 @@ export default function AgentsPage() {
         <div className="flex gap-2">
           <GlassButton
             onClick={() => setFilter("all")}
-            variant={filter === "all" ? "primary" : "secondary"}
+            variant={filter === "all" ? "strong" : "regular"}
           >
             All
           </GlassButton>
           <GlassButton
             onClick={() => setFilter("top")}
-            variant={filter === "top" ? "primary" : "secondary"}
+            variant={filter === "top" ? "strong" : "regular"}
           >
             Top Earners
           </GlassButton>
           <GlassButton
             onClick={() => setFilter("new")}
-            variant={filter === "new" ? "primary" : "secondary"}
+            variant={filter === "new" ? "strong" : "regular"}
           >
             New
           </GlassButton>
         </div>
 
         {/* Register Button */}
-        <GlassButton variant="accent" onClick={() => (window.location.href = "/agents/register")}>
+        <GlassButton variant="prominent" onClick={() => (window.location.href = "/agents/register")}>
           Register Agent
         </GlassButton>
       </div>
@@ -228,7 +225,7 @@ export default function AgentsPage() {
                 <div className="flex gap-2">
                   <GlassButton
                     size="sm"
-                    variant="primary"
+                    variant="strong"
                     onClick={(e) => {
                       e.stopPropagation();
                       window.location.href = `/agents/${agent.address}`;
@@ -238,7 +235,7 @@ export default function AgentsPage() {
                   </GlassButton>
                   <GlassButton
                     size="sm"
-                    variant="accent"
+                    variant="prominent"
                     onClick={(e) => {
                       e.stopPropagation();
                       // TODO: Open stake modal

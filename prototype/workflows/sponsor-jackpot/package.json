@@ -1,12 +1,13 @@
 {
-<<<<<<< docs/whitepaper-confidential
   "name": "deal-or-not-sponsor-jackpot",
   "version": "0.1.0",
   "main": "dist/main.js",
   "private": true,
   "description": "CRE log-trigger workflow: add sponsor jackpot on each case opening",
   "scripts": {
-    "postinstall": "bun x cre-setup"
+    "postinstall": "bun x cre-setup",
+    "simulate": "cre workflow simulate workflow --non-interactive --trigger-index 0",
+    "simulate:broadcast": "cre workflow simulate workflow --non-interactive --trigger-index 0 --broadcast"
   },
   "license": "UNLICENSED",
   "dependencies": {
@@ -15,14 +16,5 @@
   },
   "devDependencies": {
     "@types/bun": "1.2.21"
-=======
-  "name": "sponsor-jackpot-workflow",
-  "version": "1.0.0",
-  "description": "CRE cron workflow: sponsor jackpot for Deal or NOT",
-  "main": "workflow/main.ts",
-  "scripts": {
-    "simulate": "cre workflow simulate workflow --non-interactive --trigger-index 0",
-    "simulate:broadcast": "cre workflow simulate workflow --non-interactive --trigger-index 0 --broadcast"
->>>>>>> main
   }
 }
