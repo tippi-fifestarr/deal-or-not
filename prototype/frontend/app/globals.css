@@ -1,12 +1,152 @@
 @import "tailwindcss";
 
-:root {
-  --background: #030712;
-  --foreground: #f3f4f6;
+@layer base {
+  :root {
+    --background: #030712;
+    --foreground: #f3f4f6;
+    --gold: #FFD700;
+    --gold-dark: #B8860B;
+    --gold-light: #FFF8DC;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-geist-mono), monospace;
+  }
+
+  /* ══════════════════════════════════════════════
+     GAME SHOW KEYFRAMES
+     ══════════════════════════════════════════════ */
+
+  @keyframes gold-shimmer {
+    0%, 100% { background-position: 200% 0; }
+    50% { background-position: -200% 0; }
+  }
+
+  @keyframes gold-border-pulse {
+    0%, 100% {
+      box-shadow: 0 0 10px rgba(255, 215, 0, 0.2), 0 0 20px rgba(255, 215, 0, 0.1);
+    }
+    50% {
+      box-shadow: 0 0 20px rgba(255, 215, 0, 0.4), 0 0 40px rgba(255, 215, 0, 0.2), 0 0 60px rgba(255, 215, 0, 0.1);
+    }
+  }
+
+  @keyframes sparkle-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes ticker-scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  @keyframes slam-in {
+    0% { transform: scale(3) rotate(-5deg); opacity: 0; }
+    60% { transform: scale(0.95) rotate(1deg); opacity: 1; }
+    80% { transform: scale(1.02) rotate(-0.5deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+
+  @keyframes neon-flicker {
+    0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+      text-shadow: 0 0 7px rgba(255,215,0,0.6), 0 0 10px rgba(255,215,0,0.4), 0 0 21px rgba(255,215,0,0.2);
+    }
+    20%, 24%, 55% {
+      text-shadow: none;
+    }
+  }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-mono), monospace;
+@layer components {
+  /* ══════════════════════════════════════════════
+     GAME SHOW ENERGY
+     ══════════════════════════════════════════════ */
+
+  /* Gold shimmer text effect */
+  .gold-text {
+    background: linear-gradient(
+      90deg,
+      #B8860B 0%,
+      #FFD700 25%,
+      #FFF8DC 50%,
+      #FFD700 75%,
+      #B8860B 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: gold-shimmer 3s ease-in-out infinite;
+  }
+
+  /* Dramatic gold border glow */
+  .gold-glow {
+    box-shadow:
+      0 0 20px rgba(255, 215, 0, 0.3),
+      0 0 40px rgba(255, 215, 0, 0.1),
+      inset 0 1px 0 rgba(255, 215, 0, 0.2);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+  }
+
+  /* Pulsing gold border for CTAs */
+  .gold-pulse {
+    animation: gold-border-pulse 2s ease-in-out infinite;
+  }
+
+  /* Sparkle overlay animation */
+  .sparkle {
+    position: relative;
+    overflow: hidden;
+  }
+  .sparkle::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse, rgba(255,215,0,0.15) 0%, transparent 60%);
+    animation: sparkle-rotate 6s linear infinite;
+    pointer-events: none;
+  }
+
+  /* Scrolling ticker tape */
+  .ticker {
+    display: flex;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .ticker-inner {
+    display: flex;
+    animation: ticker-scroll 30s linear infinite;
+  }
+
+  /* Halftone dot pattern (like the MSN game) */
+  .halftone-bg {
+    background-image: radial-gradient(circle, rgba(255,215,0,0.08) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+
+  /* Stage spotlight effect */
+  .spotlight {
+    background: radial-gradient(
+      ellipse at 50% 0%,
+      rgba(255, 215, 0, 0.08) 0%,
+      transparent 60%
+    );
+  }
+
+  /* Dramatic entrance animation */
+  .slam-in {
+    animation: slam-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  /* Neon flicker for emphasis */
+  .neon-gold {
+    animation: neon-flicker 4s ease-in-out infinite;
+    color: #FFD700;
+  }
 }
