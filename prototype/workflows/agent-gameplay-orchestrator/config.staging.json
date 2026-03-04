@@ -1,0 +1,21 @@
+{
+  "name": "agent-gameplay-orchestrator",
+  "version": "1.0.0",
+  "environment": "staging",
+  "contractAddress": "0xd9D4A974021055c46fD834049e36c21D7EE48137",
+  "agentRegistryAddress": "<TO_BE_DEPLOYED>",
+  "chainSelectorName": "base-sepolia",
+  "gasLimit": "500000",
+  "httpTimeout": 5000,
+  "network": {
+    "chain": "base-sepolia",
+    "chainId": 84532,
+    "rpcUrl": "https://sepolia.base.org"
+  },
+  "monitoring": {
+    "enabled": true,
+    "alertOnFailure": true,
+    "maxRetries": 3,
+    "retryDelay": 1000
+  }
+}

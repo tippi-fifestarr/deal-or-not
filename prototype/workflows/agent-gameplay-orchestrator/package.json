@@ -1,0 +1,32 @@
+{
+  "name": "agent-gameplay-orchestrator",
+  "version": "1.0.0",
+  "description": "CRE workflow for autonomous agent gameplay orchestration",
+  "main": "main.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "cre dev",
+    "deploy:staging": "cre deploy --config config.staging.json",
+    "deploy:production": "cre deploy --config config.production.json",
+    "logs": "cre logs agent-gameplay-orchestrator -f",
+    "test": "cre test main.ts"
+  },
+  "dependencies": {
+    "@chainlink/cre-sdk": "^0.1.0",
+    "viem": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "chainlink",
+    "cre",
+    "agent",
+    "gameplay",
+    "automation",
+    "ai"
+  ],
+  "author": "rdobbeck",
+  "license": "MIT"
+}

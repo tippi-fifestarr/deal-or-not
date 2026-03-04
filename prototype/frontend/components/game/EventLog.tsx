@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePublicClient } from "wagmi";
-import { parseAbiItem, type Log, type WatchContractEventReturnType } from "viem";
+import { parseAbiItem, decodeEventLog, type Log, type WatchContractEventReturnType } from "viem";
 import { CONTRACT_ADDRESS } from "@/lib/config";
 import { centsToUsd } from "@/lib/utils";
 
@@ -85,7 +85,59 @@ export default function EventLog({ gameId }: EventLogProps) {
     setEvents(prev => [...prev, evt].sort((a, b) => Number(a.blockNumber - b.blockNumber)));
   }, []);
 
-  // Watch for events in real-time using small block range polling
+  // Fetch historical events once on mount
+  useEffect(() => {
+    if (!publicClient) return;
+
+    const fetchHistoricalEvents = async () => {
+      try {
+        // Get current block
+        const currentBlock = await publicClient.getBlockNumber();
+        const fromBlock = currentBlock - 10000n; // Look back ~10k blocks (~2 hours on Base)
+
+        for (const def of EVENT_DEFS) {
+          try {
+            const logs = await publicClient.getLogs({
+              address: CONTRACT_ADDRESS,
+              event: parseAbiItem(def.abi),
+              args: { gameId },
+              fromBlock,
+              toBlock: currentBlock,
+            });
+
+            for (const log of logs) {
+              try {
+                const decoded = decodeEventLog({
+                  abi: [parseAbiItem(def.abi)],
+                  data: log.data,
+                  topics: log.topics,
+                });
+
+                console.log(`Historical Event: ${def.name}`, { args: decoded.args, log });
+
+                addEvent({
+                  name: def.name,
+                  description: formatEventArgs(def.name, decoded.args as Record<string, unknown>),
+                  color: def.color,
+                  blockNumber: log.blockNumber ?? 0n,
+                });
+              } catch (decodeErr) {
+                console.error(`Error decoding ${def.name}:`, decodeErr);
+              }
+            }
+          } catch (err) {
+            console.error(`Error fetching ${def.name}:`, err);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching historical events:', err);
+      }
+    };
+
+    fetchHistoricalEvents();
+  }, [publicClient, gameId, addEvent]);
+
+  // Watch for new events in real-time
   useEffect(() => {
     if (!publicClient) return;
 
@@ -99,15 +151,24 @@ export default function EventLog({ gameId }: EventLogProps) {
         pollingInterval: 4_000,
         onLogs: (logs) => {
           for (const log of logs) {
-            addEvent({
-              name: def.name,
-              description: formatEventArgs(
-                def.name,
-                (log as Log & { args: Record<string, unknown> }).args ?? {},
-              ),
-              color: def.color,
-              blockNumber: log.blockNumber ?? 0n,
-            });
+            try {
+              const decoded = decodeEventLog({
+                abi: [parseAbiItem(def.abi)],
+                data: log.data,
+                topics: log.topics,
+              });
+
+              console.log(`Live Event: ${def.name}`, { args: decoded.args, log });
+
+              addEvent({
+                name: def.name,
+                description: formatEventArgs(def.name, decoded.args as Record<string, unknown>),
+                color: def.color,
+                blockNumber: log.blockNumber ?? 0n,
+              });
+            } catch (decodeErr) {
+              console.error(`Error decoding live ${def.name}:`, decodeErr);
+            }
           }
         },
       });
