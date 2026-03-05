@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
 import Web3Provider from "@/components/providers/Web3Provider";
+import Nav from "@/components/Nav";
 import "./globals.css";
 
 const geistMono = Geist_Mono({
@@ -32,7 +33,10 @@ export default function RootLayout({
           <div className="absolute top-1/2 right-1/3 w-64 h-64 bg-pink-500/20 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '2s' }} />
         </div>
 
-        <Web3Provider>{children}</Web3Provider>
+        <Web3Provider>
+          <Nav />
+          {children}
+        </Web3Provider>
       </body>
     </html>
   );

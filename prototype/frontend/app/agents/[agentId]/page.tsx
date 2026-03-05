@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { use } from "react";
-import { GlassCard } from "@/components/glass/GlassCard";
-import { GlassButton } from "@/components/glass/GlassButton";
-import { Address } from "~~/components/scaffold-eth";
+import { useState, use } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { GlassCard, GlassButton } from "@/components/glass";
 import { formatEther, parseEther } from "viem";
 
 /**
@@ -27,6 +26,7 @@ type AgentGame = {
 };
 
 export default function AgentDetailsPage({ params }: { params: Promise<{ agentId: string }> }) {
+  const router = useRouter();
   const resolvedParams = use(params);
   const agentId = resolvedParams.agentId;
 
@@ -77,12 +77,12 @@ export default function AgentDetailsPage({ params }: { params: Promise<{ agentId
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       {/* Header */}
       <div className="mb-8">
-        <button
-          onClick={() => (window.location.href = "/agents")}
-          className="text-gray-400 hover:text-white mb-4 flex items-center gap-2"
+        <Link
+          href="/agents"
+          className="text-white/40 hover:text-white mb-4 flex items-center gap-2 transition-colors"
         >
-          ← Back to Agents
-        </button>
+          &larr; Back to Agents
+        </Link>
 
         <GlassCard className="p-8">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -94,7 +94,7 @@ export default function AgentDetailsPage({ params }: { params: Promise<{ agentId
               <div>
                 <h1 className="text-4xl font-bold mb-2">{mockAgent.name}</h1>
                 <div className="flex items-center gap-2">
-                  <Address address={mockAgent.owner as `0x${string}`} />
+                  <span className="font-mono text-sm text-gray-400">{mockAgent.owner.slice(0, 10)}...{mockAgent.owner.slice(-6)}</span>
                 </div>
                 <p className="text-sm text-gray-400 mt-2">{mockAgent.metadata.description}</p>
               </div>
@@ -121,16 +121,16 @@ export default function AgentDetailsPage({ params }: { params: Promise<{ agentId
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6">
-        <GlassButton onClick={() => setActiveTab("overview")} variant={activeTab === "overview" ? "primary" : "secondary"}>
+        <GlassButton onClick={() => setActiveTab("overview")} variant={activeTab === "overview" ? "strong" : "regular"}>
           Overview
         </GlassButton>
-        <GlassButton onClick={() => setActiveTab("games")} variant={activeTab === "games" ? "primary" : "secondary"}>
+        <GlassButton onClick={() => setActiveTab("games")} variant={activeTab === "games" ? "strong" : "regular"}>
           Game History
         </GlassButton>
-        <GlassButton onClick={() => setActiveTab("stake")} variant={activeTab === "stake" ? "primary" : "secondary"}>
+        <GlassButton onClick={() => setActiveTab("stake")} variant={activeTab === "stake" ? "strong" : "regular"}>
           Stake
         </GlassButton>
-        <GlassButton onClick={() => setActiveTab("strategy")} variant={activeTab === "strategy" ? "primary" : "secondary"}>
+        <GlassButton onClick={() => setActiveTab("strategy")} variant={activeTab === "strategy" ? "strong" : "regular"}>
           Strategy
         </GlassButton>
       </div>
@@ -185,7 +185,7 @@ export default function AgentDetailsPage({ params }: { params: Promise<{ agentId
                     : "None"}
                 </span>
               </div>
-              <GlassButton variant="accent" className="w-full mt-4" onClick={() => setActiveTab("stake")}>
+              <GlassButton variant="prominent" className="w-full mt-4" onClick={() => setActiveTab("stake")}>
                 Stake on this Agent
               </GlassButton>
             </div>
@@ -221,7 +221,7 @@ export default function AgentDetailsPage({ params }: { params: Promise<{ agentId
                 <div
                   key={game.gameId}
                   className="flex items-center justify-between p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-                  onClick={() => (window.location.href = `/?gameId=${game.gameId}`)}
+                  onClick={() => router.push(`/?gameId=${game.gameId}`)}
                 >
                   <div className="flex items-center gap-4">
                     <div
@@ -288,7 +288,7 @@ export default function AgentDetailsPage({ params }: { params: Promise<{ agentId
             </div>
 
             <GlassButton
-              variant="accent"
+              variant="prominent"
               className="w-full"
               onClick={() => alert("Staking coming soon after AgentStaking contract deployment!")}
             >

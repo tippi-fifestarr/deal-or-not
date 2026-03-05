@@ -58,7 +58,7 @@ contract AgentRegistry {
     // ── Errors ──
     error Unauthorized();
     error AgentNotFound();
-    error AgentBanned();
+    error AgentIsBanned();
     error InvalidEndpoint();
     error EmptyName();
 
@@ -153,7 +153,7 @@ contract AgentRegistry {
         string calldata newMetadata
     ) external onlyAgentOwner(agentId) {
         if (!agents[agentId].isActive) revert AgentNotFound();
-        if (agents[agentId].isBanned) revert AgentBanned();
+        if (agents[agentId].isBanned) revert AgentIsBanned();
 
         agents[agentId].apiEndpoint = newApiEndpoint;
         agents[agentId].metadata = newMetadata;
@@ -225,7 +225,7 @@ contract AgentRegistry {
     /// @notice Get agent API endpoint (for CRE workflow)
     function getAgentEndpoint(uint256 agentId) external view returns (string memory) {
         if (!agents[agentId].isActive) revert AgentNotFound();
-        if (agents[agentId].isBanned) revert AgentBanned();
+        if (agents[agentId].isBanned) revert AgentIsBanned();
         return agents[agentId].apiEndpoint;
     }
 
