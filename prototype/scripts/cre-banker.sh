@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 # Run CRE AI Banker simulate for a given tx hash
 # Usage: ./scripts/cre-banker.sh <TX_HASH> [EVENT_INDEX]
 #
@@ -10,7 +10,7 @@
 # into config.staging.json for the run, then removed after.
 # The CRE WASM sandbox can't read env vars, so the key must be in the config.
 set -e
-SCRIPT_DIR="${0:a:h}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
 TX_HASH="${1:?Usage: cre-banker.sh <TX_HASH of CRE reveal tx> [EVENT_INDEX]}"

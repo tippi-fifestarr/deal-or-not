@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 # Run CRE game-timer simulate (cron trigger — no TX hash needed)
 # Usage: ./scripts/cre-timer.sh
 #
@@ -7,7 +7,7 @@
 #
 # Optional — only needed to test game expiry. Games work fine without this.
 set -e
-SCRIPT_DIR="${0:a:h}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
 echo "Running CRE game-timer (cron trigger)..."

@@ -1,11 +1,11 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 # Full game flow helper — creates game, picks case, opens cases
 # Usage: ./scripts/play-game.sh <command> [args...]
 #
 # Commands:
 #   create              Create a new game
 #   pick  <GID> <CASE>  Pick your case (0-4)
-#   open  <GID> <CASE>  Open a case → prints TX for cre-reveal.sh
+#   open  <GID> <CASE>  Open a case -> prints TX for cre-reveal.sh
 #   ring  <GID>         Ring the banker (manual setBankerOffer)
 #   accept <GID>        Accept the deal
 #   reject <GID>        Reject the deal
@@ -13,7 +13,7 @@
 #   swap  <GID>         Swap your case (final round)
 #   state <GID>         Show game state
 set -e
-SCRIPT_DIR="${0:a:h}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
 CMD="${1:?Usage: play-game.sh <create|pick|open|ring|accept|reject|keep|swap|state> [args...]}"
@@ -25,8 +25,9 @@ case "$CMD" in
     cast send "$CONTRACT" "createGame()" \
       --private-key "$DEPLOYER_KEY" --rpc-url "$RPC_URL"
     NEXT=$(cast call "$CONTRACT" "nextGameId()(uint256)" --rpc-url "$RPC_URL")
-    echo "\nGame created. Next ID: $NEXT (yours is $((NEXT - 1)))"
-    echo "Wait ~60s for VRF, then: ./scripts/play-game.sh state $((NEXT - 1))"
+    echo ""
+    echo "Game created. Next ID: $NEXT (yours is $((NEXT - 1)))"
+    echo "Wait ~10s for VRF, then: ./scripts/play-game.sh state $((NEXT - 1))"
     ;;
 
   pick)
@@ -43,8 +44,10 @@ case "$CMD" in
     echo "Opening case #$CASE for game $GAME_ID..."
     TX=$(cast send "$CONTRACT" "openCase(uint256,uint8)" "$GAME_ID" "$CASE" \
       --private-key "$DEPLOYER_KEY" --rpc-url "$RPC_URL" --json | python3 -c "import json,sys;print(json.load(sys.stdin)['transactionHash'])")
-    echo "\nTX: $TX"
-    echo "\nNext steps:"
+    echo ""
+    echo "TX: $TX"
+    echo ""
+    echo "Next steps:"
     echo "  1. CRE reveal:  ./scripts/cre-reveal.sh $TX"
     echo "  2. Check state:  ./scripts/play-game.sh state $GAME_ID"
     echo "  3. If AwaitingOffer, the reveal TX hash has RoundComplete."

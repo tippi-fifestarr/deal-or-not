@@ -1,353 +1,146 @@
-# Phase 2: CRE Auto-Reveal Workflows
+# CRE Workflows — Deal or NOT
 
-This directory contains Chainlink Runtime Environment (CRE) workflows for automating game mechanics.
-
-## Overview
-
-**Phase 2** adds CRE auto-reveal to improve UX from **2 transactions → 1 transaction**.
-
-### Before Phase 2 (Current v1)
-```
-Player commits → Wait 1 block → Player reveals
-   (TX 1)                          (TX 2)
-```
-
-### After Phase 2 (CRE Auto-Reveal)
-```
-Player commits → CRE auto-reveals after 1 block
-   (TX 1)           (Keystone TX)
-```
+Chainlink Runtime Environment (CRE) workflows that automate game mechanics. Each workflow runs as a WASM module inside the DON (Decentralized Oracle Network) with Keystone Forwarder consensus.
 
 ## Workflows
 
-### 1. Case Reveal Orchestrator
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| **confidential-reveal** | `CaseOpenRequested` event | Computes case value from VRF seed + deterministic entropy, writes result via Keystone Forwarder |
+| **banker-ai** | `RoundComplete` event | Calculates banker offer (EV-based algorithm), calls Gemini LLM for a snarky message, writes offer on-chain |
+| **sponsor-jackpot** | `CaseOpenRequested` event | Adds a deterministic random amount to the game's jackpot pool (optional) |
+| **game-timer** | Cron (every 10 min) | Scans last 5 games, expires stale ones, clears jackpots for expired sponsored games |
+| **agent-gameplay-orchestrator** | Multiple game events | WIP: Calls registered agent APIs to make automated gameplay decisions |
 
-**File**: `case-reveal-orchestrator.ts`
+## Prerequisites
 
-**Purpose**: Automate case reveals after player commits
-
-**Flow**:
-1. Player calls `commitCase(gameId, hash)` on-chain
-2. Player sends reveal data `{gameId, caseIndex, salt}` to CRE via HTTP endpoint
-3. CRE workflow listens for `CaseCommitted` event
-4. CRE waits 1 block automatically
-5. CRE calls `revealCase()` via Keystone Forwarder with DON consensus
-
-**Security**:
-- Keystone Forwarder requires 4-of-6 DON node consensus
-- BFT proof submitted on-chain
-- Only processes valid commits with matching reveal data
-- Enforces 256-block expiry window
+1. **CRE CLI v1.2.0+** — install from [CRE docs](https://docs.chain.link/cre/getting-started/cli-installation/linux)
+2. **Foundry** (`cast`) — install via `curl -L https://foundry.paradigm.xyz | bash && foundryup`
+3. **python3** — for JSON parsing in scripts
+4. **bash 4+** — scripts use `readarray`
 
 ## Setup
 
-### 1. Deploy Contract with CRE Support
+```bash
+# 1. Log in to CRE (token expires every 15 min — re-run before each session)
+cre login
 
-The `DealOrNot.sol` contract now includes:
-- `keystoneForwarder` address (set by owner)
-- `autoRevealEnabled` flag (set by owner)
-- `_requirePlayerOrForwarder()` authorization check
+# 2. Copy environment file
+cp .env.example .env
+# Edit .env if you need to override contract addresses
 
-Deploy and configure:
-```solidity
-// After deployment
-DealOrNot contract = DealOrNot(contractAddress);
-
-// Set Keystone Forwarder address
-contract.setKeystoneForwarder(0x...); // DON address
-
-// Enable auto-reveal
-contract.setAutoRevealEnabled(true);
+# 3. For AI Banker: add Gemini key to .env
+echo "GEMINI_API_KEY=your-key-here" >> .env
 ```
 
-### 2. Configure CRE Workflow
+## Quick Start
 
-Create `.env` file in `workflows/` directory:
+The fastest way to run the full game flow:
 
 ```bash
-# RPC endpoint
-RPC_URL=https://base-sepolia.g.alchemy.com/v2/YOUR_KEY
+# Terminal 1: Start CRE auto-orchestrator (watches game state, runs workflows automatically)
+cd prototype
+./scripts/cre-support.sh <GAME_ID> 5
 
-# Contract address
-CONTRACT_ADDRESS=0x...
-
-# Keystone Forwarder address (DON)
-KEYSTONE_FORWARDER=0x...
-
-# DON node signing key
-DON_NODE_KEY=0x...
+# Terminal 2: Play via CLI or open the browser UI at localhost:3000
+./scripts/play-game.sh create        # creates game, wait ~10s for VRF
+./scripts/play-game.sh state <GID>   # check state
+./scripts/play-game.sh pick <GID> 2  # pick case #2
+./scripts/play-game.sh open <GID> 0  # open case #0 -> cre-support handles the rest
 ```
 
-### 3. Run Orchestrator
+## Running Workflows Manually
 
-Each DON node runs the orchestrator:
+If `cre-support.sh` isn't running, trigger each workflow by hand:
 
 ```bash
-cd workflows
-npm install
-ts-node case-reveal-orchestrator.ts
+# 1. Reveal a case (after player calls openCase)
+./scripts/cre-reveal.sh <OPEN_CASE_TX_HASH>
+
+# 2. Get banker offer (after reveal emits RoundComplete)
+./scripts/cre-banker.sh <REVEAL_TX_HASH>
+
+# 3. Add to jackpot (optional, same TX as reveal)
+./scripts/cre-jackpot.sh <OPEN_CASE_TX_HASH>
+
+# 4. Expire stale games (no TX needed)
+./scripts/cre-timer.sh
 ```
 
-Output:
-```
-[CRE] Case Reveal Orchestrator started
-[CRE] Listening for CaseCommitted events on 0x...
-[CRE] CaseCommitted event detected: game=1, round=0
-[CRE] Found reveal data for game 1. Scheduling reveal...
-[CRE] Waiting 1 blocks before revealing...
-[CRE] Executing reveal for game 1...
-[CRE] Reveal transaction sent: 0x...
-[CRE] ✅ Auto-reveal successful for game 1
-```
-
-## Frontend Integration
-
-### Player Submit Reveal Data
-
-When player commits, also send reveal data to CRE:
-
-```typescript
-import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
-
-// 1. Commit on-chain
-const { writeContractAsync } = useScaffoldWriteContract({
-  contractName: "DealOrNot",
-});
-
-const caseIndex = 2;
-const salt = BigInt(Math.floor(Math.random() * 1e18));
-const commitHash = keccak256(encodePacked(["uint8", "uint256"], [caseIndex, salt]));
-
-await writeContractAsync({
-  functionName: "commitCase",
-  args: [gameId, commitHash],
-});
-
-// 2. Submit reveal data to CRE
-await fetch("https://cre-endpoint.chainlink.network/reveal", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    gameId: gameId.toString(),
-    caseIndex,
-    salt: salt.toString(),
-    player: address,
-    commitBlock: blockNumber,
-    timestamp: Date.now(),
-  }),
-});
-
-// 3. CRE handles reveal automatically after 1 block
-```
-
-### Listen for Auto-Reveal
-
-Frontend watches for `CaseCollapsed` event:
-
-```typescript
-import { useScaffoldEventHistory } from "~~/hooks/scaffold-eth";
-
-const { data: reveals } = useScaffoldEventHistory({
-  contractName: "DealOrNot",
-  eventName: "CaseCollapsed",
-  filters: { gameId },
-  watch: true,
-});
-
-// When reveal happens, update UI
-useEffect(() => {
-  if (reveals && reveals.length > 0) {
-    const latest = reveals[reveals.length - 1];
-    console.log(`Case ${latest.args.caseIndex} revealed: $${latest.args.valueCents / 100}`);
-  }
-}, [reveals]);
-```
-
-## Architecture
-
-### Consensus Flow
+## Game Flow
 
 ```
-┌─────────────┐
-│   Player    │
-│  commits    │
-└──────┬──────┘
-       │ TX 1: commitCase(hash)
-       │ HTTP: {caseIndex, salt}
-       ▼
-┌─────────────────────────────────────┐
-│         CRE DON (6 nodes)           │
-│                                     │
-│  Node 1 ──┐                         │
-│  Node 2 ──┤ Listen for event        │
-│  Node 3 ──┤ Wait 1 block            │
-│  Node 4 ──┤ Compute reveal          │
-│  Node 5 ──┤ Sign with BLS           │
-│  Node 6 ──┘                         │
-│                                     │
-│           ▼                         │
-│  ┌────────────────────┐             │
-│  │ Keystone Forwarder │             │
-│  │  - Collect sigs    │             │
-│  │  - Wait 4-of-6     │             │
-│  │  - Aggregate BLS   │             │
-│  └────────┬───────────┘             │
-└───────────┼─────────────────────────┘
-            │ TX 2: revealCase()
-            ▼        + BFT proof
-    ┌──────────────┐
-    │  DealOrNot   │
-    │   Contract   │
-    └──────────────┘
+Player: createGame()
+  |
+  v
+[WaitingForVRF] --- Chainlink VRF callback (~10s) ---> [Created]
+  |
+  v
+Player: pickCase(gameId, caseIndex)
+  |
+  v
+[Round] --- Player: openCase(gameId, caseIndex) ---> [WaitingForCRE]
+  |                                                       |
+  |                              CRE: confidential-reveal |
+  |                              CRE: sponsor-jackpot     |
+  |                                                       v
+  |                                                 [AwaitingOffer]
+  |                                                       |
+  |                                          CRE: banker-ai
+  |                                                       v
+  |                                                 [BankerOffer]
+  |                                                   /       \
+  |                                          accept  /         \ reject
+  |                                                 v           v
+  |                                          [GameOver]    [Round] (loop)
+  |
+  +--- After all cases opened ---> [FinalRound]
+                                      |
+                                   keep / swap
+                                      v
+                                   [WaitingFinalCRE] ---> [GameOver]
 ```
 
-## Phase Comparison
+## Configuration
 
-| Feature | Phase 1 (v1) | Phase 2 (CRE Auto-Reveal) | Phase 3 (+ Confidential Compute) |
-|---------|-------------|--------------------------|----------------------------------|
-| **Player TX** | 2 (commit + reveal) | 1 (commit only) | 1 (commit only) |
-| **Reveal data** | Player keeps secret | Sent to CRE off-chain | Threshold encrypted on-chain |
-| **Reveal executor** | Player | Keystone DON | Keystone DON |
-| **Case values** | On-chain (pre-deterministic) | On-chain (pre-deterministic) | TEE enclaves (truly hidden) |
-| **Banker offers** | On-chain pure function | On-chain pure function | AI in TEE with private data |
+Each workflow has:
+- `workflow.yaml` — CRE deployment targets (staging/production)
+- `config.staging.json` — Contract addresses, chain selector, gas limits
+- `config.production.json` — Production overrides
+- `secrets.yaml` — Secret declarations (if needed)
 
-## Security Considerations
+The shared `project.yaml` defines RPC endpoints used across all workflows.
 
-### Phase 2 Limitations
+### Contract Addresses (Base Sepolia)
 
-⚠️ **Case values are still pre-deterministic**
+| Contract | Address |
+|----------|---------|
+| DealOrNotConfidential | `0xd9D4A974021055c46fD834049e36c21D7EE48137` |
+| SponsorJackpot | `0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95` |
+| BestOfBanker | `0x05EdC924f92aBCbbB91737479948509dC7E23bF9` |
+| MockKeystoneForwarder (sim) | `0x82300bd7c3958625581cc2f77bc6464dcecdf3e5` |
+| KeystoneForwarder (prod) | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` |
 
-Even with CRE auto-reveal, case values are computed from:
-```solidity
-keccak256(vrfSeed, caseIndex, totalCollapsed, blockhash(commitBlock))
-```
+## Troubleshooting
 
-Since `vrfSeed` and `blockhash` are public after the commit block, **anyone can precompute all possible case values** before reveal.
+### "no project settings file found"
+You're running `cre workflow simulate` from outside the `workflows/` directory. `cd prototype/workflows` first — the CLI walks up the directory tree looking for `project.yaml`.
 
-This is acceptable for Phase 2 because:
-1. Values are hidden from player (can't choose advantageous path)
-2. Player experience is identical to TV show (suspenseful)
-3. Banker offers are fair (EV-based, variance adds unpredictability)
+### "unauthorized" or token expired
+CRE auth tokens expire every 15 minutes. Run `cre login` again.
 
-### Phase 3 Upgrade Path
+### Alchemy rate limiting
+The scripts scan for events in 10-block windows to stay within Alchemy's free tier. If you still hit limits, increase the poll interval: `./scripts/cre-support.sh <GID> 10`
 
-**True quantum superposition** requires Confidential Compute:
-- Case values encrypted with DON's threshold key (DKG)
-- Values assigned in TEE enclaves (SGX/SEV)
-- No single node can decrypt
-- Values exist nowhere readable until reveal
-- On-chain state shows only `bytes encryptedValue`
+### Banker has no Gemini message
+Add `GEMINI_API_KEY=...` to `workflows/.env`. The `cre-banker.sh` script injects it into `config.staging.json` for the run and removes it after.
 
-See `../docs/PHASE3-CONFIDENTIAL-COMPUTE.md` (coming soon)
-
-## Testing
-
-### Local Testing
-
-1. Run local blockchain:
-```bash
-# In prototype/contracts
-forge anvil
-```
-
-2. Deploy contract:
-```bash
-forge script script/Deploy.s.sol --broadcast --rpc-url http://localhost:8545
-```
-
-3. Set Keystone address (use test account):
-```bash
-cast send $CONTRACT_ADDRESS "setKeystoneForwarder(address)" $FORWARDER_ADDRESS --private-key $PRIVATE_KEY
-cast send $CONTRACT_ADDRESS "setAutoRevealEnabled(bool)" true --private-key $PRIVATE_KEY
-```
-
-4. Run orchestrator:
-```bash
-cd workflows
-RPC_URL=http://localhost:8545 \
-CONTRACT_ADDRESS=$CONTRACT_ADDRESS \
-DON_NODE_KEY=$TEST_PRIVATE_KEY \
-ts-node case-reveal-orchestrator.ts
-```
-
-5. Create game and commit from frontend
-6. Watch orchestrator auto-reveal after 1 block
-
-### Testnet Testing
-
-Deploy to Base Sepolia:
-```bash
-# Deploy contract
-forge script script/Deploy.s.sol --broadcast --rpc-url $BASE_SEPOLIA_RPC --verify
-
-# Get Keystone Forwarder address from Chainlink docs
-# https://docs.chain.link/chainlink-functions/resources/supported-networks
-
-# Configure contract
-cast send $CONTRACT_ADDRESS "setKeystoneForwarder(address)" $KEYSTONE_ADDRESS --rpc-url $BASE_SEPOLIA_RPC --private-key $PRIVATE_KEY
-cast send $CONTRACT_ADDRESS "setAutoRevealEnabled(bool)" true --rpc-url $BASE_SEPOLIA_RPC --private-key $PRIVATE_KEY
-```
-
-## Monitoring
-
-### Metrics
-
-CRE workflows should emit metrics:
-- `reveal_request_received` - Reveal data submitted
-- `reveal_scheduled` - Reveal scheduled for future block
-- `reveal_executed` - Reveal transaction sent
-- `reveal_confirmed` - Reveal confirmed on-chain
-- `reveal_failed` - Reveal transaction failed
-
-### Alerts
-
-Set up alerts for:
-- Reveal failures (retry needed)
-- High latency (> 2 blocks)
-- Queue buildup (> 10 pending)
-- Keystone consensus failures
-
-## Cost Analysis
-
-### Gas Costs
-
-| Operation | Gas | Cost (Base @ 0.05 gwei) |
-|-----------|-----|------------------------|
-| commitCase | ~50k | ~$0.005 |
-| revealCase (player) | ~120k | ~$0.012 |
-| revealCase (Keystone) | ~135k | ~$0.014 |
-| **Total Phase 1** | **~170k** | **~$0.017** |
-| **Total Phase 2** | **~185k** | **~$0.019** |
-
-**UX improvement**: Player pays only ~$0.005 (1 TX), DON pays ~$0.014 for reveal
-
-### CRE Costs
-
-DON operational costs (estimated):
-- Node compute: Minimal (event listening + 1 TX per game)
-- Keystone consensus: ~6 nodes × signature aggregation
-- On-chain TX: ~$0.014 per reveal (Base L2)
-
-**Pricing model**: Could charge player small fee in `commitCase()` to subsidize DON costs
-
-## Roadmap
-
-- [x] Phase 2: CRE Auto-Reveal (this)
-- [ ] Phase 3: Confidential Compute for case values
-- [ ] Phase 4: AI Banker with CRE workflows
-- [ ] Phase 5: CCIP cross-chain games
-- [ ] Phase 6: Prediction markets integration
+### CRE simulate succeeds but no on-chain effect
+Make sure you passed `--broadcast`. Without it, the simulate runs in dry-run mode.
 
 ## Resources
 
-- [Chainlink CRE Documentation](https://docs.chain.link/chainlink-functions)
-- [Keystone Forwarder Addresses](https://docs.chain.link/chainlink-functions/resources/supported-networks)
-- [CRE Workflow Examples](https://github.com/smartcontractkit/chainlink-cre-examples)
-- [BLS Signature Aggregation](https://docs.chain.link/architecture-overview/off-chain-reporting)
-
-## Support
-
-Questions? Check:
-- Deal or NOT Discord: `#cre-workflows`
-- Chainlink Developer Hub: https://dev.chain.link
-- PRD Section 3: Architecture
+- [CRE Documentation](https://docs.chain.link/cre)
+- [CRE CLI Reference](https://docs.chain.link/cre/reference/cli-reference)
+- [CRE TypeScript SDK](https://docs.chain.link/cre/reference/sdk/core-ts)
+- [Forwarder Directory](https://docs.chain.link/cre/guides/workflow/using-evm-client/forwarder-directory-ts)

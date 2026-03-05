@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 # Run CRE sponsor-jackpot simulate for a given tx hash
 # Usage: ./scripts/cre-jackpot.sh <TX_HASH> [EVENT_INDEX]
 #
@@ -7,7 +7,7 @@
 #
 # Optional — the game works without this. It just means no jackpot accumulates.
 set -e
-SCRIPT_DIR="${0:a:h}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
 TX_HASH="${1:?Usage: cre-jackpot.sh <TX_HASH of openCase tx> [EVENT_INDEX]}"

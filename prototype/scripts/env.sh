@@ -1,23 +1,22 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 # Common environment for Deal or NOT scripts
 # Source this: source scripts/env.sh
 #
 # Keys are read from prototype/.env.example (already in repo with testnet burners).
 # DO NOT put real keys here.
 
-SCRIPT_DIR="${0:a:h}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR/.."
 
-export PATH="$HOME/.cre/bin:$HOME/.bun/bin:$PATH"
+export PATH="$HOME/.foundry/bin:$HOME/.cre/bin:$HOME/.bun/bin:$PATH"
 
 # Read keys from .env.example (testnet burners only!)
 if [[ -f "$PROJECT_DIR/.env.example" ]]; then
   # RPC URL: use Alchemy from frontend .env.local, or fall back to public
   if [[ -f "$PROJECT_DIR/frontend/.env.local" ]]; then
-    export RPC_URL=$(grep NEXT_PUBLIC_ALCHEMY_RPC_URL "$PROJECT_DIR/frontend/.env.local" | cut -d= -f2)
-  else
-    export RPC_URL="https://sepolia.base.org"
+    RPC_URL=$(grep NEXT_PUBLIC_ALCHEMY_RPC_URL "$PROJECT_DIR/frontend/.env.local" | cut -d= -f2)
   fi
+  export RPC_URL="${RPC_URL:-https://sepolia.base.org}"
   export DEPLOYER_KEY=$(grep DEPLOYER_PRIVATE_KEY "$PROJECT_DIR/.env.example" | cut -d= -f2)
   export DEPLOYER_ADDR=$(grep DEPLOYER_ADDRESS "$PROJECT_DIR/.env.example" | cut -d= -f2)
   export PLAYER_KEY=$(grep PLAYER_PRIVATE_KEY "$PROJECT_DIR/.env.example" | cut -d= -f2)
