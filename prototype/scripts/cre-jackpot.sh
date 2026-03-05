@@ -13,6 +13,8 @@ source "$SCRIPT_DIR/env.sh"
 TX_HASH="${1:?Usage: cre-jackpot.sh <TX_HASH of openCase tx> [EVENT_INDEX]}"
 EVENT_INDEX="${2:-0}"
 
+preflight_check "cre-jackpot"
+
 echo "Running CRE sponsor-jackpot..."
 echo "  TX:    $TX_HASH"
 echo "  Event: log index $EVENT_INDEX (CaseOpenRequested)"

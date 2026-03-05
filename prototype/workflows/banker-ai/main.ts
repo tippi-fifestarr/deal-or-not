@@ -43,7 +43,8 @@ type Config = {
   chainSelectorName: string;
   gasLimit: string;
   geminiModel: string;
-  geminiApiKey?: string;
+  geminiApiKey?: string;  // fallback for simulate mode (prefer Vault DON secret)
+  owner?: string;         // Vault DON secret owner for Confidential HTTP
 };
 
 // ── Constants ──

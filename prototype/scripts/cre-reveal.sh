@@ -10,6 +10,8 @@ source "$SCRIPT_DIR/env.sh"
 TX_HASH="${1:?Usage: cre-reveal.sh <TX_HASH of openCase tx>}"
 EVENT_INDEX="${2:-0}"
 
+preflight_check "cre-reveal"
+
 echo "Running CRE confidential-reveal..."
 echo "  TX:    $TX_HASH"
 echo "  Event: log index $EVENT_INDEX"

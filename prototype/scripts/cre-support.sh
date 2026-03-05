@@ -16,6 +16,8 @@ source "$SCRIPT_DIR/env.sh"
 GAME_ID="${1:?Usage: cre-support.sh <GAME_ID> [POLL_INTERVAL_SECONDS]}"
 POLL="${2:-5}"
 
+preflight_check "cre-support"
+
 # Phase constants (bash 0-indexed)
 PHASE_NAMES=("WaitingForVRF" "Created" "Round" "WaitingForCRE" "AwaitingOffer" "BankerOffer" "FinalRound" "WaitingFinalCRE" "GameOver")
 

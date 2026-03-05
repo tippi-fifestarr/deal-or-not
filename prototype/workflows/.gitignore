@@ -1,6 +1,7 @@
-# CRE secrets and keys
+# CRE secrets (actual values — NEVER commit)
 .env
-secrets.yaml
+
+# CRE build artifacts
 config.simulate.json
 
 # CRE build artifacts
