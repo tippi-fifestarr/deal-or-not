@@ -217,10 +217,11 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
                   ? remainingValues.reduce((sum, val) => sum + Number(val), 0) / remainingValues.length
                   : Number(gameState.bankerOffer)}
                 round={gameState.currentRound}
-                quip={bankerMessage ?? "Make your choice wisely..."}
+                quip={bankerMessage ?? undefined}
                 onDeal={() => {}}
                 onNoDeal={() => {}}
                 isOpen={showBankerOfferModal}
+                seed={gameId}
               />
             </>
           )}

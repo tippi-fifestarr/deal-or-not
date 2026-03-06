@@ -1,9 +1,52 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn, getGlassClasses } from "@/lib/glass";
 import { GlassButton } from "./GlassButton";
+import RotatingAd from "@/components/RotatingAd";
+
+const BANKER_FALLBACKS = [
+  "Make your choice wisely...",
+  "The numbers don't lie. But I might.",
+  "Every case you don't open is a mystery I enjoy.",
+  "Tick tock. The offer won't improve with age.",
+];
+
+function BankerQuip({ quip }: { quip?: string }) {
+  const [showFallback, setShowFallback] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    if (quip) {
+      setShowFallback(false);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      return;
+    }
+    timerRef.current = setTimeout(() => setShowFallback(true), 8000);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [quip]);
+
+  const text = quip ?? (showFallback ? BANKER_FALLBACKS[Math.floor(Math.random() * BANKER_FALLBACKS.length)] : null);
+
+  return (
+    <motion.div
+      className={cn(getGlassClasses("subtle", "rounded", false), "p-4 text-center")}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.3 }}
+    >
+      {text ? (
+        <>
+          <p className="text-lg text-white/90 italic">"{text}"</p>
+          <p className="text-xs text-white/50 mt-2">— The Banker {quip ? "(AI)" : ""}</p>
+        </>
+      ) : (
+        <p className="text-white/50 italic animate-pulse">The Banker is composing a message...</p>
+      )}
+    </motion.div>
+  );
+}
 
 /**
  * GlassBankerOffer
@@ -26,6 +69,7 @@ interface GlassBankerOfferProps {
   onDeal: () => void;
   onNoDeal: () => void;
   isOpen: boolean;
+  seed?: bigint;
 }
 
 export function GlassBankerOffer({
@@ -37,6 +81,7 @@ export function GlassBankerOffer({
   onDeal,
   onNoDeal,
   isOpen,
+  seed,
 }: GlassBankerOfferProps) {
   const [showOffer, setShowOffer] = useState(false);
   const [countdown, setCountdown] = useState(3);
@@ -123,7 +168,7 @@ export function GlassBankerOffer({
             {/* Countdown or Offer */}
             {!showOffer ? (
               <motion.div
-                className="text-center py-12"
+                className="text-center py-6 space-y-6"
                 key="countdown"
               >
                 <motion.div
@@ -133,6 +178,7 @@ export function GlassBankerOffer({
                 >
                   {countdown > 0 ? countdown : "..."}
                 </motion.div>
+                <RotatingAd variant="break" seed={seed} />
               </motion.div>
             ) : (
               <motion.div
@@ -192,24 +238,7 @@ export function GlassBankerOffer({
                 </div>
 
                 {/* AI Banker Quip */}
-                {quip && (
-                  <motion.div
-                    className={cn(
-                      getGlassClasses("subtle", "rounded", false),
-                      "p-4 text-center"
-                    )}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <p className="text-lg text-white/90 italic">
-                      "{quip}"
-                    </p>
-                    <p className="text-xs text-white/50 mt-2">
-                      — The Banker (AI)
-                    </p>
-                  </motion.div>
-                )}
+                <BankerQuip quip={quip} />
 
                 {/* AI Reasoning (collapsible) */}
                 {reasoning && (

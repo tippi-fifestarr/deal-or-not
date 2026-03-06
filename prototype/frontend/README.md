@@ -105,6 +105,22 @@ Current sponsors: Ceptor Club, Chainlink, letswritean.email, Wingbird Enterprise
 npx tsx --test lib/ads.test.ts
 ```
 
+## Known Issues
+
+### Banker Message Timing
+
+The AI Banker's Gemini-generated message is written on-chain in two places:
+1. **Game contract** — via `setBankerOfferWithMessage()` (writeReport #1, emits `BankerMessage` event) — **reliable**
+2. **BestOfBanker gallery** — via `saveQuote()` (writeReport #2) — **sometimes fails** due to CRE nonce collision
+
+The frontend reads from BestOfBanker (`useBankerMessage` hook), so when writeReport #2 fails, no message is found. The UI shows "The Banker is composing a message..." for up to 8 seconds, then falls back to a generic quote.
+
+**TODO**: Read the message from the `BankerMessage` event log (always present in writeReport #1) instead of relying on BestOfBanker. The message is already on-chain — the frontend just needs to read from event logs.
+
+### Progress Bar at GameOver
+
+Fixed: progress bar now shows 4/4 (green) at GameOver and FinalRound phases.
+
 ## Key Files
 
 | File | Purpose |

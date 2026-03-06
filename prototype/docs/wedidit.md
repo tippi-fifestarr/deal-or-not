@@ -223,9 +223,9 @@ Is this financial advice? Absolutely not.
 
 ## Known Issues
 
-- **Banker message timing (round 1)**: The UI shows a fallback "Make your choice wisely..." because the game offer TX (writeReport #1) lands before the BestOfBanker TX (writeReport #2). The frontend transitions to the BankerOffer view on the offer TX but reads the message from BestOfBanker, which hasn't been written yet. Fix: either read the message from the game contract event logs, or add a brief delay/retry in the `useBankerMessage` hook.
-- **BestOfBanker nonce collision**: The CRE simulate mode sometimes reuses nonces when two writeReports fire in the same workflow. Non-critical — game offer always goes through. Asking Chainlink devrel about patterns for multiple writes.
-- **Progress bar stuck at 3/4**: GameOver screen still shows 3/4 progress instead of 4/4.
+- **Banker message timing**: The Gemini message is written on-chain in two places: (1) the game contract via `setBankerOfferWithMessage()` which emits a `BankerMessage` event — this always works, and (2) the BestOfBanker gallery via `saveQuote()` — this sometimes fails due to nonce collision. The frontend reads from BestOfBanker, so when writeReport #2 fails, no message is found. Current UX: shows "The Banker is composing a message..." for up to 8s, then falls back to a generic quote. **TODO**: Read from `BankerMessage` event logs instead — the message is already on-chain in writeReport #1.
+- **BestOfBanker nonce collision**: Root cause — the CRE `cre-banker` workflow does two `writeReport` calls in the same simulation. Both use the deployer key and CRE simulate mode can assign the same nonce to both, causing "replacement transaction underpriced" on #2. Game offer (writeReport #1) always succeeds. Asking Chainlink devrel about patterns for sequential nonces in multi-write workflows.
+- **~~Progress bar stuck at 3/4~~**: Fixed — progress bar now shows 4/4 (green) at GameOver and FinalRound phases.
 - **~~"Watch" buried~~**: Fixed — Watch is now in the nav bar with dedicated `/watch` and `/watch/[id]` routes.
 
 ---

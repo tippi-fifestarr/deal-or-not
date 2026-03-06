@@ -143,6 +143,33 @@ When `cre-support.sh` isn't running or fails to find events:
 ./scripts/play-game.sh ring 15
 ```
 
+## Timing Reference
+
+| Step | Duration | Notes |
+|------|----------|-------|
+| VRF callback | ~10s | Chainlink VRF on Base Sepolia |
+| CRE reveal | ~5s | Confidential enclave compute + on-chain write |
+| CRE banker (with Gemini) | ~5-10s | Gemini 2.5 Flash API call + on-chain write |
+| Full open→offer cycle | ~10-15s | reveal + banker back-to-back |
+
+**Important**: When scripting or polling, keep all waits/sleeps to **10-12 seconds max**. The full pipeline (open case → reveal → banker offer) completes in under 15 seconds on Base Sepolia.
+
+## Known Issues
+
+### BestOfBanker Nonce Collision
+
+The `cre-banker` workflow does two `writeReport` calls in the same simulation:
+1. `writeReport` #1 → `setBankerOfferWithMessage()` on the game contract (**always works**)
+2. `writeReport` #2 → `saveQuote()` on BestOfBanker gallery (**sometimes fails** — nonce collision)
+
+Both writes use the same deployer key and the CRE simulate mode can assign the same nonce to both, causing "replacement transaction underpriced" on the second TX.
+
+**Impact**: The game offer and Gemini message are written to the game contract (writeReport #1) and emitted as a `BankerMessage` event. But the BestOfBanker gallery contract may not receive the message. The frontend's `useBankerMessage` hook reads from BestOfBanker, so it may not find the message.
+
+**Current mitigation**: The frontend shows "The Banker is composing a message..." for up to 8 seconds, then falls back to a generic banker quote.
+
+**Proper fix (TODO)**: Read the banker message from the `BankerMessage` event log instead of (or in addition to) the BestOfBanker contract. The message is already on-chain in writeReport #1 — we just need the frontend to read it from event logs.
+
 ## Environment Variables
 
 Set by `env.sh` (sourced by all other scripts):
