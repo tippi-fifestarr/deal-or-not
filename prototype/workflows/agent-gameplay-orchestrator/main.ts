@@ -427,10 +427,6 @@ const onBankerOfferMade = (runtime: Runtime<Config>, log: EVMLog): string => {
   return handleGameStateChange(runtime, log, "BankerOfferMade");
 };
 
-const onFinalRoundStarted = (runtime: Runtime<Config>, log: EVMLog): string => {
-  return handleGameStateChange(runtime, log, "FinalRoundStarted");
-};
-
 // ── Game Complete Handler (Update Stats) ──
 
 const onGameComplete = (runtime: Runtime<Config>, log: EVMLog): string => {
@@ -576,23 +572,24 @@ const initWorkflow = (config: Config) => {
         const eventSig = bytesToHex(log.topics[0]);
 
         // Event signatures (keccak256 hashes)
-        const GAME_CREATED = "0x..."; // TODO: Add actual event signatures
-        const ROUND_STARTED = "0x...";
-        const BANKER_OFFER_MADE = "0x...";
-        const FINAL_ROUND_STARTED = "0x...";
-        const GAME_COMPLETE = "0x...";
+        // GameCreated(uint256 indexed gameId, address indexed host, uint8 mode)
+        const GAME_CREATED = "0xdd0abcdffc76581d11646898ee4d7f269ca1e0c0b622d072d343100dad83ecb1";
+        // RoundComplete(uint256 indexed gameId, uint8 round)
+        const ROUND_COMPLETE = "0xc9cd1e1a7382c02c47d1955e4ac06db27ff51188b5a155faaafa0088150086a6";
+        // BankerOfferMade(uint256 indexed gameId, uint8 round, uint256 offerCents)
+        const BANKER_OFFER_MADE = "0x945170688f4454cb5dd07e4ca30195f361e82be527de0004d7a84656ee9180bb";
+        // GameResolved(uint256 indexed gameId, uint256 payoutCents, bool swapped)
+        const GAME_RESOLVED = "0xadb369860c8102b22940864c2436877b43ecdaeb85a424297b1aa496f98c52da";
 
         switch (eventSig) {
           case GAME_CREATED:
             return onGameCreated(runtime, log);
-          case ROUND_STARTED:
-            return onRoundStarted(runtime, log);
+          case ROUND_COMPLETE:
+            return onRoundStarted(runtime, log);  // RoundComplete triggers next round actions
           case BANKER_OFFER_MADE:
             return onBankerOfferMade(runtime, log);
-          case FINAL_ROUND_STARTED:
-            return onFinalRoundStarted(runtime, log);
-          case GAME_COMPLETE:
-            return onGameComplete(runtime, log);
+          case GAME_RESOLVED:
+            return onGameComplete(runtime, log);  // GameResolved triggers stats update
           default:
             runtime.log(`Unknown event signature: ${eventSig}`);
             return "Unknown event";
