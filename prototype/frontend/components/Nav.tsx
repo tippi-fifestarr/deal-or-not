@@ -10,6 +10,7 @@ import { cn } from "@/lib/glass";
 const NAV_LINKS = [
   { href: "/", label: "Play" },
   { href: "/agents", label: "Agents" },
+  { href: "/markets", label: "Markets" },
   { href: "/agents/register", label: "Register Agent" },
 ];
 
