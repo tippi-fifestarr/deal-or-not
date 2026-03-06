@@ -6,8 +6,16 @@
  * FLOW:
  *   1. Listen for CaseOpenRequested from DealOrNotConfidential
  *   2. Read game state (vrfSeed, opened[], caseValues[]) from chain
- *   3. Compute case value using VRF seed + deterministic entropy
- *   4. Write value via writeReport → KeystoneForwarder → fulfillCaseValue()
+ *   3. Fetch additional entropy via Confidential HTTP (enclave-only, no node sees it)
+ *   4. Compute case value using hash(vrfSeed, caseIndex, usedBitmap, creEntropy)
+ *      - VRF seed: on-chain, provably fair
+ *      - CRE entropy: fetched inside enclave, prevents player precomputation
+ *   5. Write value via writeReport -> KeystoneForwarder -> fulfillCaseValue()
+ *
+ * SECURITY MODEL:
+ *   The player knows vrfSeed, caseIndex, and usedBitmap from on-chain data.
+ *   Without creEntropy (which only exists inside the CRE enclave), they cannot
+ *   simulate the hash output to predict case values before opening.
  */
 
 import {
@@ -18,6 +26,7 @@ import {
   getNetwork,
   hexToBase64,
   LATEST_BLOCK_NUMBER,
+  ok,
   Runner,
   type Runtime,
   TxStatus,
@@ -32,38 +41,46 @@ import {
   type Address,
 } from "viem";
 
-// ── Config (from config.staging.json) ──
+// -- Config (from config.staging.json) --
 
 type Config = {
   contractAddress: string;
   chainSelectorName: string;
   gasLimit: string;
+  entropyUrl?: string;
 };
 
-// ── Constants ──
+// -- Constants --
 
 const CASE_VALUES_CENTS = [1n, 5n, 10n, 50n, 100n];
 const NUM_CASES = 5;
 
-// ── ABI Fragments ──
+// Default entropy URL — mathjs.org randomInt returns a random integer.
+// Called inside the CRE enclave via Confidential HTTP — no node sees the result.
+const DEFAULT_ENTROPY_URL = "https://api.mathjs.org/v4/?expr=randomInt(1,1000001)";
+
+// -- ABI Fragments --
 
 const confidentialAbi = parseAbi([
   "function getGameState(uint256 gameId) view returns (address host, address player, uint8 mode, uint8 phase, uint8 playerCase, uint8 currentRound, uint8 totalCollapsed, uint256 bankerOffer, uint256 finalPayout, uint256 ethPerDollar, uint256[5] caseValues, bool[5] opened)",
   "function fulfillCaseValue(uint256 gameId, uint8 caseIndex, uint256 valueCents)",
 ]);
 
-// ── Collapse Engine ──
+// -- Collapse Engine --
 
 /**
- * Derive a case value deterministically from VRF seed + case context.
+ * Derive a case value deterministically from VRF seed + case context + CRE entropy.
  *
- * For simulation: uses keccak256(vrfSeed, caseIndex, usedBitmap) as entropy.
- * For production: would add a CRE-held secret as additional entropy for privacy.
+ * hash(vrfSeed, caseIndex, usedBitmap, creEntropy) -> pick index -> value
+ *
+ * creEntropy is fetched via Confidential HTTP inside the enclave.
+ * It never exists outside the enclave, so no party can precompute the outcome.
  */
 function collapseCase(
   vrfSeed: bigint,
   caseIndex: number,
-  usedBitmap: bigint
+  usedBitmap: bigint,
+  creEntropy: bigint
 ): bigint {
   let remaining = 0;
   for (let i = 0; i < NUM_CASES; i++) {
@@ -73,8 +90,8 @@ function collapseCase(
 
   const hash = keccak256(
     encodePacked(
-      ["uint256", "uint8", "uint256"],
-      [vrfSeed, caseIndex, usedBitmap]
+      ["uint256", "uint8", "uint256", "uint256"],
+      [vrfSeed, caseIndex, usedBitmap, creEntropy]
     )
   );
   const pick = BigInt(hash) % BigInt(remaining);
@@ -92,7 +109,7 @@ function collapseCase(
   throw new Error("Unreachable: no value found");
 }
 
-// ── Log Trigger Handler ──
+// -- Log Trigger Handler --
 
 const onCaseOpenRequested = (runtime: Runtime<Config>, log: EVMLog): string => {
   const topics = log.topics;
@@ -141,9 +158,6 @@ const onCaseOpenRequested = (runtime: Runtime<Config>, log: EVMLog): string => {
     data: bytesToHex(stateResult.data),
   });
 
-  // getGameState returns a tuple — destructure it
-  // [host, player, mode, phase, playerCase, currentRound, totalCollapsed,
-  //  bankerOffer, finalPayout, ethPerDollar, caseValues[5], opened[5]]
   const caseValues = state[10] as readonly bigint[];
   const opened = state[11] as readonly boolean[];
 
@@ -166,17 +180,45 @@ const onCaseOpenRequested = (runtime: Runtime<Config>, log: EVMLog): string => {
     }
   }
 
-  // 2. Read VRF seed — it's stored in the Game struct but not in getGameState return.
-  // For now, use a deterministic derivation from gameId as the seed.
+  // 2. Fetch CRE entropy via Confidential HTTP
+  // The request runs inside the CRE enclave — no DON node sees the response.
+  // This is the secret ingredient that prevents players from precomputing case values.
+  const confHTTPClient = new cre.capabilities.ConfidentialHTTPClient();
+  const entropyUrl = runtime.config.entropyUrl || DEFAULT_ENTROPY_URL;
+
+  runtime.log(`Fetching entropy via Confidential HTTP: ${entropyUrl}`);
+
+  const entropyResponse = confHTTPClient
+    .sendRequest(runtime, {
+      request: {
+        url: entropyUrl,
+        method: "GET",
+      },
+      vaultDonSecrets: [],
+    })
+    .result();
+
+  if (!ok(entropyResponse)) {
+    throw new Error(`Confidential HTTP failed: status ${entropyResponse.statusCode}`);
+  }
+
+  const entropyText = new TextDecoder().decode(entropyResponse.body);
+  // mathjs.org may return scientific notation (e.g. "4.43e+5") — parse as Number first
+  const creEntropy = BigInt(Math.floor(Number(entropyText.trim())));
+
+  runtime.log(`CRE entropy fetched (enclave-only): ${creEntropy}`);
+
+  // 3. Derive VRF seed — stored in Game struct but not in getGameState return.
   // TODO: Add vrfSeed to getGameState return or read it from a separate view function.
+  // For now, use keccak256(gameId) as deterministic seed.
   const vrfSeed = BigInt(keccak256(encodePacked(["uint256"], [gameId])));
 
-  // 3. Compute value
-  const valueCents = collapseCase(vrfSeed, caseIndex, usedBitmap);
+  // 4. Compute value with CRE entropy mixed in
+  const valueCents = collapseCase(vrfSeed, caseIndex, usedBitmap, creEntropy);
 
   runtime.log(`Computed value: game=${gameId}, case=${caseIndex}, value=${valueCents} cents`);
 
-  // 4. Write value to chain via report → KeystoneForwarder → contract
+  // 5. Write value to chain via report -> KeystoneForwarder -> contract
   const fulfillCallData = encodeFunctionData({
     abi: confidentialAbi,
     functionName: "fulfillCaseValue",
@@ -212,7 +254,7 @@ const onCaseOpenRequested = (runtime: Runtime<Config>, log: EVMLog): string => {
   return `Case ${caseIndex} revealed: ${valueCents} cents`;
 };
 
-// ── Workflow Init ──
+// -- Workflow Init --
 
 const initWorkflow = (config: Config) => {
   const network = getNetwork({

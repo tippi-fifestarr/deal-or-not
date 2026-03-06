@@ -1,378 +1,141 @@
-# Frontend Integration Guide: Phase 2 CRE Auto-Reveal
+# Frontend Integration Guide — CRE Confidential Workflows
 
-This guide shows how to integrate CRE auto-reveal into your Next.js frontend.
+How the Next.js frontend interacts with the CRE workflow system.
 
-## Overview
+## Architecture
 
-With Phase 2, players only send **1 transaction** instead of 2:
+The frontend **does not call CRE directly**. Instead:
 
-**Before (Phase 1)**:
-```typescript
-// Player sends 2 transactions
-await contract.commitCase(gameId, hash);     // TX 1
-await sleep(12_000); // Wait 1 block
-await contract.revealCase(gameId, case, salt); // TX 2
+1. Frontend writes to the smart contract (player actions)
+2. Contract emits events
+3. CRE workflows listen for those events and act autonomously
+4. Frontend reads updated contract state and events to reflect changes
+
+```
+Browser (Next.js)                     On-Chain                          CRE DON
+  |                                     |                                 |
+  |-- createGame() ------------------>  |                                 |
+  |                                     |-- GameCreated event ----------> |
+  |                                     |<-- VRF callback                 |
+  |                                     |                                 |
+  |-- pickCase(gid, case) ----------->  |                                 |
+  |                                     |-- CasePicked event             |
+  |                                     |                                 |
+  |-- openCase(gid, case) ----------->  |                                 |
+  |                                     |-- CaseOpenRequested event ---> |
+  |                                     |                     confidential-reveal
+  |                                     |                     sponsor-jackpot
+  |                                     |<-- fulfillCaseValue()           |
+  |                                     |-- CaseRevealed event           |
+  |                                     |-- RoundComplete event -------> |
+  |                                     |                     banker-ai  |
+  |                                     |<-- setBankerOfferWithMessage()  |
+  |<-- reads BankerOfferMade event -----|                                 |
+  |<-- reads BankerMessage event -------|                                 |
+  |                                     |                                 |
+  |-- acceptDeal() / rejectDeal() --->  |                                 |
 ```
 
-**After (Phase 2)**:
+## Frontend Hooks
+
+### `useGameContract.ts` — Primary contract interaction
+
+**Read hooks** (poll contract state):
+- `useGameState(gameId)` — Full game state tuple (phase, player, cases, offer, etc.)
+- `useNextGameId()` — Counter for next game ID
+- `useRemainingPool(gameId)` — Array of remaining case values
+- `useBankerOfferCalc(gameId)` — On-chain banker offer calculation
+- `useJackpot(gameId)` — Current jackpot amount from SponsorJackpot contract
+- `useGameSponsor(gameId)` — Sponsor info for the game
+
+**Write hook** (`useGameWrite()`):
+- `createGame()` — Creates a new game, triggers VRF
+- `pickCase(gameId, caseIndex)` — Player selects their case (0-4)
+- `openCase(gameId, caseIndex)` — Opens a case, emits `CaseOpenRequested` for CRE
+- `acceptDeal(gameId)` — Accept the banker's offer
+- `rejectDeal(gameId)` — Reject and continue playing
+- `keepCase(gameId)` — Keep your case in final round
+- `swapCase(gameId)` — Swap your case in final round
+
+### `useBankerMessage.ts` — AI Banker personality
+
+Reads the latest banker message from the BestOfBanker contract:
 ```typescript
-// Player sends 1 transaction + HTTP request
-await contract.commitCase(gameId, hash);     // TX 1
-await submitRevealToCRE({gameId, case, salt}); // HTTP to CRE
-// CRE auto-reveals after 1 block (no TX 2 needed)
+const message = useBankerMessage(gameId);
+// Returns: "I've seen better poker faces on a goldfish. $0.35. Take it or leave it."
 ```
 
-## Step 1: Create CRE Client Hook
+### `useCommitReveal.ts` — Local storage for commit-reveal
 
-Create `packages/nextjs/hooks/useCREAutoReveal.ts`:
+Used internally for the commit-reveal pattern. Stores salts in `localStorage` so the player can reveal if CRE fails.
 
-```typescript
-import { useState } from "react";
-import { usePublicClient } from "wagmi";
-import { keccak256, encodePacked } from "viem";
+## Game Phases
 
-interface RevealData {
-  gameId: bigint;
-  caseIndex: number;
-  salt: bigint;
-}
+The frontend UI switches based on the `phase` field from `useGameState()`:
 
-export function useCREAutoReveal() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const publicClient = usePublicClient();
+| Phase | Value | Frontend Shows |
+|-------|-------|----------------|
+| WaitingForVRF | 0 | Loading spinner, "Waiting for randomness..." |
+| Created | 1 | Case selection grid (pick your case) |
+| Round | 2 | Remaining cases to open |
+| WaitingForCRE | 3 | Loading spinner, "Revealing case..." |
+| AwaitingOffer | 4 | Loading spinner, "Banker is thinking..." |
+| BankerOffer | 5 | Deal or No Deal decision UI with banker message |
+| FinalRound | 6 | Keep or Swap decision |
+| WaitingFinalCRE | 7 | Loading spinner, "Final reveal..." |
+| GameOver | 8 | Results screen with payout |
 
-  const submitRevealToCRE = async (data: RevealData) => {
-    setIsSubmitting(true);
-    try {
-      // Get current block number
-      const blockNumber = await publicClient.getBlockNumber();
+## Event Monitoring — `EventLog.tsx`
 
-      // Submit to CRE endpoint
-      const response = await fetch(
-        process.env.NEXT_PUBLIC_CRE_ENDPOINT || "http://localhost:3001/reveal",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            gameId: data.gameId.toString(),
-            caseIndex: data.caseIndex,
-            salt: data.salt.toString(),
-            player: publicClient.account?.address,
-            commitBlock: Number(blockNumber),
-            timestamp: Date.now(),
-          }),
-        }
-      );
+The `EventLog` component watches 14+ contract events in real-time:
 
-      if (!response.ok) {
-        throw new Error(`CRE submission failed: ${response.statusText}`);
-      }
+- Fetches historical events (last ~10k blocks)
+- Watches for new events with 4s polling
+- Deduplicates by event name + block number
+- Color-coded by event type
+- Auto-scrolls on new events
 
-      console.log("[CRE] Auto-reveal request submitted successfully");
-    } catch (error) {
-      console.error("[CRE] Failed to submit reveal:", error);
-      throw error;
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+Key events the frontend reacts to:
+- `CaseRevealed` — Update case grid with revealed value
+- `BankerOfferMade` — Show banker offer amount
+- `BankerMessage` — Display AI banker's snarky message
+- `GameResolved` — Show final payout and results
 
-  return { submitRevealToCRE, isSubmitting };
-}
-```
+## Case Values
 
-## Step 2: Update Game Component
+5 cases with values in cents: `[1, 5, 10, 50, 100]` ($0.01 to $1.00).
 
-Modify your game component to use auto-reveal:
+Values are **not known until CRE reveals them**. The VRF seed provides entropy, and the CRE `confidential-reveal` workflow computes each value deterministically when the case is opened.
 
-```typescript
-"use client";
+## Testing the Full Flow
 
-import { useState } from "react";
-import { useAccount } from "wagmi";
-import { keccak256, encodePacked, parseEther } from "viem";
-import { useScaffoldWriteContract, useScaffoldEventHistory } from "~~/hooks/scaffold-eth";
-import { useCREAutoReveal } from "~~/hooks/useCREAutoReveal";
-
-export default function GamePlay({ gameId }: { gameId: bigint }) {
-  const { address } = useAccount();
-  const [selectedCase, setSelectedCase] = useState<number | null>(null);
-
-  const { writeContractAsync, isPending } = useScaffoldWriteContract({
-    contractName: "DealOrNot",
-  });
-
-  const { submitRevealToCRE, isSubmitting } = useCREAutoReveal();
-
-  // Listen for auto-reveal completion
-  const { data: collapseEvents } = useScaffoldEventHistory({
-    contractName: "DealOrNot",
-    eventName: "CaseCollapsed",
-    filters: { gameId },
-    watch: true,
-  });
-
-  const handleOpenCase = async (caseIndex: number) => {
-    if (!address) return;
-
-    try {
-      // Generate random salt
-      const salt = BigInt(Math.floor(Math.random() * 1e18));
-
-      // Compute commitment hash
-      const commitHash = keccak256(
-        encodePacked(["uint8", "uint256"], [caseIndex, salt])
-      );
-
-      console.log("[Game] Committing case", caseIndex);
-
-      // Step 1: Commit on-chain (TX 1)
-      const tx = await writeContractAsync({
-        functionName: "commitCase",
-        args: [gameId, commitHash],
-      });
-
-      console.log("[Game] Commit transaction sent:", tx);
-
-      // Step 2: Submit reveal data to CRE (HTTP request)
-      await submitRevealToCRE({
-        gameId,
-        caseIndex,
-        salt,
-      });
-
-      console.log("[Game] CRE will auto-reveal after 1 block");
-
-      // UI shows "Revealing..." state
-      setSelectedCase(caseIndex);
-
-    } catch (error) {
-      console.error("[Game] Failed to open case:", error);
-      // Fallback: Player can manually reveal if CRE fails
-      // (contract still accepts player reveals)
-    }
-  };
-
-  return (
-    <div>
-      <h2>Choose a case to open</h2>
-
-      <div className="grid grid-cols-5 gap-4">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <button
-            key={i}
-            onClick={() => handleOpenCase(i)}
-            disabled={isPending || isSubmitting}
-            className="btn btn-primary"
-          >
-            Case {i + 1}
-          </button>
-        ))}
-      </div>
-
-      {(isPending || isSubmitting) && (
-        <div className="alert alert-info mt-4">
-          <span>Processing... CRE will auto-reveal after 1 block</span>
-        </div>
-      )}
-
-      {collapseEvents && collapseEvents.length > 0 && (
-        <div className="alert alert-success mt-4">
-          <span>
-            Case revealed: ${Number(collapseEvents[collapseEvents.length - 1].args.valueCents) / 100}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-```
-
-## Step 3: Environment Configuration
-
-Add to `.env.local`:
+The CRE workflows don't run automatically in development — you need the support script to simulate them locally.
 
 ```bash
-# CRE Auto-Reveal Endpoint
-NEXT_PUBLIC_CRE_ENDPOINT=http://localhost:3001/reveal
-
-# For production:
-# NEXT_PUBLIC_CRE_ENDPOINT=https://cre.dealornot.app/reveal
-```
-
-## Step 4: Fallback to Manual Reveal
-
-Always provide a fallback if CRE fails:
-
-```typescript
-const [showManualReveal, setShowManualReveal] = useState(false);
-
-// After 30 seconds, show manual reveal option
-useEffect(() => {
-  if (isPending || isSubmitting) {
-    const timer = setTimeout(() => {
-      setShowManualReveal(true);
-    }, 30000);
-    return () => clearTimeout(timer);
-  }
-}, [isPending, isSubmitting]);
-
-const handleManualReveal = async () => {
-  // Player can still reveal manually if CRE fails
-  await writeContractAsync({
-    functionName: "revealCase",
-    args: [gameId, selectedCase!, salt],
-  });
-};
-
-return (
-  <>
-    {/* ... existing UI ... */}
-
-    {showManualReveal && (
-      <div className="alert alert-warning">
-        <span>CRE taking too long?</span>
-        <button onClick={handleManualReveal} className="btn btn-sm">
-          Reveal Manually
-        </button>
-      </div>
-    )}
-  </>
-);
-```
-
-## Step 5: Testing Locally
-
-### Terminal 1: Run Anvil
-```bash
-cd prototype/contracts
-anvil
-```
-
-### Terminal 2: Deploy Contract
-```bash
-forge script script/Deploy.s.sol --broadcast --rpc-url http://localhost:8545
-```
-
-### Terminal 3: Run CRE Workflow
-```bash
-cd prototype/workflows
-npm install
-cp .env.example .env
-# Edit .env with contract address and test private key
-npm start
-```
-
-### Terminal 4: Run Frontend
-```bash
+# Terminal 1: Start the frontend
 cd prototype/frontend
 npm run dev
+
+# Terminal 2: Start the CRE auto-orchestrator
+cd prototype
+cre login                          # token expires every 15 min
+./scripts/cre-support.sh <GID> 5   # watches game, auto-triggers CRE workflows
+
+# Terminal 3 (optional): Watch game state
+watch -n 5 './scripts/game-state.sh <GID>'
 ```
 
-### Browser
-1. Open http://localhost:3000
-2. Connect wallet (MetaMask with localhost:8545)
-3. Create game
-4. Open a case
-5. Watch CRE auto-reveal after 1 block (~2 seconds on Anvil)
+Then in the browser:
+1. Create a game (or use `./scripts/play-game.sh create` in a terminal)
+2. Wait ~10s for VRF callback (phase changes from WaitingForVRF to Created)
+3. Pick your case
+4. Open cases — `cre-support.sh` will detect the `CaseOpenRequested` event and run the reveal + banker workflows
+5. The banker offer and AI message appear in the UI automatically
 
-## Step 6: Production Deployment
+If `cre-support.sh` isn't running, case reveals won't happen and the game will be stuck in `WaitingForCRE`.
 
-### 1. Deploy CRE Workflow
+## Adding a New Event to the Frontend
 
-Deploy CRE workflow to DON infrastructure:
-
-```bash
-# Package workflow
-cd workflows
-npm run build
-
-# Deploy to Chainlink DON (via Chainlink dashboard)
-# Upload: case-reveal-orchestrator.ts
-# Set env vars in DON config
-```
-
-### 2. Set Keystone Forwarder
-
-After contract deployment:
-
-```bash
-# Get Keystone address from Chainlink docs
-# Base: 0x... (check docs.chain.link)
-
-cast send $CONTRACT_ADDRESS "setKeystoneForwarder(address)" $KEYSTONE_ADDRESS \
-  --rpc-url $BASE_RPC \
-  --private-key $DEPLOYER_KEY
-
-cast send $CONTRACT_ADDRESS "setAutoRevealEnabled(bool)" true \
-  --rpc-url $BASE_RPC \
-  --private-key $DEPLOYER_KEY
-```
-
-### 3. Update Frontend ENV
-
-```bash
-# .env.production
-NEXT_PUBLIC_CRE_ENDPOINT=https://cre-api.dealornot.app/reveal
-NEXT_PUBLIC_ENABLE_AUTO_REVEAL=true
-```
-
-### 4. Monitor CRE
-
-Set up monitoring:
-- CRE workflow health checks
-- Reveal success rate
-- Average reveal latency
-- Keystone consensus failures
-
-## Security Checklist
-
-- [ ] CRE endpoint requires player signature verification
-- [ ] Rate limiting on reveal submissions (max 1 per block per player)
-- [ ] Verify commit exists on-chain before accepting reveal data
-- [ ] Check reveal data hasn't expired (< 256 blocks)
-- [ ] Keystone Forwarder address is correct for target network
-- [ ] Auto-reveal can be disabled by owner if needed
-- [ ] Fallback to manual reveal always available
-- [ ] Don't expose DON_NODE_KEY in frontend
-
-## Cost Comparison
-
-| Scenario | Player Pays | DON Pays | Total Cost |
-|----------|-------------|----------|------------|
-| **Phase 1 (Manual)** | 2 TX (~$0.017) | $0 | $0.017 |
-| **Phase 2 (Auto-Reveal)** | 1 TX (~$0.005) | 1 TX (~$0.014) | $0.019 |
-
-**Player saves**: ~70% gas cost
-**DON cost**: ~$0.014 per game (can be subsidized by protocol)
-
-## Troubleshooting
-
-### "CRE endpoint not responding"
-- Check CRE workflow is running: `curl http://localhost:3001/health`
-- Check network connectivity
-- Verify NEXT_PUBLIC_CRE_ENDPOINT is correct
-
-### "Reveal not happening"
-- Check DON node logs for errors
-- Verify Keystone Forwarder address is set correctly
-- Check autoRevealEnabled is true on contract
-- Verify reveal data was submitted successfully
-
-### "Reveal failed: NotAuthorizedRevealer"
-- Keystone Forwarder address mismatch
-- autoRevealEnabled is false
-- Check contract.keystoneForwarder() returns correct address
-
-### "Reveal failed: InvalidReveal"
-- Hash mismatch (caseIndex or salt incorrect)
-- Check reveal data submitted matches commit
-
-## Next Steps
-
-After Phase 2 is working:
-- **Phase 3**: Add threshold encryption for reveal data
-- **Phase 4**: Add AI Banker CRE workflow
-- **Phase 5**: CCIP cross-chain games
-
-See `workflows/README.md` for roadmap details.
+1. Add the event name to the `WATCHED_EVENTS` array in `EventLog.tsx`
+2. The event will automatically appear in the event log
+3. To react to the event in game logic, add a handler in the game page component that watches for the event via `useScaffoldEventHistory` or `useScaffoldWatchContractEvent`

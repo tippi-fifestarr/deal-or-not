@@ -2,22 +2,16 @@
   "name": "deal-or-not-cre-workflows",
   "version": "0.1.0",
   "description": "Chainlink Runtime Environment workflows for Deal or NOT game automation",
-  "main": "case-reveal-orchestrator.ts",
   "scripts": {
-    "start": "ts-node case-reveal-orchestrator.ts",
-    "dev": "nodemon --exec ts-node case-reveal-orchestrator.ts",
     "test": "jest",
     "lint": "eslint . --ext .ts"
   },
   "dependencies": {
-    "ethers": "^6.13.0",
     "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
-    "typescript": "^5.4.5",
-    "ts-node": "^10.9.2",
-    "nodemon": "^3.1.0"
+    "typescript": "^5.4.5"
   },
   "engines": {
     "node": ">=18.0.0"

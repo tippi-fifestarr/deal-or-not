@@ -1,0 +1,13 @@
+# CRE Project Settings — Deal or NOT
+# Generated equivalent of `cre init -p deal-or-not`
+# This file is required for `cre workflow simulate` to work.
+
+staging-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia-base-1
+      url: https://sepolia.base.org
+
+production-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia-base-1
+      url: https://sepolia.base.org

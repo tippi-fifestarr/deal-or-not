@@ -89,7 +89,7 @@ Gas Optimization: Batch expired games in single TX
 
 **Deployed Evidence**:
 - DealOrNotConfidential: `0xd9D4A974021055c46fD834049e36c21D7EE48137` (Base Sepolia)
-- BestOfBanker: `0x2b0A2f022A6F526868692e03614215A209EE81A8` (Base Sepolia)
+- BestOfBanker: `0x05EdC924f92aBCbbB91737479948509dC7E23bF9` (Base Sepolia)
 - 3+ AI banker messages saved on-chain (view via `getBestMessages()`)
 
 ---
@@ -439,7 +439,7 @@ Base Sepolia gas: ~0.05 gwei, ETH = $1960
 
 **Contracts**:
 - DealOrNotConfidential: [`0xd9D4A974021055c46fD834049e36c21D7EE48137`](https://sepolia.basescan.org/address/0xd9D4A974021055c46fD834049e36c21D7EE48137)
-- BestOfBanker: [`0x2b0A2f022A6F526868692e03614215A209EE81A8`](https://sepolia.basescan.org/address/0x2b0A2f022A6F526868692e03614215A209EE81A8)
+- BestOfBanker: [`0x05EdC924f92aBCbbB91737479948509dC7E23bF9`](https://sepolia.basescan.org/address/0x05EdC924f92aBCbbB91737479948509dC7E23bF9)
 - SponsorJackpot: [`0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95`](https://sepolia.basescan.org/address/0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95)
 
 **CRE Workflows**: Deployed to Chainlink CRE staging environment

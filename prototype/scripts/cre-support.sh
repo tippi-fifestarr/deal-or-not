@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 # CRE Support — watches a game and auto-runs CRE workflows
 # Usage: ./scripts/cre-support.sh <GAME_ID> [POLL_INTERVAL]
 #
@@ -10,13 +10,15 @@
 # only scan the narrow window where the event must have occurred.
 # This avoids Alchemy free tier rate limits (10-block max per getLogs).
 
-SCRIPT_DIR="${0:a:h}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
 GAME_ID="${1:?Usage: cre-support.sh <GAME_ID> [POLL_INTERVAL_SECONDS]}"
 POLL="${2:-5}"
 
-# Phase constants (zsh 1-indexed, so phase N = index N+1)
+preflight_check "cre-support"
+
+# Phase constants (bash 0-indexed)
 PHASE_NAMES=("WaitingForVRF" "Created" "Round" "WaitingForCRE" "AwaitingOffer" "BankerOffer" "FinalRound" "WaitingFinalCRE" "GameOver")
 
 # Event topics (precomputed)
@@ -33,14 +35,14 @@ PREV_BLOCK=0
 get_phase() {
   local raw
   raw=$(cast call "$CONTRACT" "getGameState(uint256)(address,address,uint8,uint8,uint8,uint8,uint8,uint256,uint256,uint256,uint256[5],bool[5])" "$GAME_ID" --rpc-url "$RPC_URL" 2>/dev/null) || { echo "-1"; return; }
-  local fields=("${(@f)raw}")
-  echo "${fields[4]}"
+  readarray -t fields <<< "$raw"
+  echo "${fields[3]}"
 }
 
 get_phase_name() {
   local p="$1"
   [[ "$p" -lt 0 || "$p" -gt 8 ]] && { echo "Unknown"; return; }
-  echo "${PHASE_NAMES[$((p + 1))]}"
+  echo "${PHASE_NAMES[$p]}"
 }
 
 # Find TX hash by searching a specific block range for a topic
@@ -87,13 +89,13 @@ if d: print(d[-1]['transactionHash'])
   return 0
 }
 
-# ── Main Loop ──
+# -- Main Loop --
 
-echo "╔═══════════════════════════════════════════╗"
-echo "║  CRE Support — Game #$GAME_ID"
-echo "║  Polling every ${POLL}s"
-echo "║  Press Ctrl+C to stop"
-echo "╚═══════════════════════════════════════════╝"
+echo "======================================="
+echo "  CRE Support -- Game #$GAME_ID"
+echo "  Polling every ${POLL}s"
+echo "  Press Ctrl+C to stop"
+echo "======================================="
 echo ""
 
 # Initialize block tracking
@@ -111,7 +113,7 @@ while true; do
   # Only act on phase change
   if [[ "$PHASE" != "$PREV_PHASE" ]]; then
     echo ""
-    echo "━━━ Phase: $PHASE_NAME ($PHASE) ━━━"
+    echo "--- Phase: $PHASE_NAME ($PHASE) ---"
 
     # Search window: from PREV_BLOCK to CUR_BLOCK (+ small buffer)
     SEARCH_FROM=$((PREV_BLOCK - 5))
@@ -119,78 +121,78 @@ while true; do
 
     case "$PHASE" in
       0)
-        echo "  ⏳ Waiting for VRF callback (~60s)..."
+        echo "  Waiting for VRF callback (~10s)..."
         ;;
       1)
-        echo "  🎯 Game ready! Waiting for player to pick a case in the UI..."
+        echo "  Game ready! Waiting for player to pick a case in the UI..."
         ;;
       2)
-        echo "  🎲 Round in progress — waiting for player to open a case..."
+        echo "  Round in progress -- waiting for player to open a case..."
         ;;
       3|7)
         # WaitingForCRE or WaitingFinalCRE — auto-run reveal
-        [[ "$PHASE" == "7" ]] && echo "  🔮 Final case opened — running CRE reveal..." || echo "  🔮 Case opened — running CRE reveal..."
-        echo "  🔍 Searching blocks $SEARCH_FROM → $SEARCH_TO..."
+        [[ "$PHASE" == "7" ]] && echo "  Final case opened -- running CRE reveal..." || echo "  Case opened -- running CRE reveal..."
+        echo "  Searching blocks $SEARCH_FROM -> $SEARCH_TO..."
 
         OPEN_TX=$(find_event_in_range "$TOPIC_CASE_OPEN" "$SEARCH_FROM" "$SEARCH_TO")
         if [[ -n "$OPEN_TX" && "$OPEN_TX" != "$LAST_REVEAL_OPEN_TX" ]]; then
           LAST_REVEAL_OPEN_TX="$OPEN_TX"
-          echo "  📡 Found openCase TX: $OPEN_TX"
+          echo "  Found openCase TX: $OPEN_TX"
 
           echo ""
-          echo "  ┌─ cre-reveal.sh ─────────────────────"
-          "$SCRIPT_DIR/cre-reveal.sh" "$OPEN_TX" 2>&1 | sed 's/^/  │ /' || echo "  │ ⚠️ reveal failed"
-          echo "  └─────────────────────────────────────"
+          echo "  +-- cre-reveal.sh -----"
+          "$SCRIPT_DIR/cre-reveal.sh" "$OPEN_TX" 2>&1 | sed 's/^/  | /' || echo "  | reveal failed"
+          echo "  +----------------------"
 
           echo ""
-          echo "  ┌─ cre-jackpot.sh (optional) ────────"
-          "$SCRIPT_DIR/cre-jackpot.sh" "$OPEN_TX" 2>&1 | sed 's/^/  │ /' || echo "  │ (jackpot skipped — non-critical)"
-          echo "  │ No jackpot? Run: cast send \$SPONSOR_JACKPOT \"registerSponsor(string,string)\" \"Name\" \"\" --value 0.01ether"
-          echo "  │ Then: cast send \$SPONSOR_JACKPOT \"sponsorGame(uint256)\" $GAME_ID"
-          echo "  └─────────────────────────────────────"
+          echo "  +-- cre-jackpot.sh (optional) -----"
+          "$SCRIPT_DIR/cre-jackpot.sh" "$OPEN_TX" 2>&1 | sed 's/^/  | /' || echo "  | (jackpot skipped -- non-critical)"
+          echo "  | No jackpot? Run: cast send \$SPONSOR_JACKPOT \"registerSponsor(string,string)\" \"Name\" \"\" --value 0.01ether"
+          echo "  | Then: cast send \$SPONSOR_JACKPOT \"sponsorGame(uint256)\" $GAME_ID"
+          echo "  +----------------------------------"
         elif [[ -z "$OPEN_TX" ]]; then
-          echo "  ⚠️  Could not find CaseOpenRequested TX in blocks $SEARCH_FROM-$SEARCH_TO"
+          echo "  WARNING: Could not find CaseOpenRequested TX in blocks $SEARCH_FROM-$SEARCH_TO"
           echo "     Run manually: cre-reveal.sh <TX_HASH>"
           echo "     (Copy TX hash from MetaMask activity tab)"
         else
-          echo "  ℹ️  Already processed TX $OPEN_TX"
+          echo "  Already processed TX $OPEN_TX"
         fi
         ;;
       4)
         # AwaitingOffer — auto-run banker
         # RoundComplete is emitted by the CRE reveal TX, which could be
         # several blocks after the player's openCase TX. Search wider.
-        echo "  🤵 Cases revealed — running AI Banker..."
-        echo "  🔍 Searching blocks $SEARCH_FROM → $SEARCH_TO..."
+        echo "  Cases revealed -- running AI Banker..."
+        echo "  Searching blocks $SEARCH_FROM -> $SEARCH_TO..."
 
         REVEAL_TX=$(find_event_in_range "$TOPIC_ROUND_COMPLETE" "$SEARCH_FROM" "$SEARCH_TO")
         if [[ -n "$REVEAL_TX" && "$REVEAL_TX" != "$LAST_BANKER_TX" ]]; then
           LAST_BANKER_TX="$REVEAL_TX"
-          echo "  📡 Found RoundComplete TX: $REVEAL_TX"
+          echo "  Found RoundComplete TX: $REVEAL_TX"
 
           echo ""
-          echo "  ┌─ cre-banker.sh ─────────────────────"
-          "$SCRIPT_DIR/cre-banker.sh" "$REVEAL_TX" 2>&1 | sed 's/^/  │ /' || echo "  │ ⚠️ banker failed"
-          echo "  └─────────────────────────────────────"
+          echo "  +-- cre-banker.sh -----"
+          "$SCRIPT_DIR/cre-banker.sh" "$REVEAL_TX" 2>&1 | sed 's/^/  | /' || echo "  | banker failed"
+          echo "  +----------------------"
         elif [[ -z "$REVEAL_TX" ]]; then
-          echo "  ⚠️  Could not find RoundComplete TX in blocks $SEARCH_FROM-$SEARCH_TO"
+          echo "  WARNING: Could not find RoundComplete TX in blocks $SEARCH_FROM-$SEARCH_TO"
           echo "     Falling back to manual banker (no Gemini message)..."
           echo ""
-          echo "  ┌─ play-game.sh ring ─────────────────"
-          "$SCRIPT_DIR/play-game.sh" ring "$GAME_ID" 2>&1 | sed 's/^/  │ /' || echo "  │ ⚠️ manual banker failed"
-          echo "  └─────────────────────────────────────"
+          echo "  +-- play-game.sh ring -----"
+          "$SCRIPT_DIR/play-game.sh" ring "$GAME_ID" 2>&1 | sed 's/^/  | /' || echo "  | manual banker failed"
+          echo "  +--------------------------"
         else
-          echo "  ℹ️  Already processed TX $REVEAL_TX"
+          echo "  Already processed TX $REVEAL_TX"
         fi
         ;;
       5)
-        echo "  💰 Banker offer is in! Waiting for player to Deal or NOT..."
+        echo "  Banker offer is in! Waiting for player to Deal or NOT..."
         ;;
       6)
-        echo "  🏁 Final Round — waiting for player to keep or swap..."
+        echo "  Final Round -- waiting for player to keep or swap..."
         ;;
       8)
-        echo "  🎉 GAME OVER!"
+        echo "  GAME OVER!"
         echo ""
         "$SCRIPT_DIR/game-state.sh" "$GAME_ID"
         echo ""
