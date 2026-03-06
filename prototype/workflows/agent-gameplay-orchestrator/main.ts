@@ -124,32 +124,30 @@ function phaseToString(phase: number): string {
 
 // ── Agent API Call ──
 
-function callAgentAPI(
+async function callAgentAPI(
   runtime: Runtime<Config>,
   endpoint: string,
   request: DecisionRequest
-): DecisionResponse {
+): Promise<DecisionResponse> {
   try {
     runtime.log(`Calling agent API: ${endpoint}`);
 
-    const httpResponse = runtime
-      .http({
-        url: endpoint,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(request),
-        timeout: runtime.config.httpTimeout,
-      })
-      .result();
+    // Use fetch for public agent APIs (Node 18+ built-in)
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+      signal: AbortSignal.timeout(runtime.config.httpTimeout || 30000),
+    });
 
-    if (httpResponse.statusCode !== 200) {
-      throw new Error(`Agent API returned ${httpResponse.statusCode}: ${String.fromCharCode(...httpResponse.body)}`);
+    if (!response.ok) {
+      const bodyText = await response.text();
+      throw new Error(`Agent API returned ${response.status}: ${bodyText}`);
     }
 
-    const responseBody = String.fromCharCode(...httpResponse.body);
-    const decision: DecisionResponse = JSON.parse(responseBody);
+    const decision = (await response.json()) as DecisionResponse;
 
     // Validate decision
     const validActions = ["pick", "open", "deal", "no-deal", "keep", "swap"];
@@ -171,11 +169,11 @@ function callAgentAPI(
 
 // ── Game State Handler ──
 
-function handleGameStateChange(
+async function handleGameStateChange(
   runtime: Runtime<Config>,
   log: EVMLog,
   eventName: string
-): string {
+): Promise<string> {
   const topics = log.topics;
   if (topics.length < 2) {
     throw new Error(`${eventName}: missing topics`);
@@ -317,7 +315,7 @@ function handleGameStateChange(
   };
 
   // 6. Call agent API
-  const decision = callAgentAPI(runtime, endpoint, decisionRequest);
+  const decision = await callAgentAPI(runtime, endpoint, decisionRequest);
 
   // 7. Execute decision on-chain
   let writeCallData: `0x${string}`;
@@ -415,21 +413,21 @@ function handleGameStateChange(
 
 // ── Event Handlers ──
 
-const onGameCreated = (runtime: Runtime<Config>, log: EVMLog): string => {
-  return handleGameStateChange(runtime, log, "GameCreated");
+const onGameCreated = async (runtime: Runtime<Config>, log: EVMLog): Promise<string> => {
+  return await handleGameStateChange(runtime, log, "GameCreated");
 };
 
-const onRoundStarted = (runtime: Runtime<Config>, log: EVMLog): string => {
-  return handleGameStateChange(runtime, log, "RoundStarted");
+const onRoundStarted = async (runtime: Runtime<Config>, log: EVMLog): Promise<string> => {
+  return await handleGameStateChange(runtime, log, "RoundStarted");
 };
 
-const onBankerOfferMade = (runtime: Runtime<Config>, log: EVMLog): string => {
-  return handleGameStateChange(runtime, log, "BankerOfferMade");
+const onBankerOfferMade = async (runtime: Runtime<Config>, log: EVMLog): Promise<string> => {
+  return await handleGameStateChange(runtime, log, "BankerOfferMade");
 };
 
 // ── Game Complete Handler (Update Stats) ──
 
-const onGameComplete = (runtime: Runtime<Config>, log: EVMLog): string => {
+const onGameComplete = async (runtime: Runtime<Config>, log: EVMLog): Promise<string> => {
   const topics = log.topics;
   if (topics.length < 2) {
     throw new Error("GameComplete: missing topics");
@@ -567,7 +565,7 @@ const initWorkflow = (config: Config) => {
         addresses: [hexToBase64(config.contractAddress)],
         // Filter for: GameCreated, RoundStarted, BankerOfferMade, FinalRoundStarted, GameComplete
       }),
-      (runtime: Runtime<Config>, log: EVMLog): string => {
+      async (runtime: Runtime<Config>, log: EVMLog): Promise<string> => {
         // Route to appropriate handler based on event signature
         const eventSig = bytesToHex(log.topics[0]);
 
@@ -583,13 +581,13 @@ const initWorkflow = (config: Config) => {
 
         switch (eventSig) {
           case GAME_CREATED:
-            return onGameCreated(runtime, log);
+            return await onGameCreated(runtime, log);
           case ROUND_COMPLETE:
-            return onRoundStarted(runtime, log);  // RoundComplete triggers next round actions
+            return await onRoundStarted(runtime, log);  // RoundComplete triggers next round actions
           case BANKER_OFFER_MADE:
-            return onBankerOfferMade(runtime, log);
+            return await onBankerOfferMade(runtime, log);
           case GAME_RESOLVED:
-            return onGameComplete(runtime, log);  // GameResolved triggers stats update
+            return await onGameComplete(runtime, log);  // GameResolved triggers stats update
           default:
             runtime.log(`Unknown event signature: ${eventSig}`);
             return "Unknown event";
