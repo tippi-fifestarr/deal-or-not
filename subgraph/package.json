@@ -1,0 +1,20 @@
+{
+  "name": "deal-or-not-subgraph",
+  "version": "1.0.0",
+  "description": "The Graph subgraph for Deal or NOT prediction markets",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "deploy": "graph deploy --studio deal-or-not",
+    "create-local": "graph create --node http://localhost:8020/ deal-or-not",
+    "remove-local": "graph remove --node http://localhost:8020/ deal-or-not",
+    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 deal-or-not"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "^0.56.0",
+    "@graphprotocol/graph-ts": "^0.31.0"
+  },
+  "devDependencies": {
+    "matchstick-as": "^0.5.0"
+  }
+}
