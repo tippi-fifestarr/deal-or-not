@@ -4,11 +4,22 @@ Shell scripts for running the full game flow from the command line. Use these al
 
 ## Prerequisites
 
-- **bash 4+** (macOS ships bash 3 — use `brew install bash`)
-- **Foundry** (`cast`) — `curl -L https://foundry.paradigm.xyz | bash && foundryup`
-- **CRE CLI v1.2.0+** — [install guide](https://docs.chain.link/cre/getting-started/cli-installation/linux)
-- **python3** — for JSON parsing
-- **CRE login** — run `cre login` before each session (token expires every 15 min)
+Install these before running any scripts:
+
+```bash
+# 1. bash 4+ (macOS ships bash 3.2 which WILL NOT work)
+brew install bash
+bash --version   # should show 5.x
+
+# 2. Foundry (for cast CLI)
+curl -L https://foundry.paradigm.xyz | bash && foundryup
+
+# 3. CRE CLI v1.2.0+
+curl -sSL https://cre.chain.link/install.sh | bash
+
+# 4. python3 (usually pre-installed on macOS)
+python3 --version
+```
 
 ## Setup
 
@@ -22,7 +33,7 @@ echo "NEXT_PUBLIC_ALCHEMY_RPC_URL=https://base-sepolia.g.alchemy.com/v2/YOUR_KEY
 # 3. For AI Banker, add Gemini key:
 echo "GEMINI_API_KEY=your-key" >> prototype/workflows/.env
 
-# 4. Log in to CRE
+# 4. Log in to CRE (creates account at cre.chain.link if needed)
 cre login
 ```
 
