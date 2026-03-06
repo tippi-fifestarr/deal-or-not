@@ -15,7 +15,7 @@ const BANKER_FALLBACKS = [
 
 function BankerQuip({ quip }: { quip?: string }) {
   const [showFallback, setShowFallback] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     if (quip) {

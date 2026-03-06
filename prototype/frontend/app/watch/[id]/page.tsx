@@ -160,7 +160,7 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
                 <CommitReveal
                   gameState={gameState}
                   gameId={gameId}
-                  onOpenCase={() => {}}
+                  onOpenCase={async () => {}}
                   isPending={false}
                 />
               </div>
@@ -218,8 +218,8 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
                   : Number(gameState.bankerOffer)}
                 round={gameState.currentRound}
                 quip={bankerMessage ?? undefined}
-                onDeal={() => {}}
-                onNoDeal={() => {}}
+                onDeal={async () => {}}
+                onNoDeal={async () => {}}
                 isOpen={showBankerOfferModal}
                 seed={gameId}
               />
@@ -233,8 +233,8 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
                 <FinalDecision
                   gameState={gameState}
                   gameId={gameId}
-                  onKeepCase={() => {}}
-                  onSwapCase={() => {}}
+                  onKeepCase={async () => {}}
+                  onSwapCase={async () => {}}
                   isPending={false}
                 />
               </div>
@@ -248,7 +248,7 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
               onPlayAgain={() => router.push("/watch")}
               jackpotCents={jackpotCents}
               jackpotClaimed={jackpotClaimed}
-              onClaimJackpot={() => {}}
+              onClaimJackpot={async () => {}}
               claimPending={false}
               sponsorName={sponsorInfo?.name}
             />
