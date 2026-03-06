@@ -49,6 +49,7 @@ contract AgentRegistry {
     // ── State ──
     mapping(uint256 => Agent) public agents;
     mapping(address => uint256[]) public ownerAgents;   // owner => agentIds
+    mapping(address => uint256) public playerToAgentId; // player address => agentId (for orchestrator lookup)
     mapping(address => bool) public authorizedCallers;  // DealOrNotConfidential can update stats
 
     uint256 public nextAgentId;
@@ -141,6 +142,7 @@ contract AgentRegistry {
         });
 
         ownerAgents[msg.sender].push(agentId);
+        playerToAgentId[msg.sender] = agentId;  // Map player address to agentId
         totalAgents++;
 
         emit AgentRegistered(agentId, msg.sender, name, apiEndpoint);
@@ -164,7 +166,7 @@ contract AgentRegistry {
     // ── Stats Management (called by authorized contracts) ──
 
     /// @notice Update agent stats after a game
-    /// @dev Called by DealOrNotConfidential after game completion
+    /// @dev Called by DealOrNotConfidential or CRE orchestrator after game completion
     function recordGame(
         uint256 agentId,
         bool won,
@@ -183,6 +185,17 @@ contract AgentRegistry {
             agent.gamesWon,
             agent.totalEarnings
         );
+    }
+
+    /// @notice Alias for recordGame - for CRE orchestrator compatibility
+    function updateAgentStats(
+        uint256 agentId,
+        uint256 gameId,
+        uint256 earningsCents,
+        bool won
+    ) external onlyAuthorized {
+        // Call recordGame with converted parameters
+        recordGame(agentId, won, earningsCents);
     }
 
     // ── View Functions ──
@@ -222,16 +235,42 @@ contract AgentRegistry {
         return ownerAgents[owner];
     }
 
-    /// @notice Get agent API endpoint (for CRE workflow)
+    /// @notice Check if agent is eligible to play (by agentId)
+    function isAgentEligible(uint256 agentId) external view returns (bool) {
+        return agents[agentId].isActive && !agents[agentId].isBanned;
+    }
+
+    /// @notice Check if player address is a registered agent (for CRE orchestrator)
+    /// @param player Player address to check
+    /// @return bool True if player is a registered and eligible agent
+    function isAgentEligible(address player) external view returns (bool) {
+        uint256 agentId = playerToAgentId[player];
+        if (agentId == 0) return false;
+        return agents[agentId].isActive && !agents[agentId].isBanned;
+    }
+
+    /// @notice Get agent ID for a player address (for CRE orchestrator)
+    /// @param player Player address
+    /// @return agentId Agent ID (0 if not an agent)
+    function getAgentId(address player) external view returns (uint256) {
+        return playerToAgentId[player];
+    }
+
+    /// @notice Get agent API endpoint (for CRE workflow) - supports both agentId and address
     function getAgentEndpoint(uint256 agentId) external view returns (string memory) {
         if (!agents[agentId].isActive) revert AgentNotFound();
         if (agents[agentId].isBanned) revert AgentIsBanned();
         return agents[agentId].apiEndpoint;
     }
 
-    /// @notice Check if agent is eligible to play
-    function isAgentEligible(uint256 agentId) external view returns (bool) {
-        return agents[agentId].isActive && !agents[agentId].isBanned;
+    /// @notice Get agent API endpoint by player address (for CRE orchestrator)
+    /// @param player Player address
+    /// @return endpoint API endpoint string
+    function getAgentEndpoint(address player) external view returns (string memory) {
+        uint256 agentId = playerToAgentId[player];
+        if (agentId == 0) revert AgentNotFound();
+        if (agents[agentId].isBanned) revert AgentBanned();
+        return agents[agentId].apiEndpoint;
     }
 
     /// @notice Get top agents by total earnings (simple linear scan, limited to first 100)
