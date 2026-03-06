@@ -139,14 +139,18 @@ while true; do
           LAST_REVEAL_OPEN_TX="$OPEN_TX"
           echo "  Found openCase TX: $OPEN_TX"
 
+          # keepCase/swapCase emit CaseKept/CaseSwapped at log 0, CaseOpenRequested at log 1
+          # openCase emits CaseOpenRequested at log 0
+          [[ "$PHASE" == "7" ]] && EVENT_IDX=1 || EVENT_IDX=0
+
           echo ""
           echo "  +-- cre-reveal.sh -----"
-          "$SCRIPT_DIR/cre-reveal.sh" "$OPEN_TX" 2>&1 | sed 's/^/  | /' || echo "  | reveal failed"
+          "$SCRIPT_DIR/cre-reveal.sh" "$OPEN_TX" "$EVENT_IDX" 2>&1 | sed 's/^/  | /' || echo "  | reveal failed"
           echo "  +----------------------"
 
           echo ""
           echo "  +-- cre-jackpot.sh (optional) -----"
-          "$SCRIPT_DIR/cre-jackpot.sh" "$OPEN_TX" 2>&1 | sed 's/^/  | /' || echo "  | (jackpot skipped -- non-critical)"
+          "$SCRIPT_DIR/cre-jackpot.sh" "$OPEN_TX" "$EVENT_IDX" 2>&1 | sed 's/^/  | /' || echo "  | (jackpot skipped -- non-critical)"
           echo "  | No jackpot? Run: cast send \$SPONSOR_JACKPOT \"registerSponsor(string,string)\" \"Name\" \"\" --value 0.01ether"
           echo "  | Then: cast send \$SPONSOR_JACKPOT \"sponsorGame(uint256)\" $GAME_ID"
           echo "  +----------------------------------"

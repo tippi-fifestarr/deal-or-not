@@ -124,7 +124,7 @@ export function callGemini(
           bodyString,
           multiHeaders: {
             "Content-Type": { values: ["application/json"] },
-            "x-goog-api-key": { values: ["{{.geminiApiKey}}"] },
+            "x-goog-api-key": { values: [runtime.config.geminiApiKey || "{{.geminiApiKey}}"] },
           },
         },
         vaultDonSecrets: [
