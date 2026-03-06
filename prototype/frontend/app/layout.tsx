@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
 import Web3Provider from "@/components/providers/Web3Provider";
+import ApolloProvider from "@/components/providers/ApolloProvider";
+import { Toaster } from "sonner";
 import Nav from "@/components/Nav";
 import "./globals.css";
 
@@ -33,10 +35,13 @@ export default function RootLayout({
           <div className="absolute top-1/2 right-1/3 w-64 h-64 bg-pink-500/20 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '2s' }} />
         </div>
 
-        <Web3Provider>
-          <Nav />
-          {children}
-        </Web3Provider>
+        <ApolloProvider>
+          <Web3Provider>
+            <Nav />
+            {children}
+            <Toaster position="top-right" theme="dark" />
+          </Web3Provider>
+        </ApolloProvider>
       </body>
     </html>
   );
