@@ -80,22 +80,30 @@ export function GlassGameStatus({
       </div>
 
       {/* Round progress bar */}
-      {round !== undefined && maxRounds && (
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs text-white/60">
-            <span>Progress</span>
-            <span>{round + 1} / {maxRounds}</span>
+      {round !== undefined && maxRounds && (() => {
+        const isComplete = phase.includes("GameOver") || phase === "8";
+        const isFinal = phase.includes("Final") || phase === "6" || phase === "7";
+        const displayRound = isComplete || isFinal ? maxRounds : round + 1;
+        return (
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs text-white/60">
+              <span>Progress</span>
+              <span>{displayRound} / {maxRounds}</span>
+            </div>
+            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+              <motion.div
+                className={cn(
+                  "h-full bg-gradient-to-r",
+                  isComplete ? "from-green-500 to-emerald-400" : "from-blue-500 to-purple-500"
+                )}
+                initial={{ width: 0 }}
+                animate={{ width: `${(displayRound / maxRounds) * 100}%` }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+              />
+            </div>
           </div>
-          <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-            <motion.div
-              className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
-              initial={{ width: 0 }}
-              animate={{ width: `${((round + 1) / maxRounds) * 100}%` }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-            />
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Player info */}
       {playerAddress && (

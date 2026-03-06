@@ -4,11 +4,22 @@ Shell scripts for running the full game flow from the command line. Use these al
 
 ## Prerequisites
 
-- **bash 4+** (macOS ships bash 3 — use `brew install bash`)
-- **Foundry** (`cast`) — `curl -L https://foundry.paradigm.xyz | bash && foundryup`
-- **CRE CLI v1.2.0+** — [install guide](https://docs.chain.link/cre/getting-started/cli-installation/linux)
-- **python3** — for JSON parsing
-- **CRE login** — run `cre login` before each session (token expires every 15 min)
+Install these before running any scripts:
+
+```bash
+# 1. bash 4+ (macOS ships bash 3.2 which WILL NOT work)
+brew install bash
+bash --version   # should show 5.x
+
+# 2. Foundry (for cast CLI)
+curl -L https://foundry.paradigm.xyz | bash && foundryup
+
+# 3. CRE CLI v1.2.0+
+curl -sSL https://cre.chain.link/install.sh | bash
+
+# 4. python3 (usually pre-installed on macOS)
+python3 --version
+```
 
 ## Setup
 
@@ -22,7 +33,7 @@ echo "NEXT_PUBLIC_ALCHEMY_RPC_URL=https://base-sepolia.g.alchemy.com/v2/YOUR_KEY
 # 3. For AI Banker, add Gemini key:
 echo "GEMINI_API_KEY=your-key" >> prototype/workflows/.env
 
-# 4. Log in to CRE
+# 4. Log in to CRE (creates account at cre.chain.link if needed)
 cre login
 ```
 
@@ -131,6 +142,33 @@ When `cre-support.sh` isn't running or fails to find events:
 # 4. If banker fails, use manual offer (no AI message)
 ./scripts/play-game.sh ring 15
 ```
+
+## Timing Reference
+
+| Step | Duration | Notes |
+|------|----------|-------|
+| VRF callback | ~10s | Chainlink VRF on Base Sepolia |
+| CRE reveal | ~5s | Confidential enclave compute + on-chain write |
+| CRE banker (with Gemini) | ~5-10s | Gemini 2.5 Flash API call + on-chain write |
+| Full open→offer cycle | ~10-15s | reveal + banker back-to-back |
+
+**Important**: When scripting or polling, keep all waits/sleeps to **10-12 seconds max**. The full pipeline (open case → reveal → banker offer) completes in under 15 seconds on Base Sepolia.
+
+## Known Issues
+
+### BestOfBanker Nonce Collision
+
+The `cre-banker` workflow does two `writeReport` calls in the same simulation:
+1. `writeReport` #1 → `setBankerOfferWithMessage()` on the game contract (**always works**)
+2. `writeReport` #2 → `saveQuote()` on BestOfBanker gallery (**sometimes fails** — nonce collision)
+
+Both writes use the same deployer key and the CRE simulate mode can assign the same nonce to both, causing "replacement transaction underpriced" on the second TX.
+
+**Impact**: The game offer and Gemini message are written to the game contract (writeReport #1) and emitted as a `BankerMessage` event. But the BestOfBanker gallery contract may not receive the message. The frontend's `useBankerMessage` hook reads from BestOfBanker, so it may not find the message.
+
+**Current mitigation**: The frontend shows "The Banker is composing a message..." for up to 8 seconds, then falls back to a generic banker quote.
+
+**Proper fix (TODO)**: Read the banker message from the `BankerMessage` event log instead of (or in addition to) the BestOfBanker contract. The message is already on-chain in writeReport #1 — we just need the frontend to read it from event logs.
 
 ## Environment Variables
 

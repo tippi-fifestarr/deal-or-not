@@ -37,6 +37,14 @@ export interface GameState {
   opened: readonly boolean[];
 }
 
+export interface SponsorAd {
+  text: string;
+  tagline: string;
+  url: string;
+  bg: string;
+  logo?: string;
+}
+
 export const NUM_CASES = 5;
 export const NUM_ROUNDS = 4;
 export const CASE_VALUES_CENTS = [1, 5, 10, 50, 100] as const;

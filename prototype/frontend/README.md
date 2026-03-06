@@ -82,14 +82,58 @@ A CRE log-trigger workflow adds to the jackpot on each case opening. The amount 
 
 $0.01, $0.05, $0.10, $0.50, $1.00
 
+## Watch Mode (Spectator UX)
+
+No wallet needed. Spectate any game in real time.
+
+- `/watch` — lobby with game ID input + "jump to latest" shortcut
+- `/watch/[id]` — full spectator view with sidebar, rotating sponsor ads, event log
+- Channel controls: ◀ Choose Game ▶ to navigate between games
+- Ads are seeded by gameId for deterministic per-game shuffle order
+
+## Sponsor Ads
+
+Typed ad system in `lib/ads.ts` with `SponsorAd` interface. Unified `RotatingAd` component supports `sidebar` and `break` variants. Sponsor logos in `public/sponsors/`.
+
+Current sponsors: Ceptor Club, Chainlink, letswritean.email, Wingbird Enterprises, CyberJam, ENS, Deal or NOT, Rick Roll University, The Banker's Therapy Fund.
+
+**Future**: Refactor `SponsorJackpot` into separate `Sponsor` and `Jackpot` contracts. Sponsors write ads on-chain by sending funds — the Sponsor contract stores ad text/logo and forwards funds to the Jackpot. The frontend reads ads from the Sponsor contract instead of the static `lib/ads.ts` array.
+
+### Running Tests
+
+```bash
+npx tsx --test lib/ads.test.ts
+```
+
+## Known Issues
+
+### Banker Message Timing
+
+The AI Banker's Gemini-generated message is written on-chain in two places:
+1. **Game contract** — via `setBankerOfferWithMessage()` (writeReport #1, emits `BankerMessage` event) — **reliable**
+2. **BestOfBanker gallery** — via `saveQuote()` (writeReport #2) — **sometimes fails** due to CRE nonce collision
+
+The frontend reads from BestOfBanker (`useBankerMessage` hook), so when writeReport #2 fails, no message is found. The UI shows "The Banker is composing a message..." for up to 8 seconds, then falls back to a generic quote.
+
+**TODO**: Read the message from the `BankerMessage` event log (always present in writeReport #1) instead of relying on BestOfBanker. The message is already on-chain — the frontend just needs to read from event logs.
+
+### Progress Bar at GameOver
+
+Fixed: progress bar now shows 4/4 (green) at GameOver and FinalRound phases.
+
 ## Key Files
 
 | File | Purpose |
 |------|---------|
 | `lib/config.ts` | All contract addresses and chain config |
 | `lib/abi.ts` | Contract ABI (from forge output) |
+| `lib/ads.ts` | Sponsor ad data (typed `SponsorAd[]`) |
+| `lib/ads.test.ts` | Tests for seeded shuffle + ad data validation |
 | `hooks/useGameContract.ts` | All contract read/write hooks |
 | `components/game/GameBoard.tsx` | Main game orchestrator (9 phases) |
 | `components/game/CommitReveal.tsx` | CRE-powered 1-step case opening UX |
 | `components/game/BankerOffer.tsx` | DEAL/NO DEAL modal with quality bar |
-| `types/game.ts` | Phase enum + GameState interface |
+| `components/RotatingAd.tsx` | Unified rotating ad component (sidebar + break variants) |
+| `app/watch/page.tsx` | Watch lobby page |
+| `app/watch/[id]/page.tsx` | Spectator view for a specific game |
+| `types/game.ts` | Phase enum, GameState, SponsorAd interfaces |

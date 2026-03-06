@@ -33,13 +33,17 @@ export default function BankerOffer({
         </h2>
 
         {/* AI Banker message */}
-        {bankerMessage && (
-          <div className="bg-gray-800/60 border border-amber-700/30 rounded-lg p-3 mb-4">
+        <div className="bg-gray-800/60 border border-amber-700/30 rounded-lg p-3 mb-4">
+          {bankerMessage ? (
             <p className="text-amber-200 text-sm italic text-center leading-relaxed">
               &ldquo;{bankerMessage}&rdquo;
             </p>
-          </div>
-        )}
+          ) : (
+            <p className="text-amber-200/50 text-sm italic text-center animate-pulse">
+              The Banker is composing a message...
+            </p>
+          )}
+        </div>
 
         {/* Offer amount */}
         <div className="text-center mb-6">

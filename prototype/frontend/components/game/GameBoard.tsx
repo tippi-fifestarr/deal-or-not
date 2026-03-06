@@ -582,10 +582,11 @@ export default function GameBoard() {
               ? remainingValues.reduce((sum, val) => sum + Number(val), 0) / remainingValues.length
               : Number(gameState.bankerOffer)}
             round={gameState.currentRound}
-            quip={bankerMessage ?? "Make your choice wisely..."}
+            quip={bankerMessage ?? undefined}
             onDeal={handleAcceptDeal}
             onNoDeal={handleRejectDeal}
             isOpen={showBankerOfferModal}
+            seed={gameId}
           />
         </>
       )}
