@@ -40,13 +40,15 @@ const GATEWAY_ABI = [
 
 type BridgeState = "idle" | "estimating" | "confirming" | "bridging" | "success" | "error";
 
-export default function CrossChainJoin({ gameId }: { gameId: number }) {
+export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number }) {
   const chainId = useChainId();
   const { address, isConnected } = useAccount();
   const [bridgeState, setBridgeState] = useState<BridgeState>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [gameIdInput, setGameIdInput] = useState(gameIdProp?.toString() ?? "");
 
+  const gameId = gameIdProp ?? (gameIdInput ? Number(gameIdInput) : undefined);
   const gatewayAddress = CHAIN_CONTRACTS[sepolia.id]?.gateway;
 
   // Estimate cost from Gateway contract
@@ -54,9 +56,9 @@ export default function CrossChainJoin({ gameId }: { gameId: number }) {
     address: gatewayAddress,
     abi: GATEWAY_ABI,
     functionName: "estimateCost",
-    args: [BigInt(gameId)],
+    args: gameId !== undefined ? [BigInt(gameId)] : undefined,
     chainId: sepolia.id,
-    query: { enabled: isSpokeChain(chainId) },
+    query: { enabled: isSpokeChain(chainId) && gameId !== undefined },
   });
 
   const { writeContractAsync } = useWriteContract();
@@ -69,7 +71,7 @@ export default function CrossChainJoin({ gameId }: { gameId: number }) {
   const totalWei = costEstimate?.[2];
 
   async function handleBridge() {
-    if (!gatewayAddress || !totalWei) return;
+    if (!gatewayAddress || !totalWei || gameId === undefined) return;
 
     try {
       setBridgeState("confirming");
@@ -112,9 +114,22 @@ export default function CrossChainJoin({ gameId }: { gameId: number }) {
           </span>
           <span className="broadcast-live">ACTIVE</span>
         </div>
-        <span className="text-white/20 text-[0.6rem] font-mono">
-          GAME #{gameId}
-        </span>
+        {gameIdProp !== undefined ? (
+          <span className="text-white/20 text-[0.6rem] font-mono">
+            GAME #{gameId}
+          </span>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <span className="text-white/20 text-[0.6rem] font-mono">GAME #</span>
+            <input
+              type="number"
+              placeholder="ID"
+              value={gameIdInput}
+              onChange={(e) => setGameIdInput(e.target.value)}
+              className="w-16 bg-black/40 border border-white/10 rounded px-1.5 py-0.5 text-[0.6rem] text-white/60 font-mono focus:border-[#00f0ff]/40 focus:outline-none"
+            />
+          </div>
+        )}
       </div>
 
       {/* Bridge visualization */}
@@ -194,21 +209,21 @@ export default function CrossChainJoin({ gameId }: { gameId: number }) {
             <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <button
                 onClick={handleBridge}
-                disabled={!isConnected || !totalWei}
+                disabled={!isConnected || !totalWei || gameId === undefined}
                 className={cn(
                   "w-full py-3 rounded-lg font-bold text-sm tracking-[0.1em] uppercase transition-all duration-200",
                   "border",
-                  isConnected && totalWei
+                  isConnected && totalWei && gameId !== undefined
                     ? "bg-[#00f0ff]/10 border-[#00f0ff]/40 text-[#00f0ff] hover:bg-[#00f0ff]/20 hover:border-[#00f0ff]/60"
                     : "bg-white/5 border-white/10 text-white/20 cursor-not-allowed"
                 )}
                 style={
-                  isConnected && totalWei
+                  isConnected && totalWei && gameId !== undefined
                     ? { textShadow: "0 0 10px rgba(0,240,255,0.4)" }
                     : undefined
                 }
               >
-                {!isConnected ? "CONNECT WALLET FIRST" : !totalWei ? "ESTIMATING..." : "BRIDGE & JOIN GAME"}
+                {!isConnected ? "CONNECT WALLET FIRST" : gameId === undefined ? "ENTER GAME ID" : !totalWei ? "ESTIMATING..." : "BRIDGE & JOIN GAME"}
               </button>
             </motion.div>
           )}
