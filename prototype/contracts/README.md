@@ -16,6 +16,17 @@
 | CRE Keystone Forwarder | `0x82300bd7c3958625581cc2F77bC6464dcEcDF3e5` |
 | ETH/USD Price Feed | `0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1` |
 
+### Agent Infrastructure (Base Sepolia)
+
+| Contract | Address | Verified |
+|---|---|---|
+| **AgentRegistry** | [`0xf3B0d29416d3504c802bab4A799349746A37E788`](https://base-sepolia.blockscout.com/address/0xf3B0d29416d3504c802bab4A799349746A37E788) | Blockscout |
+| **DealOrNotAgents** | [`0x4cEdE5dD14dCa8F71a766E3b3eb1fB5801835083`](https://base-sepolia.blockscout.com/address/0x4cEdE5dD14dCa8F71a766E3b3eb1fB5801835083) | Blockscout |
+| **AgentStaking** | [`0x2D10F49c7beB08c8426d22505B38B0969Cee3961`](https://base-sepolia.blockscout.com/address/0x2D10F49c7beB08c8426d22505B38B0969Cee3961) | Blockscout |
+| **SeasonalLeaderboard** | [`0x749646c52F32599BD3f5Eeef57d169940d4b29b0`](https://base-sepolia.blockscout.com/address/0x749646c52F32599BD3f5Eeef57d169940d4b29b0) | Blockscout |
+| **PredictionMarket** | [`0x8606Ed23CBa4903e10F26Bc756E70d867dEDDcC4`](https://base-sepolia.blockscout.com/address/0x8606Ed23CBa4903e10F26Bc756E70d867dEDDcC4) | Blockscout |
+| MockKeystoneForwarder (agents) | [`0x24c81c521a6e0a921a96Cc1668C7E663BA30A462`](https://base-sepolia.blockscout.com/address/0x24c81c521a6e0a921a96Cc1668C7E663BA30A462) | — |
+
 ## CRE Workflow Trigger Map
 
 Every round of gameplay involves multiple CRE workflow runs. Here's what fires when:
