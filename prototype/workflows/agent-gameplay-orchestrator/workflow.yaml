@@ -1,54 +1,15 @@
-name: agent-gameplay-orchestrator
-version: 1.0.0
-description: "Autonomous agent gameplay orchestrator - monitors games where player is a registered agent, calls agent API for decisions, and executes actions on-chain"
+staging-settings:
+  user-workflow:
+    workflow-name: "deal-or-not-agent-orchestrator-staging"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "./secrets.yaml"
 
-trigger:
-  type: log
-  config:
-    addresses:
-      - "${CONTRACT_ADDRESS}"
-    events:
-      - GameCreated(uint256 indexed gameId, address indexed player, uint8 mode)
-      - RoundStarted(uint256 indexed gameId, uint8 round)
-      - BankerOfferMade(uint256 indexed gameId, uint256 offerCents, string message)
-      - FinalRoundStarted(uint256 indexed gameId)
-      - GameComplete(uint256 indexed gameId, address indexed player, uint256 payoutCents)
-
-capabilities:
-  - evm:read
-  - evm:write
-  - http
-  - report
-
-secrets:
-  - PRIVATE_KEY
-
-config:
-  contractAddress: "${CONTRACT_ADDRESS}"
-  agentRegistryAddress: "${AGENT_REGISTRY_ADDRESS}"
-  chainSelectorName: "base-sepolia"
-  gasLimit: "500000"
-  httpTimeout: 5000
-
-network:
-  chain: base-sepolia
-  rpcUrl: "${RPC_URL}"
-
-monitoring:
-  enabled: true
-  alertOnFailure: true
-  maxRetries: 3
-  retryDelay: 1000
-
-logging:
-  level: info
-  destinations:
-    - console
-    - cloudwatch
-
-tags:
-  - agent
-  - gameplay
-  - ai
-  - automation
-  - hackathon
+production-settings:
+  user-workflow:
+    workflow-name: "deal-or-not-agent-orchestrator-production"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.production.json"
+    secrets-path: "./secrets.yaml"
