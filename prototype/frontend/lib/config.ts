@@ -5,6 +5,16 @@ export const CONTRACT_ADDRESS = "0xd9D4A974021055c46fD834049e36c21D7EE48137" as 
 export const SPONSOR_JACKPOT_ADDRESS = "0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95" as `0x${string}`;
 export const BEST_OF_BANKER_ADDRESS = "0x05EdC924f92aBCbbB91737479948509dC7E23bF9" as `0x${string}`;
 
+// ── Agent Infrastructure (Base Sepolia) ──
+export const AGENT_REGISTRY_ADDRESS = "0xf3B0d29416d3504c802bab4A799349746A37E788" as `0x${string}`;
+export const DEAL_OR_NOT_AGENTS_ADDRESS = "0x4cEdE5dD14dCa8F71a766E3b3eb1fB5801835083" as `0x${string}`;
+export const AGENT_STAKING_ADDRESS = "0x2D10F49c7beB08c8426d22505B38B0969Cee3961" as `0x${string}`;
+export const SEASONAL_LEADERBOARD_ADDRESS = "0x749646c52F32599BD3f5Eeef57d169940d4b29b0" as `0x${string}`;
+export const PREDICTION_MARKET_ADDRESS = "0x8606Ed23CBa4903e10F26Bc756E70d867dEDDcC4" as `0x${string}`;
+
+// ── Feature Flags ──
+export const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== "false"; // default: mock
+
 // ── Chain Config ──
 export const CHAIN = baseSepolia;
 export const CHAIN_ID = baseSepolia.id; // 84532
