@@ -58,13 +58,12 @@ contract PredictionMarket {
         MarketType marketType;
         uint256 targetValue;      // For EarningsOver or RoundPrediction
         MarketStatus status;
+        bool outcome;             // Resolved outcome
         uint256 createdAt;
         uint256 lockTime;         // When betting closes
-        bool outcome;             // Resolved outcome
         uint256 totalPool;
         uint256 yesPool;
         uint256 noPool;
-        bool resolved;
     }
 
     struct Bet {
@@ -147,13 +146,12 @@ contract PredictionMarket {
             marketType: marketType,
             targetValue: targetValue,
             status: MarketStatus.Open,
+            outcome: false,
             createdAt: block.timestamp,
             lockTime: lockTime,
-            outcome: false,
             totalPool: 0,
             yesPool: 0,
-            noPool: 0,
-            resolved: false
+            noPool: 0
         });
 
         gameMarkets[gameId].push(marketId);
@@ -219,7 +217,7 @@ contract PredictionMarket {
 
         market.status = MarketStatus.Resolved;
         market.outcome = outcome;
-        market.resolved = true;
+        // resolved is now derived from status == Resolved
 
         // Track collected fees for safe withdrawal
         uint256 fee = (market.totalPool * PLATFORM_FEE) / 10000;
@@ -233,7 +231,7 @@ contract PredictionMarket {
     /// @notice Cancel market and enable refunds
     function cancelMarket(uint256 marketId) external onlyAuthorized {
         Market storage market = markets[marketId];
-        if (market.resolved) revert InvalidMarket();
+        if (market.status == MarketStatus.Resolved) revert InvalidMarket();
         market.status = MarketStatus.Cancelled;
     }
 
@@ -258,7 +256,7 @@ contract PredictionMarket {
         }
 
         // Check if market resolved
-        if (!market.resolved) revert MarketNotResolved();
+        if (market.status != MarketStatus.Resolved) revert MarketNotResolved();
 
         // Check if bet won
         if (bet.prediction != market.outcome) revert NotWinner();
@@ -279,27 +277,34 @@ contract PredictionMarket {
 
     /// @notice Calculate payout for a winning bet
     function _calculatePayout(uint256 betId) internal view returns (uint256) {
-        Bet memory bet = bets[betId];
-        Market memory market = markets[bet.marketId];
+        Bet storage b = bets[betId];
+        Market storage m = markets[b.marketId];
 
-        if (bet.prediction != market.outcome) return 0;
+        if (b.prediction != m.outcome) return 0;
 
-        uint256 winningPool = market.outcome ? market.yesPool : market.noPool;
-        if (winningPool == 0) return 0;
+        uint256 winPool = m.outcome ? m.yesPool : m.noPool;
+        if (winPool == 0) return 0;
 
-        // Calculate platform fee
-        uint256 fee = (market.totalPool * PLATFORM_FEE) / 10000;
-        uint256 payoutPool = market.totalPool - fee;
-
-        // Proportional payout: (bet amount / winning pool) * payout pool
-        return (bet.amount * payoutPool) / winningPool;
+        uint256 payoutPool = m.totalPool - (m.totalPool * PLATFORM_FEE) / 10000;
+        return (b.amount * payoutPool) / winPool;
     }
 
     // ── View Functions ──
 
-    /// @notice Get market details
-    function getMarket(uint256 marketId) external view returns (Market memory) {
-        return markets[marketId];
+    /// @notice Get market core info
+    function getMarketCore(uint256 marketId) external view returns (
+        uint256 gameId, uint256 agentId, MarketType mType, MarketStatus status, bool outcome
+    ) {
+        Market storage m = markets[marketId];
+        return (m.gameId, m.agentId, m.marketType, m.status, m.outcome);
+    }
+
+    /// @notice Get market pool info
+    function getMarketPools(uint256 marketId) external view returns (
+        uint256 totalPool, uint256 yesPool, uint256 noPool, uint256 lockTime
+    ) {
+        Market storage m = markets[marketId];
+        return (m.totalPool, m.yesPool, m.noPool, m.lockTime);
     }
 
     /// @notice Get bet details
@@ -322,11 +327,8 @@ contract PredictionMarket {
         uint256 yesOdds,
         uint256 noOdds
     ) {
-        Market memory market = markets[marketId];
-        if (market.totalPool == 0) return (5000, 5000);  // 50/50 if no bets
-
-        yesOdds = (market.yesPool * 10000) / market.totalPool;
-        noOdds = (market.noPool * 10000) / market.totalPool;
+        Market storage m = markets[marketId];
+        (yesOdds, noOdds) = _odds(m.yesPool, m.noPool, m.totalPool);
     }
 
     /// @notice Calculate potential payout for a bet amount
@@ -335,53 +337,47 @@ contract PredictionMarket {
         bool prediction,
         uint256 betAmount
     ) external view returns (uint256) {
-        Market memory market = markets[marketId];
+        Market storage m = markets[marketId];
 
-        uint256 newTotalPool = market.totalPool + betAmount;
-        uint256 newWinningPool = prediction
-            ? market.yesPool + betAmount
-            : market.noPool + betAmount;
-
-        uint256 fee = (newTotalPool * PLATFORM_FEE) / 10000;
-        uint256 payoutPool = newTotalPool - fee;
-
-        return (betAmount * payoutPool) / newWinningPool;
+        uint256 newTotal = m.totalPool + betAmount;
+        uint256 newWin = prediction ? m.yesPool + betAmount : m.noPool + betAmount;
+        uint256 payoutPool = newTotal - (newTotal * PLATFORM_FEE) / 10000;
+        return (betAmount * payoutPool) / newWin;
     }
 
     /// @notice Check if bet can be claimed
     function canClaimBet(uint256 betId) external view returns (bool) {
-        Bet memory bet = bets[betId];
-        Market memory market = markets[bet.marketId];
+        Bet storage b = bets[betId];
+        Market storage m = markets[b.marketId];
 
-        if (bet.claimed) return false;
-        if (market.status == MarketStatus.Cancelled) return true;
-        if (!market.resolved) return false;
-        if (bet.prediction != market.outcome) return false;
+        if (b.claimed) return false;
+        if (m.status == MarketStatus.Cancelled) return true;
+        if (m.status != MarketStatus.Resolved) return false;
+        if (b.prediction != m.outcome) return false;
 
         return true;
     }
 
-    /// @notice Get market stats
+    /// @notice Get market stats (use getMarket + getMarketOdds for individual fields)
     function getMarketStats(uint256 marketId) external view returns (
         uint256 totalBets,
         uint256 totalPool,
-        uint256 yesPool,
-        uint256 noPool,
         uint256 yesOdds,
         uint256 noOdds
     ) {
-        Market memory market = markets[marketId];
+        Market storage m = markets[marketId];
         totalBets = marketBets[marketId].length;
-        totalPool = market.totalPool;
-        yesPool = market.yesPool;
-        noPool = market.noPool;
+        totalPool = m.totalPool;
+        (yesOdds, noOdds) = _odds(m.yesPool, m.noPool, m.totalPool);
+    }
 
-        if (totalPool > 0) {
-            yesOdds = (yesPool * 10000) / totalPool;
-            noOdds = (noPool * 10000) / totalPool;
+    function _odds(uint256 yP, uint256 nP, uint256 tP) internal pure returns (uint256 y, uint256 n) {
+        if (tP > 0) {
+            y = (yP * 10000) / tP;
+            n = (nP * 10000) / tP;
         } else {
-            yesOdds = 5000;
-            noOdds = 5000;
+            y = 5000;
+            n = 5000;
         }
     }
 

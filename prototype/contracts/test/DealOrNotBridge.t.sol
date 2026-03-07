@@ -6,7 +6,7 @@ import {DealOrNotBridge} from "../src/DealOrNotBridge.sol";
 import {DealOrNotConfidential} from "../src/DealOrNotConfidential.sol";
 import {DealOrNotGateway} from "../src/DealOrNotGateway.sol";
 import {MockCCIPRouter} from "@chainlink/contracts/src/v0.8/ccip/test/mocks/MockRouter.sol";
-import {VRFCoordinatorV2_5Mock} from "@chainlink/contracts/src/v0.8/vrf/mocks/VRFCoordinatorV2_5Mock.sol";
+import {LightVRFMock} from "./mocks/LightVRFMock.sol";
 import {MockV3Aggregator} from "@chainlink/contracts/src/v0.8/tests/MockV3Aggregator.sol";
 import {Client} from "@chainlink/contracts/src/v0.8/ccip/libraries/Client.sol";
 
@@ -14,7 +14,7 @@ contract DealOrNotBridgeTest is Test {
     DealOrNotBridge public bridge;
     DealOrNotConfidential public game;
     MockCCIPRouter public ccipRouter;
-    VRFCoordinatorV2_5Mock public vrfCoordinator;
+    LightVRFMock public vrfCoordinator;
     MockV3Aggregator public priceFeed;
 
     address public owner;
@@ -35,12 +35,12 @@ contract DealOrNotBridgeTest is Test {
 
         // Deploy mocks
         ccipRouter = new MockCCIPRouter();
-        vrfCoordinator = new VRFCoordinatorV2_5Mock(0.1 ether, 1e9, 1e18);
+        vrfCoordinator = new LightVRFMock();
         priceFeed = new MockV3Aggregator(8, 2000e8);
 
         // VRF subscription
         uint256 subId = vrfCoordinator.createSubscription();
-        vrfCoordinator.fundSubscription(subId, 100 ether);
+        vrfCoordinator.fundSubscription(subId, 0);
 
         // Deploy game contract
         game = new DealOrNotConfidential(

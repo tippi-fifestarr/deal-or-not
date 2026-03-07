@@ -3,12 +3,12 @@ pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
 import {DealOrNotConfidential} from "../src/DealOrNotConfidential.sol";
-import {VRFCoordinatorV2_5Mock} from "@chainlink/contracts/src/v0.8/vrf/mocks/VRFCoordinatorV2_5Mock.sol";
+import {LightVRFMock} from "./mocks/LightVRFMock.sol";
 import {MockV3Aggregator} from "@chainlink/contracts/src/v0.8/tests/MockV3Aggregator.sol";
 
 contract DealOrNotConfidentialTest is Test {
     DealOrNotConfidential public game;
-    VRFCoordinatorV2_5Mock public vrfCoordinator;
+    LightVRFMock public vrfCoordinator;
     MockV3Aggregator public priceFeed;
 
     address public owner;
@@ -57,15 +57,11 @@ contract DealOrNotConfidentialTest is Test {
         creForwarder = makeAddr("creForwarder");
 
         // Deploy mock VRF coordinator
-        vrfCoordinator = new VRFCoordinatorV2_5Mock(
-            0.1 ether, // base fee
-            1e9,       // gas price
-            1e18       // wei per unit link
-        );
+        vrfCoordinator = new LightVRFMock();
 
         // Create VRF subscription
         subscriptionId = vrfCoordinator.createSubscription();
-        vrfCoordinator.fundSubscription(subscriptionId, 100 ether);
+        vrfCoordinator.fundSubscription(subscriptionId, 0);
 
         // Deploy mock price feed (ETH/USD = $2000)
         priceFeed = new MockV3Aggregator(8, 2000e8);
