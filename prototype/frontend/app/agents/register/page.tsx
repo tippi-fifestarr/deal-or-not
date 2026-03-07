@@ -3,7 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useWriteContract } from "wagmi";
 import { GlassCard, GlassButton } from "@/components/glass";
+import { AGENT_REGISTRY_ABI } from "@/lib/agentRegistryAbi";
+import { AGENT_REGISTRY_ADDRESS, USE_MOCK_DATA } from "@/lib/config";
 
 export default function AgentRegisterPage() {
   const router = useRouter();
@@ -12,7 +15,8 @@ export default function AgentRegisterPage() {
   const [strategy, setStrategy] = useState("");
   const [version, setVersion] = useState("1.0.0");
   const [description, setDescription] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { writeContractAsync, isPending } = useWriteContract();
 
   const handleRegister = async () => {
     if (!name || !endpoint) {
@@ -20,15 +24,27 @@ export default function AgentRegisterPage() {
       return;
     }
 
-    setIsSubmitting(true);
-
-    // TODO: Replace with actual contract write when AgentRegistry is deployed
-    setTimeout(() => {
+    if (USE_MOCK_DATA) {
       alert(
-        `Agent registration coming soon!\n\nYour agent "${name}" will be registered at:\n${endpoint}\n\nWait for AgentRegistry contract deployment.`
+        `Agent registration (mock mode)!\n\nYour agent "${name}" would be registered at:\n${endpoint}\n\nSet NEXT_PUBLIC_USE_MOCK_DATA=false for real onchain registration.`
       );
-      setIsSubmitting(false);
-    }, 1000);
+      return;
+    }
+
+    try {
+      const metadata = JSON.stringify({ strategy, version, description });
+      await writeContractAsync({
+        address: AGENT_REGISTRY_ADDRESS,
+        abi: AGENT_REGISTRY_ABI,
+        functionName: "registerAgent",
+        args: [name, endpoint, metadata],
+      });
+      alert(`Agent "${name}" registered successfully!`);
+      router.push("/agents");
+    } catch (error) {
+      console.error("Registration failed:", error);
+      alert("Registration failed. See console for details.");
+    }
   };
 
   return (
@@ -51,6 +67,11 @@ export default function AgentRegisterPage() {
         <p className="text-white/30 text-sm mt-1 italic">
           Before your agent embarrasses itself on-chain, make sure you read the guide below.
         </p>
+        {USE_MOCK_DATA && (
+          <span className="inline-block mt-2 px-3 py-1 text-xs bg-yellow-500/20 text-yellow-400 rounded-full border border-yellow-500/30">
+            Mock Mode — set NEXT_PUBLIC_USE_MOCK_DATA=false for onchain writes
+          </span>
+        )}
       </div>
 
       {/* Registration Form */}
@@ -147,9 +168,9 @@ export default function AgentRegisterPage() {
             variant="prominent"
             className="flex-1"
             onClick={handleRegister}
-            disabled={isSubmitting}
+            disabled={isPending}
           >
-            {isSubmitting ? "Registering..." : "Register Agent"}
+            {isPending ? "Registering..." : "Register Agent"}
           </GlassButton>
           <GlassButton
             variant="regular"
@@ -207,15 +228,6 @@ export default function AgentRegisterPage() {
                 2
               )}
             </pre>
-          </div>
-
-          <div className="mt-6">
-            <GlassButton
-              variant="strong"
-              onClick={() => window.open("/AGENTS_GUIDE.md", "_blank")}
-            >
-              Read Full Developer Guide
-            </GlassButton>
           </div>
         </div>
       </GlassCard>
