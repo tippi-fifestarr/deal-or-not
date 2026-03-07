@@ -70,6 +70,8 @@ interface GlassBankerOfferProps {
   onNoDeal: () => void;
   isOpen: boolean;
   seed?: bigint;
+  spectatorMode?: boolean; // When true, show X to dismiss + reopen pill
+  onDismiss?: () => void; // Called when spectator closes modal
 }
 
 export function GlassBankerOffer({
@@ -82,6 +84,8 @@ export function GlassBankerOffer({
   onNoDeal,
   isOpen,
   seed,
+  spectatorMode = false,
+  onDismiss,
 }: GlassBankerOfferProps) {
   const [showOffer, setShowOffer] = useState(false);
   const [countdown, setCountdown] = useState(3);
@@ -157,6 +161,19 @@ export function GlassBankerOffer({
               damping: 20,
             }}
           >
+            {/* Close button — always visible for spectators, hidden for players */}
+            {spectatorMode && onDismiss && (
+              <button
+                onClick={onDismiss}
+                className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 text-white/60 hover:text-white transition-all duration-200"
+                aria-label="Close"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+
             {/* Title */}
             <div className="text-center space-y-2">
               <h2 className="text-4xl font-bold text-white">
@@ -253,27 +270,50 @@ export function GlassBankerOffer({
                 )}
 
                 {/* Decision Buttons */}
-                <div className="grid grid-cols-2 gap-4 pt-4">
-                  <GlassButton
-                    variant="prominent"
-                    tint="green"
-                    size="lg"
-                    onClick={onDeal}
-                    className="font-bold text-xl"
-                  >
-                    DEAL! 🤝
-                  </GlassButton>
+                {spectatorMode ? (
+                  <div className="pt-4 space-y-4">
+                    <p className="text-center text-white/40 text-sm italic">
+                      Waiting for the player to decide...
+                    </p>
+                    <div className="flex items-center justify-center gap-4 text-2xl font-black tracking-wider">
+                      <span className="text-green-400" style={{ textShadow: "0 0 12px rgba(74,222,128,0.4)" }}>DEAL</span>
+                      <span className="text-white/20 text-base font-light italic">or</span>
+                      <span className="text-red-400" style={{ textShadow: "0 0 12px rgba(248,113,113,0.4)" }}>NOT</span>
+                    </div>
+                    {onDismiss && (
+                      <GlassButton
+                        variant="regular"
+                        size="md"
+                        onClick={onDismiss}
+                        className="w-full text-sm"
+                      >
+                        Close &amp; Keep Watching
+                      </GlassButton>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4 pt-4">
+                    <GlassButton
+                      variant="prominent"
+                      tint="green"
+                      size="lg"
+                      onClick={onDeal}
+                      className="font-bold text-xl"
+                    >
+                      DEAL!
+                    </GlassButton>
 
-                  <GlassButton
-                    variant="prominent"
-                    tint="red"
-                    size="lg"
-                    onClick={onNoDeal}
-                    className="font-bold text-xl"
-                  >
-                    NO DEAL! 🚫
-                  </GlassButton>
-                </div>
+                    <GlassButton
+                      variant="prominent"
+                      tint="red"
+                      size="lg"
+                      onClick={onNoDeal}
+                      className="font-bold text-xl"
+                    >
+                      NO DEAL!
+                    </GlassButton>
+                  </div>
+                )}
               </motion.div>
             )}
           </motion.div>

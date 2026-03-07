@@ -65,6 +65,7 @@ export default function GameBoard() {
   const [txPending, setTxPending] = useState(false);
   const [spectatorMode, setSpectatorMode] = useState(false);
   const [showBankerOfferModal, setShowBankerOfferModal] = useState(false);
+  const [bankerOfferDismissed, setBankerOfferDismissed] = useState(false);
 
   const { gameState, refetch } = useGameState(gameId);
   const { nextGameId } = useNextGameId();
@@ -83,6 +84,7 @@ export default function GameBoard() {
   useEffect(() => {
     if (gameState?.phase === Phase.BankerOffer) {
       setShowBankerOfferModal(true);
+      setBankerOfferDismissed(false); // Reset dismiss on new offer
     }
   }, [gameState?.phase]);
 
@@ -447,6 +449,7 @@ export default function GameBoard() {
         round={gameState.currentRound}
         maxRounds={4}
         playerAddress={isPlayer ? gameState.player : undefined}
+        onClick={phase === Phase.BankerOffer && bankerOfferDismissed ? () => setBankerOfferDismissed(false) : undefined}
       />
 
       {/* Jackpot display — shown during active gameplay */}
@@ -585,9 +588,22 @@ export default function GameBoard() {
             quip={bankerMessage ?? undefined}
             onDeal={handleAcceptDeal}
             onNoDeal={handleRejectDeal}
-            isOpen={showBankerOfferModal}
+            isOpen={showBankerOfferModal && !bankerOfferDismissed}
             seed={gameId}
+            spectatorMode={spectatorMode}
+            onDismiss={() => setBankerOfferDismissed(true)}
           />
+
+          {/* Spectator: reopen pill when banker offer is dismissed */}
+          {spectatorMode && bankerOfferDismissed && showBankerOfferModal && (
+            <button
+              onClick={() => setBankerOfferDismissed(false)}
+              className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-2 rounded-full bg-black/70 backdrop-blur-xl border border-yellow-500/30 text-yellow-400 text-sm font-bold hover:bg-black/80 hover:border-yellow-500/50 transition-all shadow-[0_0_20px_rgba(255,215,0,0.15)]"
+            >
+              <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+              Show Banker Offer
+            </button>
+          )}
         </>
       )}
 
