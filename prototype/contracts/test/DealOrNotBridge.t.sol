@@ -104,8 +104,8 @@ contract DealOrNotBridgeTest is Test {
         bridge.ccipReceive(message);
 
         // Verify player was joined
-        (, address gamePlayer,,,,,,,,,,) = game.getGameState(gameId);
-        assertEq(gamePlayer, crossChainPlayer, "Cross-chain player should be joined");
+        (,address gp,,,,,,,,,,) = game.getGameState(gameId);
+        assertEq(gp, crossChainPlayer, "Cross-chain player should be joined");
     }
 
     function test_CcipReceive_UnauthorizedGateway() public {
@@ -142,8 +142,8 @@ contract DealOrNotBridgeTest is Test {
         bridge.ccipReceive(message2);
 
         // Player should still be the first one
-        (, address gamePlayer,,,,,,,,,,) = game.getGameState(gameId);
-        assertEq(gamePlayer, crossChainPlayer, "Player should not have changed");
+        (,address gp2,,,,,,,,,,) = game.getGameState(gameId);
+        assertEq(gp2, crossChainPlayer, "Player should not have changed");
     }
 
     function test_CcipReceive_OnlyRouter() public {
@@ -223,7 +223,7 @@ contract DealOrNotBridgeTest is Test {
 
         // The MockCCIPRouter routes locally: gateway.ccipSend → bridge.ccipReceive
         // Verify the player was joined into the game
-        (, address gamePlayer,,,,,,,,,,) = game.getGameState(gameId);
-        assertEq(gamePlayer, crossChainPlayer, "Cross-chain player should be joined via gateway");
+        (,address gp3,,,,,,,,,,) = game.getGameState(gameId);
+        assertEq(gp3, crossChainPlayer, "Cross-chain player should be joined via gateway");
     }
 }

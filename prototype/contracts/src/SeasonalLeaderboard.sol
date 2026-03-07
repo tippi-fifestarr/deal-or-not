@@ -197,6 +197,15 @@ contract SeasonalLeaderboard {
         seasons[currentSeasonId].totalPrizePool += msg.value;
     }
 
+    /// @notice Get prize amount for a given rank
+    function _prizeForRank(uint256 rank, uint256 prizePool) internal pure returns (uint256) {
+        if (rank == 0) return (prizePool * 50) / 100;
+        if (rank == 1) return (prizePool * 25) / 100;
+        if (rank == 2) return (prizePool * 15) / 100;
+        // Ranks 3-9 split remaining 10%
+        return (prizePool * 10) / 100 / 7;
+    }
+
     /// @notice Distribute prizes to top agents
     /// @dev Prize distribution: 1st: 50%, 2nd: 25%, 3rd: 15%, 4-10: 10% split
     function distributePrizes() external onlyAdmin {
@@ -207,37 +216,23 @@ contract SeasonalLeaderboard {
         if (season.prizesDistributed) revert PrizesAlreadyDistributed();
         if (season.totalPrizePool == 0) revert InsufficientPrizePool();
 
+        season.prizesDistributed = true;
+
         uint256[] memory topAgents = season.rankedAgents;
         uint256 prizePool = season.totalPrizePool;
-
-        // Distribute to top 3 + remaining 7
         uint256 numWinners = topAgents.length < TOP_AGENTS_COUNT
             ? topAgents.length
             : TOP_AGENTS_COUNT;
 
         for (uint256 i = 0; i < numWinners; i++) {
-            uint256 agentId = topAgents[i];
-            address agentOwner = agentRegistry.getAgent(agentId).owner;
-            uint256 prize;
-
-            if (i == 0) {
-                prize = (prizePool * 50) / 100;  // 50%
-            } else if (i == 1) {
-                prize = (prizePool * 25) / 100;  // 25%
-            } else if (i == 2) {
-                prize = (prizePool * 15) / 100;  // 15%
-            } else {
-                // Remaining 7 split 10%
-                prize = (prizePool * 10) / 100 / 7;
-            }
+            uint256 prize = _prizeForRank(i, prizePool);
+            address agentOwner = agentRegistry.getAgent(topAgents[i]).owner;
 
             (bool success, ) = payable(agentOwner).call{value: prize}("");
             require(success, "Prize transfer failed");
 
-            emit PrizeDistributed(currentSeasonId, agentId, i + 1, prize);
+            emit PrizeDistributed(currentSeasonId, topAgents[i], i + 1, prize);
         }
-
-        season.prizesDistributed = true;
     }
 
     // ── Internal Functions ──
@@ -245,41 +240,37 @@ contract SeasonalLeaderboard {
     /// @notice Compute rankings for a season (simple bubble sort for hackathon)
     function _computeRankings(uint256 seasonId) internal view returns (uint256[] memory) {
         Season storage season = seasons[seasonId];
+        uint256 numParticipants = season.participatingAgents;
 
-        // Collect all participating agents
-        uint256 participantCount = 0;
-        uint256[] memory participants = new uint256[](season.participatingAgents);
-
-        // Linear scan to find participants (inefficient but simple for demo)
-        for (uint256 i = 1; i < 1000 && participantCount < season.participatingAgents; i++) {
+        // Collect participating agents via linear scan (demo only)
+        uint256[] memory participants = new uint256[](numParticipants);
+        uint256 found = 0;
+        for (uint256 i = 1; i < 1000 && found < numParticipants; i++) {
             if (season.stats[i].gamesPlayed > 0) {
-                participants[participantCount] = i;
-                participantCount++;
+                participants[found++] = i;
             }
         }
 
         // Bubble sort by points (descending)
-        for (uint256 i = 0; i < participantCount; i++) {
-            for (uint256 j = i + 1; j < participantCount; j++) {
-                if (season.agentPoints[participants[i]] < season.agentPoints[participants[j]]) {
-                    uint256 temp = participants[i];
-                    participants[i] = participants[j];
-                    participants[j] = temp;
+        _sortByPoints(season, participants, found);
+
+        // Trim to top N
+        uint256 topN = found < TOP_AGENTS_COUNT ? found : TOP_AGENTS_COUNT;
+        uint256[] memory result = new uint256[](topN);
+        for (uint256 i = 0; i < topN; i++) {
+            result[i] = participants[i];
+        }
+        return result;
+    }
+
+    function _sortByPoints(Season storage season, uint256[] memory arr, uint256 len) internal view {
+        for (uint256 i = 0; i < len; i++) {
+            for (uint256 j = i + 1; j < len; j++) {
+                if (season.agentPoints[arr[i]] < season.agentPoints[arr[j]]) {
+                    (arr[i], arr[j]) = (arr[j], arr[i]);
                 }
             }
         }
-
-        // Return top N
-        uint256 topN = participantCount < TOP_AGENTS_COUNT
-            ? participantCount
-            : TOP_AGENTS_COUNT;
-
-        uint256[] memory topAgents = new uint256[](topN);
-        for (uint256 i = 0; i < topN; i++) {
-            topAgents[i] = participants[i];
-        }
-
-        return topAgents;
     }
 
     // ── View Functions ──
@@ -300,34 +291,29 @@ contract SeasonalLeaderboard {
     ) public view returns (LeaderboardEntry[] memory) {
         Season storage season = seasons[seasonId];
 
-        // If season ended, use pre-computed rankings
-        if (!season.isActive && season.rankedAgents.length > 0) {
-            uint256 count = season.rankedAgents.length < limit
-                ? season.rankedAgents.length
-                : limit;
-
-            LeaderboardEntry[] memory leaderboard = new LeaderboardEntry[](count);
-
-            for (uint256 i = 0; i < count; i++) {
-                uint256 agentId = season.rankedAgents[i];
-                AgentSeasonStats memory stats = season.stats[agentId];
-
-                leaderboard[i] = LeaderboardEntry({
-                    agentId: agentId,
-                    points: stats.points,
-                    gamesPlayed: stats.gamesPlayed,
-                    gamesWon: stats.gamesWon,
-                    totalEarnings: stats.totalEarnings,
-                    rank: i + 1
-                });
-            }
-
-            return leaderboard;
+        // Season still active or no rankings — return empty
+        if (season.isActive || season.rankedAgents.length == 0) {
+            return new LeaderboardEntry[](0);
         }
 
-        // Season still active - return empty for now
-        // In production, compute live rankings
-        return new LeaderboardEntry[](0);
+        uint256 count = season.rankedAgents.length < limit
+            ? season.rankedAgents.length
+            : limit;
+
+        LeaderboardEntry[] memory leaderboard = new LeaderboardEntry[](count);
+        for (uint256 i = 0; i < count; i++) {
+            leaderboard[i] = _buildEntry(season, season.rankedAgents[i], i + 1);
+        }
+        return leaderboard;
+    }
+
+    function _buildEntry(
+        Season storage season,
+        uint256 agentId,
+        uint256 rank
+    ) internal view returns (LeaderboardEntry memory) {
+        AgentSeasonStats memory s = season.stats[agentId];
+        return LeaderboardEntry(agentId, s.points, s.gamesPlayed, s.gamesWon, s.totalEarnings, rank);
     }
 
     /// @notice Get agent stats for current season

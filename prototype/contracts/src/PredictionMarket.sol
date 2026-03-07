@@ -221,6 +221,10 @@ contract PredictionMarket {
         market.outcome = outcome;
         market.resolved = true;
 
+        // Track collected fees for safe withdrawal
+        uint256 fee = (market.totalPool * PLATFORM_FEE) / 10000;
+        totalFeesCollected += fee;
+
         uint256 winningPool = outcome ? market.yesPool : market.noPool;
 
         emit MarketResolved(marketId, outcome, market.totalPool, winningPool);
@@ -393,12 +397,12 @@ contract PredictionMarket {
         authorizedResolvers[resolver] = false;
     }
 
-    /// @notice Withdraw collected fees
+    /// @notice Withdraw collected platform fees only
     function withdrawFees() external onlyAdmin {
-        uint256 balance = address(this).balance;
-        // Calculate unclaimed winnings to keep in contract
-        // For simplicity, admin can only withdraw after all markets resolved
-        (bool success, ) = payable(admin).call{value: balance}("");
+        if (totalFeesCollected == 0) revert ZeroAmount();
+        uint256 fees = totalFeesCollected;
+        totalFeesCollected = 0;
+        (bool success, ) = payable(admin).call{value: fees}("");
         require(success, "Withdrawal failed");
     }
 

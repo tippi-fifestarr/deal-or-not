@@ -29,6 +29,28 @@ contract DealOrNotConfidentialTest is Test {
     uint8 constant PHASE_WAITING_FOR_FINAL_CRE = 7;
     uint8 constant PHASE_GAME_OVER = 8;
 
+    // Helper struct to avoid stack-too-deep with getGameState (12 returns)
+    struct GS {
+        address host;
+        address gamePlayer;
+        uint8 mode;
+        uint8 phase;
+        uint8 playerCase;
+        uint8 currentRound;
+        uint8 totalCollapsed;
+        uint256 bankerOffer;
+        uint256 finalPayout;
+        uint256 ethPerDollar;
+        uint256[5] caseValues;
+        bool[5] opened;
+    }
+
+    function _gs(uint256 gameId) internal view returns (GS memory g) {
+        (g.host, g.gamePlayer, g.mode, g.phase, g.playerCase, g.currentRound,
+         g.totalCollapsed, g.bankerOffer, g.finalPayout, g.ethPerDollar, g.caseValues, g.opened)
+         = game.getGameState(gameId);
+    }
+
     function setUp() public {
         owner = address(this);
         player = makeAddr("player");
@@ -74,18 +96,11 @@ contract DealOrNotConfidentialTest is Test {
 
         assertEq(gameId, 0, "First game should be ID 0");
 
-        (
-            address host,
-            address gamePlayer,
-            uint8 mode,
-            uint8 phase,
-            ,,,,,,,
-        ) = game.getGameState(gameId);
-
-        assertEq(host, player, "Host should be player");
-        assertEq(gamePlayer, player, "Player should be player");
-        assertEq(mode, 0, "Mode should be SinglePlayer");
-        assertEq(phase, PHASE_WAITING_FOR_VRF, "Phase should be WaitingForVRF");
+        GS memory g = _gs(gameId);
+        assertEq(g.host, player, "Host should be player");
+        assertEq(g.gamePlayer, player, "Player should be player");
+        assertEq(g.mode, 0, "Mode should be SinglePlayer");
+        assertEq(g.phase, PHASE_WAITING_FOR_VRF, "Phase should be WaitingForVRF");
     }
 
     function test_VRFFulfillment() public {
@@ -95,9 +110,8 @@ contract DealOrNotConfidentialTest is Test {
         uint256 vrfRequestId = game.getVRFRequestId(gameId);
         vrfCoordinator.fulfillRandomWords(vrfRequestId, address(game));
 
-        // Check phase changed to Created
-        (,,, uint8 phase,,,,,,,,) = game.getGameState(gameId);
-        assertEq(phase, PHASE_CREATED, "Phase should be Created after VRF");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_CREATED, "Phase should be Created after VRF");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -110,10 +124,9 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.pickCase(gameId, 2);
 
-        (,,, uint8 phase, uint8 playerCase,,,,,,,) = game.getGameState(gameId);
-
-        assertEq(phase, PHASE_ROUND, "Phase should be Round");
-        assertEq(playerCase, 2, "Player case should be 2");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_ROUND, "Phase should be Round");
+        assertEq(g.playerCase, 2, "Player case should be 2");
     }
 
     function test_PickCase_RevertIfNotCreated() public {
@@ -140,12 +153,11 @@ contract DealOrNotConfidentialTest is Test {
     function test_OpenCase() public {
         uint256 gameId = _createGameAndPickCase();
 
-        // Player opens case 0 — single TX, no commit-reveal!
         vm.prank(player);
         game.openCase(gameId, 0);
 
-        (,,, uint8 phase,,,,,,,,) = game.getGameState(gameId);
-        assertEq(phase, PHASE_WAITING_FOR_CRE, "Phase should be WaitingForCRE");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_WAITING_FOR_CRE, "Phase should be WaitingForCRE");
     }
 
     function test_OpenCase_RevertIfOwnCase() public {
@@ -159,7 +171,6 @@ contract DealOrNotConfidentialTest is Test {
     function test_OpenCase_RevertIfAlreadyOpened() public {
         uint256 gameId = _openCaseAndFulfillCRE();
 
-        // Case 0 already opened — can't open again
         vm.expectRevert();
         vm.prank(player);
         game.openCase(gameId, 0);
@@ -171,18 +182,13 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.openCase(gameId, 0);
 
-        // CRE fulfills with value 50 ($0.50)
         vm.prank(creForwarder);
         game.fulfillCaseValue(gameId, 0, 50);
 
-        (,,, uint8 phase,,,,,,,
-         uint256[5] memory caseValues,
-         bool[5] memory opened
-        ) = game.getGameState(gameId);
-
-        assertEq(phase, PHASE_AWAITING_OFFER, "Phase should be AwaitingOffer");
-        assertEq(caseValues[0], 50, "Case 0 should have value 50");
-        assertTrue(opened[0], "Case 0 should be opened");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_AWAITING_OFFER, "Phase should be AwaitingOffer");
+        assertEq(g.caseValues[0], 50, "Case 0 should have value 50");
+        assertTrue(g.opened[0], "Case 0 should be opened");
     }
 
     function test_FulfillCaseValue_RevertIfNotCRE() public {
@@ -191,7 +197,6 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.openCase(gameId, 0);
 
-        // Random address tries to fulfill — should revert
         vm.expectRevert();
         vm.prank(player);
         game.fulfillCaseValue(gameId, 0, 50);
@@ -203,7 +208,6 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.openCase(gameId, 0);
 
-        // CRE tries to fulfill with a value not in the pool (999)
         vm.expectRevert();
         vm.prank(creForwarder);
         game.fulfillCaseValue(gameId, 0, 999);
@@ -219,11 +223,9 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.setBankerOffer(gameId, 25);
 
-        (,,, uint8 phase,,,,
-         uint256 bankerOffer,,,,) = game.getGameState(gameId);
-
-        assertEq(phase, PHASE_BANKER_OFFER, "Phase should be BankerOffer");
-        assertEq(bankerOffer, 25, "Banker offer should be 25 cents");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_BANKER_OFFER, "Phase should be BankerOffer");
+        assertEq(g.bankerOffer, 25, "Banker offer should be 25 cents");
     }
 
     function test_AcceptDeal() public {
@@ -235,11 +237,9 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.acceptDeal(gameId);
 
-        (,,, uint8 phase,,,,,
-         uint256 finalPayout,,,) = game.getGameState(gameId);
-
-        assertEq(phase, PHASE_GAME_OVER, "Phase should be GameOver");
-        assertEq(finalPayout, 25, "Final payout should match offer");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_GAME_OVER, "Phase should be GameOver");
+        assertEq(g.finalPayout, 25, "Final payout should match offer");
     }
 
     function test_RejectDeal() public {
@@ -251,13 +251,10 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.rejectDeal(gameId);
 
-        (,,, uint8 phase,,
-         uint8 currentRound,,
-         uint256 bankerOffer,,,,) = game.getGameState(gameId);
-
-        assertEq(phase, PHASE_ROUND, "Phase should be Round");
-        assertEq(currentRound, 1, "Round should increment");
-        assertEq(bankerOffer, 0, "Banker offer should reset");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_ROUND, "Phase should be Round");
+        assertEq(g.currentRound, 1, "Round should increment");
+        assertEq(g.bankerOffer, 0, "Banker offer should reset");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -267,27 +264,24 @@ contract DealOrNotConfidentialTest is Test {
     function test_KeepCase_FinalRound() public {
         uint256 gameId = _playToFinalRound();
 
-        (,,, uint8 phase,,,,,,,,) = game.getGameState(gameId);
-        assertEq(phase, PHASE_FINAL_ROUND, "Should be in FinalRound");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_FINAL_ROUND, "Should be in FinalRound");
 
-        // Player keeps their case
         vm.prank(player);
         game.keepCase(gameId);
 
-        (,,, phase,,,,,,,,) = game.getGameState(gameId);
-        assertEq(phase, PHASE_WAITING_FOR_FINAL_CRE, "Should be WaitingForFinalCRE");
+        g = _gs(gameId);
+        assertEq(g.phase, PHASE_WAITING_FOR_FINAL_CRE, "Should be WaitingForFinalCRE");
     }
 
     function test_GameSecret_Published() public {
         uint256 gameId = _openCaseAndFulfillCRE();
 
-        // Accept deal to end game
         vm.prank(player);
         game.setBankerOffer(gameId, 25);
         vm.prank(player);
         game.acceptDeal(gameId);
 
-        // CRE publishes the game secret
         bytes32 secret = bytes32(uint256(0xdead));
         vm.prank(creForwarder);
         game.publishGameSecret(gameId, secret);
@@ -309,42 +303,31 @@ contract DealOrNotConfidentialTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_FullGameFlow_DealAccepted() public {
-        // 1. Create game
         vm.prank(player);
         uint256 gameId = game.createGame();
 
-        // 2. Fulfill VRF
         uint256 vrfRequestId = game.getVRFRequestId(gameId);
         vrfCoordinator.fulfillRandomWords(vrfRequestId, address(game));
 
-        // 3. Pick case
         vm.prank(player);
         game.pickCase(gameId, 2);
 
-        // 4. Open case 0 — ONE TX, no commit-reveal!
         vm.prank(player);
         game.openCase(gameId, 0);
 
-        // 5. CRE fulfills value (simulating enclave computation)
         vm.prank(creForwarder);
-        game.fulfillCaseValue(gameId, 0, 1); // $0.01
+        game.fulfillCaseValue(gameId, 0, 1);
 
-        // 6. Banker makes offer
         vm.prank(player);
         game.setBankerOffer(gameId, 25);
 
-        // 7. Player accepts
         vm.prank(player);
         game.acceptDeal(gameId);
 
-        // Check final state
-        (,,, uint8 phase,,,,,
-         uint256 finalPayout,,,) = game.getGameState(gameId);
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_GAME_OVER, "Game should be over");
+        assertEq(g.finalPayout, 25, "Payout should be 25 cents");
 
-        assertEq(phase, PHASE_GAME_OVER, "Game should be over");
-        assertEq(finalPayout, 25, "Payout should be 25 cents");
-
-        // 8. CRE publishes secret for auditability
         bytes32 secret = bytes32(uint256(0xbeef));
         vm.prank(creForwarder);
         game.publishGameSecret(gameId, secret);
@@ -368,8 +351,6 @@ contract DealOrNotConfidentialTest is Test {
     function test_ConvertCentsToWei() public {
         uint256 gameId = _createGameAndFulfillVRF();
 
-        // 100 cents = $1.00
-        // At $2000 ETH/USD, $1 = 0.0005 ETH = 5e14 wei
         uint256 expectedWei = 5e14;
         uint256 actualWei = game.centsToWei(gameId, 100);
 
@@ -383,15 +364,12 @@ contract DealOrNotConfidentialTest is Test {
     function test_SetBankerOfferWithMessage() public {
         uint256 gameId = _openCaseAndFulfillCRE();
 
-        // Player (host) is auto-added as banker
         vm.prank(player);
         game.setBankerOfferWithMessage(gameId, 25, "The DON has spoken. Deal or no deal?");
 
-        (,,, uint8 phase,,,,
-         uint256 bankerOffer,,,,) = game.getGameState(gameId);
-
-        assertEq(phase, PHASE_BANKER_OFFER, "Phase should be BankerOffer");
-        assertEq(bankerOffer, 25, "Banker offer should be 25 cents");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_BANKER_OFFER, "Phase should be BankerOffer");
+        assertEq(g.bankerOffer, 25, "Banker offer should be 25 cents");
     }
 
     function test_SetBankerOfferWithMessage_EmptyMessage() public {
@@ -400,14 +378,13 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.setBankerOfferWithMessage(gameId, 25, "");
 
-        (,,, uint8 phase,,,,,,,,) = game.getGameState(gameId);
-        assertEq(phase, PHASE_BANKER_OFFER, "Empty message should be valid");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_BANKER_OFFER, "Empty message should be valid");
     }
 
     function test_SetBankerOfferWithMessage_MaxLength() public {
         uint256 gameId = _openCaseAndFulfillCRE();
 
-        // Build exactly 512-byte message
         bytes memory msg512 = new bytes(512);
         for (uint256 i = 0; i < 512; i++) {
             msg512[i] = "A";
@@ -416,14 +393,13 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.setBankerOfferWithMessage(gameId, 25, string(msg512));
 
-        (,,, uint8 phase,,,,,,,,) = game.getGameState(gameId);
-        assertEq(phase, PHASE_BANKER_OFFER, "512-byte message should be valid");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_BANKER_OFFER, "512-byte message should be valid");
     }
 
     function test_SetBankerOfferWithMessage_RevertIfMessageTooLong() public {
         uint256 gameId = _openCaseAndFulfillCRE();
 
-        // Build 513-byte message
         bytes memory msg513 = new bytes(513);
         for (uint256 i = 0; i < 513; i++) {
             msg513[i] = "A";
@@ -445,17 +421,15 @@ contract DealOrNotConfidentialTest is Test {
 
     function test_SetBankerOfferWithMessage_RevertIfWrongPhase() public {
         uint256 gameId = _createGameAndPickCase();
-        // Phase is Round, not AwaitingOffer
 
         vm.prank(player);
-        vm.expectRevert(); // WrongPhase
+        vm.expectRevert();
         game.setBankerOfferWithMessage(gameId, 25, "Hello");
     }
 
     function test_SetBankerOfferWithMessage_RevertIfBannedBanker() public {
         uint256 gameId = _openCaseAndFulfillCRE();
 
-        // Add then ban a banker
         address banker = makeAddr("banker");
         vm.prank(player);
         game.addBanker(gameId, banker, false, true);
@@ -474,7 +448,6 @@ contract DealOrNotConfidentialTest is Test {
     function test_OnReport_SetBankerOfferWithMessage() public {
         uint256 gameId = _openCaseAndFulfillCRE();
 
-        // Build the report payload: selector + abi.encode(gameId, offerCents, message)
         bytes memory report = abi.encodePacked(
             game.setBankerOfferWithMessage.selector,
             abi.encode(gameId, uint256(42), "AI Banker says hello!")
@@ -483,17 +456,14 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(creForwarder);
         game.onReport("", report);
 
-        (,,, uint8 phase,,,,
-         uint256 bankerOffer,,,,) = game.getGameState(gameId);
-
-        assertEq(phase, PHASE_BANKER_OFFER, "Phase should be BankerOffer via onReport");
-        assertEq(bankerOffer, 42, "Offer should be 42 via onReport");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_BANKER_OFFER, "Phase should be BankerOffer via onReport");
+        assertEq(g.bankerOffer, 42, "Offer should be 42 via onReport");
     }
 
     function test_OnReport_SetBankerOfferWithMessage_MessageTooLong() public {
         uint256 gameId = _openCaseAndFulfillCRE();
 
-        // Build 513-byte message
         bytes memory longMsg = new bytes(513);
         for (uint256 i = 0; i < 513; i++) {
             longMsg[i] = "B";
@@ -523,8 +493,8 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(ccipBridge);
         game.joinGameCrossChain(gameId, crossChainPlayer);
 
-        (, address gamePlayer,,,,,,,,,,) = game.getGameState(gameId);
-        assertEq(gamePlayer, crossChainPlayer, "Player should be cross-chain player");
+        GS memory g = _gs(gameId);
+        assertEq(g.gamePlayer, crossChainPlayer, "Player should be cross-chain player");
     }
 
     function test_JoinGameCrossChain_RevertIfNotBridge() public {
@@ -538,12 +508,12 @@ contract DealOrNotConfidentialTest is Test {
     }
 
     function test_JoinGameCrossChain_RevertIfWrongPhase() public {
-        uint256 gameId = _createGameAndPickCase(); // Phase is Round
+        uint256 gameId = _createGameAndPickCase();
         address ccipBridge = makeAddr("ccipBridge");
         game.setCCIPBridge(ccipBridge);
 
         vm.prank(ccipBridge);
-        vm.expectRevert(); // WrongPhase(Created, Round)
+        vm.expectRevert();
         game.joinGameCrossChain(gameId, makeAddr("someone"));
     }
 
@@ -552,12 +522,10 @@ contract DealOrNotConfidentialTest is Test {
         address ccipBridge = makeAddr("ccipBridge");
         game.setCCIPBridge(ccipBridge);
 
-        // First join succeeds
         address player1 = makeAddr("player1");
         vm.prank(ccipBridge);
         game.joinGameCrossChain(gameId, player1);
 
-        // Second join should fail
         address player2 = makeAddr("player2");
         vm.prank(ccipBridge);
         vm.expectRevert(DealOrNotConfidential.GameAlreadyHasPlayer.selector);
@@ -566,7 +534,6 @@ contract DealOrNotConfidentialTest is Test {
 
     function test_JoinGameCrossChain_RevertIfBridgeNotSet() public {
         uint256 gameId = _createGameAndFulfillVRF();
-        // ccipBridge is address(0) by default — any non-zero address should fail
 
         address attacker = makeAddr("attacker");
         vm.prank(attacker);
@@ -586,7 +553,7 @@ contract DealOrNotConfidentialTest is Test {
 
     function test_SetCCIPBridge_RevertIfNotOwner() public {
         vm.prank(player);
-        vm.expectRevert(); // OwnableUnauthorizedAccount
+        vm.expectRevert();
         game.setCCIPBridge(makeAddr("newBridge"));
     }
 
@@ -600,11 +567,9 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(player);
         game.setBankerOffer(gameId, 30);
 
-        (,,, uint8 phase,,,,
-         uint256 bankerOffer,,,,) = game.getGameState(gameId);
-
-        assertEq(phase, PHASE_BANKER_OFFER, "Original setBankerOffer should still work");
-        assertEq(bankerOffer, 30, "Offer should be 30");
+        GS memory g = _gs(gameId);
+        assertEq(g.phase, PHASE_BANKER_OFFER, "Original setBankerOffer should still work");
+        assertEq(g.bankerOffer, 30, "Offer should be 30");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -629,11 +594,9 @@ contract DealOrNotConfidentialTest is Test {
     function _openCaseAndFulfillCRE() internal returns (uint256 gameId) {
         gameId = _createGameAndPickCase();
 
-        // Player opens case 0 — single TX
         vm.prank(player);
         game.openCase(gameId, 0);
 
-        // CRE fulfills with value 50 ($0.50)
         vm.prank(creForwarder);
         game.fulfillCaseValue(gameId, 0, 50);
     }
@@ -672,6 +635,6 @@ contract DealOrNotConfidentialTest is Test {
         vm.prank(creForwarder);
         game.fulfillCaseValue(gameId, 3, 10); // $0.10
 
-        // Now only case 4 + player's case 2 remain → FinalRound
+        // Now only case 4 + player's case 2 remain -> FinalRound
     }
 }
