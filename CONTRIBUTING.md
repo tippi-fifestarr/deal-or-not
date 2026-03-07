@@ -85,6 +85,22 @@ feat: add AI Banker CRE workflow with Gemini integration
 
 Prefixes: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`
 
+### Working on Someone Else's Branch
+
+Sometimes you'll ask a teammate to fix or test your branch (e.g., you can't run CRE/Foundry). Once they agree to take it on:
+
+1. **They own the branch.** Don't push directly to it anymore.
+2. **Branch off for your own work:**
+   ```bash
+   git checkout feat/their-branch && git pull
+   git checkout -b feat/my-new-work
+   # do your thing, then PR into feat/their-branch
+   ```
+3. **This lets them review your additions** before they land on the branch they're fixing.
+4. **Reply to confirm.** If someone proposes a work split in a PR comment, reply so everyone knows you're on the same page before starting.
+
+This avoids the situation where two people push to the same branch and create rebase conflicts on every commit.
+
 ### PR Descriptions
 
 Include a summary of what changed and why. Reference the whitepaper section if relevant. List any contracts deployed or addresses changed.
