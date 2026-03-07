@@ -194,8 +194,19 @@ contract AgentRegistry {
         uint256 earningsCents,
         bool won
     ) external onlyAuthorized {
-        // Call recordGame with converted parameters
-        recordGame(agentId, won, earningsCents);
+        if (!agents[agentId].isActive) revert AgentNotFound();
+
+        Agent storage agent = agents[agentId];
+        agent.gamesPlayed++;
+        if (won) agent.gamesWon++;
+        agent.totalEarnings += earningsCents;
+
+        emit AgentStatsUpdated(
+            agentId,
+            agent.gamesPlayed,
+            agent.gamesWon,
+            agent.totalEarnings
+        );
     }
 
     // ── View Functions ──
@@ -269,7 +280,7 @@ contract AgentRegistry {
     function getAgentEndpoint(address player) external view returns (string memory) {
         uint256 agentId = playerToAgentId[player];
         if (agentId == 0) revert AgentNotFound();
-        if (agents[agentId].isBanned) revert AgentBanned();
+        if (agents[agentId].isBanned) revert AgentIsBanned();
         return agents[agentId].apiEndpoint;
     }
 
