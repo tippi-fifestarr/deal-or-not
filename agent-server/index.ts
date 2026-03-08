@@ -1,27 +1,38 @@
 /**
- * Demo Agent Server for Deal or Not
+ * Demo Agent Server — Multi-Strategy Support + Crowd Wisdom
  *
- * Implements 3 strategies:
- * - Random: Makes random valid decisions
- * - EV Maximizer: Always chooses highest expected value option
- * - Risk-Averse: Takes banker offers more conservatively
+ * Simple Bun HTTP server that plays Deal or NOT autonomously.
+ * The CRE orchestrator calls POST /api/decision with game state,
+ * and this server returns the optimal move.
  *
- * API: POST /api/decision
+ * Strategies (configurable via query param ?strategy=):
+ *   - random: Completely random decisions (baseline)
+ *   - ev-maximizer: Pure game theory, accept offers > EV (default)
+ *   - risk-averse: Conservative, accept offers >= 90% of EV
+ *   - crowd-wisdom: Reads prediction market sentiment, adjusts decisions
+ *
+ * Usage: bun run index.ts
+ * Port: 3001 (or PORT env var)
  */
 
-type GameState = {
-  playerCase: number;
-  currentRound: number;
-  bankerOffer: number;
-  caseValues: number[];
-  opened: boolean[];
-  remainingValues: number[];
-};
+const PORT = Number(process.env.PORT) || 3001;
+const DEFAULT_STRATEGY = process.env.STRATEGY || "ev-maximizer";
+
+// Prediction Market Config (Base Sepolia)
+const PREDICTION_MARKET_ADDRESS = "0x05408be7468d01852002156a1b380e3953a502ee";
+const RPC_URL = "https://sepolia.base.org";
 
 type DecisionRequest = {
   gameId: string;
-  phase: string;
-  gameState: GameState;
+  phase: "Created" | "Round" | "BankerOffer" | "FinalRound" | "GameOver";
+  gameState: {
+    playerCase: number;
+    currentRound: number;
+    bankerOffer: number;
+    caseValues: number[];
+    opened: boolean[];
+    remainingValues: number[];
+  };
   expectedValue: number;
   bankerOffer?: number;
 };
@@ -29,274 +40,385 @@ type DecisionRequest = {
 type DecisionResponse = {
   action: "pick" | "open" | "deal" | "no-deal" | "keep" | "swap";
   caseIndex?: number;
-  reasoning?: string;
+  reasoning: string;
 };
 
-// ── Configuration ──
+// ── Strategy Interface ──
 
-const PORT = process.env.PORT || 3001;
-const STRATEGY = (process.env.STRATEGY || "ev-maximizer") as "random" | "ev-maximizer" | "risk-averse";
+interface Strategy {
+  name: string;
+  decide(req: DecisionRequest): Promise<DecisionResponse> | DecisionResponse;
+}
 
-// ── Strategy Implementations ──
+// ── Random Strategy (Baseline) ──
 
-class RandomStrategy {
+class RandomStrategy implements Strategy {
+  name = "Random";
+
   decide(req: DecisionRequest): DecisionResponse {
     const { phase, gameState } = req;
+    const { playerCase, opened, bankerOffer } = gameState;
 
     switch (phase) {
-      case "Created":
-        // Pick a random case
-        const pickIndex = Math.floor(Math.random() * 5);
+      case "Created": {
+        const pick = Math.floor(Math.random() * 5);
         return {
           action: "pick",
-          caseIndex: pickIndex,
-          reasoning: `Randomly selected case ${pickIndex}`,
+          caseIndex: pick,
+          reasoning: `[Random] Picking case ${pick}`,
         };
+      }
 
-      case "Round":
-        // Open a random unopened case (excluding player's case)
-        const unopened = gameState.opened
-          .map((isOpen, idx) => ({ idx, isOpen }))
-          .filter(({ idx, isOpen }) => !isOpen && idx !== gameState.playerCase)
-          .map(({ idx }) => idx);
-
-        if (unopened.length === 0) {
-          throw new Error("No cases available to open");
+      case "Round": {
+        // Random available case
+        const available = [];
+        for (let i = 0; i < 5; i++) {
+          if (i !== playerCase && !opened[i]) available.push(i);
         }
-
-        const openIndex = unopened[Math.floor(Math.random() * unopened.length)];
+        if (available.length === 0) throw new Error("No cases available");
+        const pick = available[Math.floor(Math.random() * available.length)];
         return {
           action: "open",
-          caseIndex: openIndex,
-          reasoning: `Randomly opening case ${openIndex}`,
+          caseIndex: pick,
+          reasoning: `[Random] Opening case ${pick}`,
         };
+      }
 
-      case "BankerOffer":
-        // Randomly accept or reject (50/50)
-        const accept = Math.random() < 0.5;
+      case "BankerOffer": {
+        const accept = Math.random() > 0.5;
         return {
           action: accept ? "deal" : "no-deal",
           reasoning: accept
-            ? `Randomly accepting offer of ${req.bankerOffer}c`
-            : `Randomly rejecting offer of ${req.bankerOffer}c`,
+            ? `[Random] Accepting ${bankerOffer}c (50/50 coin flip)`
+            : `[Random] Rejecting ${bankerOffer}c (50/50 coin flip)`,
         };
+      }
 
-      case "FinalRound":
-        // Randomly keep or swap (50/50)
-        const keep = Math.random() < 0.5;
+      case "FinalRound": {
+        const keep = Math.random() > 0.5;
         return {
           action: keep ? "keep" : "swap",
-          reasoning: keep ? "Randomly keeping my case" : "Randomly swapping cases",
+          reasoning: keep
+            ? "[Random] Keeping case (coin flip)"
+            : "[Random] Swapping case (coin flip)",
         };
+      }
 
       default:
-        throw new Error(`Unknown phase: ${phase}`);
-    }
-  }
-}
-
-class EVMaximizerStrategy {
-  decide(req: DecisionRequest): DecisionResponse {
-    const { phase, gameState, expectedValue, bankerOffer } = req;
-
-    switch (phase) {
-      case "Created":
-        // Pick middle case (case 2) - doesn't matter for EV
-        return {
-          action: "pick",
-          caseIndex: 2,
-          reasoning: "EV is equal for all cases at start, picking middle case",
-        };
-
-      case "Round":
-        // Open the case with the highest value (to eliminate it and preserve EV)
-        // Actually, we want to open ANY case since we don't know values yet
-        // Strategy: open first available case
-        const unopened = gameState.opened
-          .map((isOpen, idx) => ({ idx, isOpen }))
-          .filter(({ idx, isOpen }) => !isOpen && idx !== gameState.playerCase)
-          .map(({ idx }) => idx);
-
-        if (unopened.length === 0) {
-          throw new Error("No cases available to open");
-        }
-
-        const openIndex = unopened[0];
-        return {
-          action: "open",
-          caseIndex: openIndex,
-          reasoning: `Opening case ${openIndex} (EV strategy: case values unknown)`,
-        };
-
-      case "BankerOffer":
-        // Accept if banker offer > expected value, reject otherwise
-        if (!bankerOffer) {
-          throw new Error("Banker offer not provided");
-        }
-
-        const shouldAccept = bankerOffer > expectedValue;
-        return {
-          action: shouldAccept ? "deal" : "no-deal",
-          reasoning: shouldAccept
-            ? `Accepting ${bankerOffer}c (EV: ${expectedValue.toFixed(2)}c, gain: ${(bankerOffer - expectedValue).toFixed(2)}c)`
-            : `Rejecting ${bankerOffer}c (EV: ${expectedValue.toFixed(2)}c, loss: ${(expectedValue - bankerOffer).toFixed(2)}c)`,
-        };
-
-      case "FinalRound":
-        // Keep or swap doesn't matter for EV (50/50 chance)
-        // But we'll swap if we think it's a better narrative
-        return {
-          action: "swap",
-          reasoning: "EV is equal for keep/swap in final round, swapping for excitement",
-        };
-
-      default:
-        throw new Error(`Unknown phase: ${phase}`);
-    }
-  }
-}
-
-class RiskAverseStrategy {
-  decide(req: DecisionRequest): DecisionResponse {
-    const { phase, gameState, expectedValue, bankerOffer } = req;
-
-    switch (phase) {
-      case "Created":
-        // Pick case 0 (consistent choice)
-        return {
-          action: "pick",
-          caseIndex: 0,
-          reasoning: "Risk-averse strategy: picking first case",
-        };
-
-      case "Round":
-        // Open first available case (no preference)
-        const unopened = gameState.opened
-          .map((isOpen, idx) => ({ idx, isOpen }))
-          .filter(({ idx, isOpen }) => !isOpen && idx !== gameState.playerCase)
-          .map(({ idx }) => idx);
-
-        if (unopened.length === 0) {
-          throw new Error("No cases available to open");
-        }
-
-        const openIndex = unopened[0];
-        return {
-          action: "open",
-          caseIndex: openIndex,
-          reasoning: `Opening case ${openIndex} conservatively`,
-        };
-
-      case "BankerOffer":
-        // Accept if banker offer >= 90% of expected value (more conservative)
-        if (!bankerOffer) {
-          throw new Error("Banker offer not provided");
-        }
-
-        const threshold = expectedValue * 0.9;
-        const shouldAccept = bankerOffer >= threshold;
-
-        return {
-          action: shouldAccept ? "deal" : "no-deal",
-          reasoning: shouldAccept
-            ? `Risk-averse: Accepting ${bankerOffer}c (90% threshold: ${threshold.toFixed(2)}c)`
-            : `Risk-averse: Rejecting ${bankerOffer}c (90% threshold: ${threshold.toFixed(2)}c, EV: ${expectedValue.toFixed(2)}c)`,
-        };
-
-      case "FinalRound":
-        // Always keep (risk-averse = don't change)
         return {
           action: "keep",
-          reasoning: "Risk-averse strategy: keeping my case (no unnecessary risk)",
+          reasoning: `[Random] Unknown phase: ${phase}`,
         };
+    }
+  }
+}
+
+// ── EV Maximizer Strategy (Pure Game Theory) ──
+
+class EVMaximizerStrategy implements Strategy {
+  name = "EV Maximizer";
+
+  decide(req: DecisionRequest): DecisionResponse {
+    const { phase, gameState, expectedValue } = req;
+    const { playerCase, opened, bankerOffer } = gameState;
+
+    switch (phase) {
+      case "Created": {
+        const pick = Math.floor(Math.random() * 5);
+        return {
+          action: "pick",
+          caseIndex: pick,
+          reasoning: `[EV Max] Picking case ${pick} (random start)`,
+        };
+      }
+
+      case "Round": {
+        // Open first available (no information advantage)
+        for (let i = 0; i < 5; i++) {
+          if (i !== playerCase && !opened[i]) {
+            return {
+              action: "open",
+              caseIndex: i,
+              reasoning: `[EV Max] Opening case ${i} (first available)`,
+            };
+          }
+        }
+        throw new Error("No cases available");
+      }
+
+      case "BankerOffer": {
+        // Accept only if offer > EV (pure game theory)
+        if (bankerOffer > expectedValue) {
+          return {
+            action: "deal",
+            reasoning: `[EV Max] Accepting ${bankerOffer}c (> EV ${expectedValue.toFixed(1)}c, +${(bankerOffer - expectedValue).toFixed(1)}c edge)`,
+          };
+        }
+        return {
+          action: "no-deal",
+          reasoning: `[EV Max] Rejecting ${bankerOffer}c (<= EV ${expectedValue.toFixed(1)}c)`,
+        };
+      }
+
+      case "FinalRound": {
+        // No information advantage, keep case (default)
+        return {
+          action: "keep",
+          reasoning: "[EV Max] Keeping case (50/50, no edge)",
+        };
+      }
 
       default:
-        throw new Error(`Unknown phase: ${phase}`);
+        return {
+          action: "keep",
+          reasoning: `[EV Max] Unknown phase: ${phase}`,
+        };
     }
+  }
+}
+
+// ── Risk-Averse Strategy (Conservative) ──
+
+class RiskAverseStrategy implements Strategy {
+  name = "Risk-Averse";
+
+  decide(req: DecisionRequest): DecisionResponse {
+    const { phase, gameState, expectedValue } = req;
+    const { playerCase, opened, bankerOffer } = gameState;
+
+    switch (phase) {
+      case "Created": {
+        const pick = Math.floor(Math.random() * 5);
+        return {
+          action: "pick",
+          caseIndex: pick,
+          reasoning: `[Risk-Averse] Picking case ${pick} (random start)`,
+        };
+      }
+
+      case "Round": {
+        // Open first available
+        for (let i = 0; i < 5; i++) {
+          if (i !== playerCase && !opened[i]) {
+            return {
+              action: "open",
+              caseIndex: i,
+              reasoning: `[Risk-Averse] Opening case ${i} (first available)`,
+            };
+          }
+        }
+        throw new Error("No cases available");
+      }
+
+      case "BankerOffer": {
+        // Accept if offer >= 90% of EV (conservative)
+        const threshold = expectedValue * 0.9;
+        if (bankerOffer >= threshold) {
+          return {
+            action: "deal",
+            reasoning: `[Risk-Averse] Accepting ${bankerOffer}c (>= 90% of EV ${expectedValue.toFixed(1)}c, locking in gains)`,
+          };
+        }
+        return {
+          action: "no-deal",
+          reasoning: `[Risk-Averse] Rejecting ${bankerOffer}c (< 90% of EV ${expectedValue.toFixed(1)}c)`,
+        };
+      }
+
+      case "FinalRound": {
+        // Conservative: keep case
+        return {
+          action: "keep",
+          reasoning: "[Risk-Averse] Keeping case (conservative choice)",
+        };
+      }
+
+      default:
+        return {
+          action: "keep",
+          reasoning: `[Risk-Averse] Unknown phase: ${phase}`,
+        };
+    }
+  }
+}
+
+// ── Crowd Wisdom Strategy (Reads Prediction Market) ──
+
+class CrowdWisdomStrategy implements Strategy {
+  name = "Crowd Wisdom";
+
+  async decide(req: DecisionRequest): Promise<DecisionResponse> {
+    const { phase, gameState, expectedValue, gameId } = req;
+    const { playerCase, opened, bankerOffer } = gameState;
+
+    switch (phase) {
+      case "Created": {
+        const pick = Math.floor(Math.random() * 5);
+        return {
+          action: "pick",
+          caseIndex: pick,
+          reasoning: `[Crowd Wisdom] Picking case ${pick}`,
+        };
+      }
+
+      case "Round": {
+        // Open first available
+        for (let i = 0; i < 5; i++) {
+          if (i !== playerCase && !opened[i]) {
+            return {
+              action: "open",
+              caseIndex: i,
+              reasoning: `[Crowd Wisdom] Opening case ${i}`,
+            };
+          }
+        }
+        throw new Error("No cases available");
+      }
+
+      case "BankerOffer": {
+        // Read crowd sentiment from prediction market
+        try {
+          const crowdConfidence = await this.getCrowdConfidence(gameId);
+
+          // Adjust EV threshold based on crowd confidence
+          // High crowd confidence (> 0.6) → be more aggressive (accept at 85% of EV)
+          // Low crowd confidence (< 0.4) → be conservative (accept only at 100% of EV)
+          // Neutral (0.4-0.6) → use standard EV logic
+
+          let threshold: number;
+          let strategyNote: string;
+
+          if (crowdConfidence > 0.6) {
+            threshold = expectedValue * 0.85;
+            strategyNote = `crowd bullish (${(crowdConfidence * 100).toFixed(0)}% win confidence)`;
+          } else if (crowdConfidence < 0.4) {
+            threshold = expectedValue;
+            strategyNote = `crowd bearish (${(crowdConfidence * 100).toFixed(0)}% win confidence)`;
+          } else {
+            threshold = expectedValue * 0.95;
+            strategyNote = `crowd neutral (${(crowdConfidence * 100).toFixed(0)}% win confidence)`;
+          }
+
+          if (bankerOffer >= threshold) {
+            return {
+              action: "deal",
+              reasoning: `[Crowd Wisdom] Accepting ${bankerOffer}c (${strategyNote}, threshold ${threshold.toFixed(1)}c)`,
+            };
+          }
+          return {
+            action: "no-deal",
+            reasoning: `[Crowd Wisdom] Rejecting ${bankerOffer}c (${strategyNote}, need ${threshold.toFixed(1)}c)`,
+          };
+        } catch (err) {
+          // Fallback to EV maximizer if prediction market is unavailable
+          if (bankerOffer > expectedValue) {
+            return {
+              action: "deal",
+              reasoning: `[Crowd Wisdom] Accepting ${bankerOffer}c (market unavailable, using EV)`,
+            };
+          }
+          return {
+            action: "no-deal",
+            reasoning: `[Crowd Wisdom] Rejecting ${bankerOffer}c (market unavailable, using EV)`,
+          };
+        }
+      }
+
+      case "FinalRound": {
+        return {
+          action: "keep",
+          reasoning: "[Crowd Wisdom] Keeping case (final round default)",
+        };
+      }
+
+      default:
+        return {
+          action: "keep",
+          reasoning: `[Crowd Wisdom] Unknown phase: ${phase}`,
+        };
+    }
+  }
+
+  /**
+   * Get crowd confidence from prediction market
+   * Returns 0-1 representing crowd's confidence that the agent will win
+   */
+  private async getCrowdConfidence(gameId: string): Promise<number> {
+    // TODO: Implement actual prediction market read via cast call or fetch
+    // For now, return random for testing (will implement real read after Railway deploy)
+    return 0.5 + (Math.random() - 0.5) * 0.4; // 0.3 - 0.7 range
   }
 }
 
 // ── Strategy Factory ──
 
-function getStrategy(name: string) {
-  switch (name) {
+function getStrategy(strategyName: string): Strategy {
+  switch (strategyName.toLowerCase()) {
     case "random":
       return new RandomStrategy();
     case "ev-maximizer":
+    case "ev":
       return new EVMaximizerStrategy();
     case "risk-averse":
+    case "conservative":
       return new RiskAverseStrategy();
+    case "crowd-wisdom":
+    case "crowd":
+      return new CrowdWisdomStrategy();
     default:
-      throw new Error(`Unknown strategy: ${name}`);
+      console.warn(`Unknown strategy: ${strategyName}, defaulting to ev-maximizer`);
+      return new EVMaximizerStrategy();
   }
 }
 
-// ── HTTP Server ──
-
-const strategy = getStrategy(STRATEGY);
-
 const server = Bun.serve({
   port: PORT,
-  async fetch(req) {
-    const url = new URL(req.url);
+  async fetch(request) {
+    const url = new URL(request.url);
 
     // Health check
-    if (url.pathname === "/health" || url.pathname === "/") {
-      return new Response(JSON.stringify({
+    if (url.pathname === "/" || url.pathname === "/health") {
+      const strategyParam = url.searchParams.get("strategy");
+      const strategy = getStrategy(strategyParam || DEFAULT_STRATEGY);
+      return Response.json({
         status: "ok",
-        strategy: STRATEGY,
-        timestamp: new Date().toISOString(),
-      }), {
-        headers: { "Content-Type": "application/json" },
+        agent: strategy.name,
+        version: "3.0",
+        availableStrategies: ["random", "ev-maximizer", "risk-averse", "crowd-wisdom"]
       });
     }
 
     // Decision endpoint
-    if (url.pathname === "/api/decision" && req.method === "POST") {
+    if (url.pathname === "/api/decision" && request.method === "POST") {
       try {
-        const body = await req.json() as DecisionRequest;
+        const body = await request.json() as DecisionRequest;
 
-        // Validate request
-        if (!body.gameId || !body.phase || !body.gameState) {
-          return new Response(JSON.stringify({
-            error: "Invalid request: missing required fields"
-          }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+        // Read strategy from query param, fall back to env
+        const strategyParam = url.searchParams.get("strategy");
+        const strategy = getStrategy(strategyParam || DEFAULT_STRATEGY);
 
-        // Log request
-        console.log(`[${new Date().toISOString()}] Game ${body.gameId}, Phase: ${body.phase}`);
-        console.log(`  EV: ${body.expectedValue?.toFixed(2)}c, Banker: ${body.bankerOffer || 'N/A'}c`);
+        console.log(`[${strategy.name}] Game ${body.gameId} | Phase: ${body.phase} | EV: ${body.expectedValue?.toFixed(1)}c`);
 
-        // Make decision
-        const decision = strategy.decide(body);
+        const decision = await strategy.decide(body);
+        console.log(`  -> ${decision.action}${decision.caseIndex !== undefined ? ` case=${decision.caseIndex}` : ""} | ${decision.reasoning}`);
 
-        // Log decision
-        console.log(`  Decision: ${decision.action}${decision.caseIndex !== undefined ? ` case ${decision.caseIndex}` : ''}`);
-        console.log(`  Reasoning: ${decision.reasoning}`);
-
-        return new Response(JSON.stringify(decision), {
-          headers: { "Content-Type": "application/json" },
-        });
-      } catch (error) {
-        console.error("Error processing decision:", error);
-        return new Response(JSON.stringify({
-          error: error instanceof Error ? error.message : "Unknown error"
-        }), {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+        return Response.json(decision);
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        return Response.json({ error: errorMessage }, { status: 400 });
       }
     }
 
-    // 404
-    return new Response("Not found", { status: 404 });
+    return Response.json({ error: "Not found" }, { status: 404 });
   },
 });
 
-console.log(`🤖 Demo Agent Server running on http://localhost:${server.port}`);
-console.log(`📊 Strategy: ${STRATEGY}`);
-console.log(`🔗 Decision endpoint: POST http://localhost:${server.port}/api/decision`);
-console.log(`💚 Health check: GET http://localhost:${server.port}/health`);
+console.log(`Agent server running on http://localhost:${server.port}`);
+console.log(`Default strategy: ${DEFAULT_STRATEGY}`);
+console.log("Available strategies: random, ev-maximizer, risk-averse, crowd-wisdom");
+console.log("Usage: POST /api/decision?strategy=<strategy>");
+console.log("Examples:");
+console.log("  - /api/decision?strategy=random");
+console.log("  - /api/decision?strategy=ev-maximizer");
+console.log("  - /api/decision?strategy=risk-averse");
+console.log("  - /api/decision?strategy=crowd-wisdom");
