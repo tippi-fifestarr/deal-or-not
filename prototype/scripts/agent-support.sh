@@ -179,64 +179,82 @@ case "$CMD" in
     if [ -z "$PICK_TX" ]; then echo "ERROR: Pick failed"; exit 1; fi
     echo ""
 
-    ROUND=0
     LAST_TX="$PICK_TX"
 
-    while [ $ROUND -lt $MAX_ROUNDS ]; do
+    # Main game loop — poll phase and run the right workflow
+    for ROUND in $(seq 0 $((MAX_ROUNDS - 1))); do
+      # Wait for chain state to settle
+      sleep 2
       PHASE=$(get_phase "$GID")
       echo "--- ROUND $ROUND (phase=${PHASE_NAMES[$PHASE]}) ---"
 
       if [ "$PHASE" = "8" ]; then echo "Game over!"; break; fi
 
-      # Open case
+      # Phase 2 (Round): Agent opens a case via orchestrator
       if [ "$PHASE" = "2" ]; then
         echo "Agent opening case..."
         OPEN_TX=$(run_orchestrator "$LAST_TX" 0)
         if [ -z "$OPEN_TX" ]; then echo "ERROR: Open failed"; exit 1; fi
+        LAST_TX="$OPEN_TX"
         echo ""
+        sleep 2
+        PHASE=$(get_phase "$GID")
       fi
 
-      # Reveal
-      PHASE=$(get_phase "$GID")
+      # Phase 3 (WaitingForCRE): Reveal the opened case value
       if [ "$PHASE" = "3" ]; then
         echo "Revealing case value..."
-        REVEAL_TX=$(run_reveal "$OPEN_TX" 0)
+        REVEAL_TX=$(run_reveal "$LAST_TX" 0)
         if [ -z "$REVEAL_TX" ]; then echo "ERROR: Reveal failed"; exit 1; fi
+        LAST_TX="$REVEAL_TX"
         echo ""
+        sleep 2
+        PHASE=$(get_phase "$GID")
       fi
 
-      # Banker
-      PHASE=$(get_phase "$GID")
+      # Phase 4 (AwaitingOffer): Banker makes an offer
       if [ "$PHASE" = "4" ]; then
         echo "Banker making offer..."
-        BANKER_TX=$(run_banker "$REVEAL_TX" 1)
+        BANKER_TX=$(run_banker "$LAST_TX" 1)
         if [ -z "$BANKER_TX" ]; then echo "ERROR: Banker failed"; exit 1; fi
+        LAST_TX="$BANKER_TX"
         echo ""
+        sleep 2
+        PHASE=$(get_phase "$GID")
       fi
 
-      # Agent responds to offer
-      PHASE=$(get_phase "$GID")
+      # Phase 5 (BankerOffer): Agent responds deal/no-deal
       if [ "$PHASE" = "5" ]; then
         echo "Agent responding to offer..."
-        DEAL_TX=$(run_orchestrator "$BANKER_TX" 0)
+        DEAL_TX=$(run_orchestrator "$LAST_TX" 0)
         if [ -z "$DEAL_TX" ]; then echo "ERROR: Deal response failed"; exit 1; fi
         LAST_TX="$DEAL_TX"
         echo ""
+        sleep 2
+        PHASE=$(get_phase "$GID")
       fi
 
-      # Final round (keep/swap)
-      PHASE=$(get_phase "$GID")
+      # Phase 6 (FinalRound): Agent decides keep/swap
       if [ "$PHASE" = "6" ]; then
         echo "Final round: agent deciding keep/swap..."
         FINAL_TX=$(run_orchestrator "$LAST_TX" 0)
+        if [ -n "$FINAL_TX" ]; then LAST_TX="$FINAL_TX"; fi
         echo ""
-        break
+        sleep 2
+        PHASE=$(get_phase "$GID")
       fi
 
-      PHASE=$(get_phase "$GID")
-      if [ "$PHASE" = "8" ]; then break; fi
+      # Phase 7 (WaitingFinalCRE): Reveal final case
+      if [ "$PHASE" = "7" ]; then
+        echo "Revealing final case..."
+        FINAL_REVEAL_TX=$(run_reveal "$LAST_TX" 1)
+        if [ -n "$FINAL_REVEAL_TX" ]; then LAST_TX="$FINAL_REVEAL_TX"; fi
+        echo ""
+        sleep 2
+        PHASE=$(get_phase "$GID")
+      fi
 
-      ROUND=$((ROUND + 1))
+      if [ "$PHASE" = "8" ]; then echo "Game over!"; break; fi
     done
 
     echo ""
