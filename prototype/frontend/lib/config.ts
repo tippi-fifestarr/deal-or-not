@@ -6,6 +6,14 @@ export const CONTRACT_ADDRESS = CHAIN_CONTRACTS[baseSepolia.id].dealOrNot;
 export const SPONSOR_JACKPOT_ADDRESS = CHAIN_CONTRACTS[baseSepolia.id].sponsorJackpot;
 export const BEST_OF_BANKER_ADDRESS = CHAIN_CONTRACTS[baseSepolia.id].bestOfBanker;
 
+// ── Agent Infrastructure (Base Sepolia) ──
+export const AGENT_REGISTRY_ADDRESS = CHAIN_CONTRACTS[baseSepolia.id].agentRegistry;
+export const DEAL_OR_NOT_AGENTS_ADDRESS = CHAIN_CONTRACTS[baseSepolia.id].dealOrNotAgents;
+export const AGENT_STAKING_ADDRESS = CHAIN_CONTRACTS[baseSepolia.id].agentStaking;
+export const SEASONAL_LEADERBOARD_ADDRESS = CHAIN_CONTRACTS[baseSepolia.id].seasonalLeaderboard;
+export const PREDICTION_MARKET_ADDRESS = CHAIN_CONTRACTS[baseSepolia.id].predictionMarket;
+export const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== "false";
+
 // ── Cross-Chain (ETH Sepolia — spoke) ──
 export const GATEWAY_ADDRESS = CHAIN_CONTRACTS[11155111].gateway;
 export const CCIP_EXPLORER = CCIP_EXPLORER_URL;

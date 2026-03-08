@@ -29,7 +29,7 @@ export default function Briefcase({
       <div
         className={`${base} bg-gray-800/50 text-gray-500 border-2 border-gray-700 opacity-60`}
       >
-        <span className="text-xs text-gray-600">#{index + 1}</span>
+        <span className="text-xs text-gray-600">#{index}</span>
         {value !== undefined && value > 0n && (
           <span className="text-sm text-amber-400/70 mt-1">
             {centsToUsd(value)}
@@ -44,7 +44,7 @@ export default function Briefcase({
       <div
         className={`${base} bg-gradient-to-b from-amber-500 to-amber-700 text-white border-2 border-amber-300 shadow-lg shadow-amber-500/30`}
       >
-        <span className="text-2xl">{index + 1}</span>
+        <span className="text-2xl">{index}</span>
         <span className="text-[10px] uppercase tracking-widest mt-1">
           Yours
         </span>
@@ -68,7 +68,7 @@ export default function Briefcase({
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
     >
-      <span className="text-2xl">{index + 1}</span>
+      <span className="text-2xl">{index}</span>
       {!disabled && (
         <span className="text-[9px] uppercase tracking-wider mt-1 opacity-70">
           {selectMode ? "Select" : "Open"}

@@ -110,7 +110,7 @@ export default function GameOver({
                     isPlayerCase ? "text-amber-400" : "text-gray-500"
                   }`}
                 >
-                  #{i + 1}
+                  #{i}
                   {isPlayerCase && " (yours)"}
                 </span>
                 <span

@@ -9,6 +9,11 @@ export const CHAIN_CONTRACTS = {
     bestOfBanker: "0x05EdC924f92aBCbbB91737479948509dC7E23bF9" as `0x${string}`,
     bridge: "0xcF3B0d1575b30B53d8Db4EDe30Ebb47D51a2650a" as `0x${string}`,
     priceFeed: "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1" as `0x${string}`,
+    agentRegistry: "0xf3B0d29416d3504c802bab4A799349746A37E788" as `0x${string}`,
+    dealOrNotAgents: "0x4cEdE5dD14dCa8F71a766E3b3eb1fB5801835083" as `0x${string}`,
+    agentStaking: "0x2D10F49c7beB08c8426d22505B38B0969Cee3961" as `0x${string}`,
+    seasonalLeaderboard: "0x749646c52F32599BD3f5Eeef57d169940d4b29b0" as `0x${string}`,
+    predictionMarket: "0x8606Ed23CBa4903e10F26Bc756E70d867dEDDcC4" as `0x${string}`,
   },
   [sepolia.id]: {
     gateway: "0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124" as `0x${string}`,
