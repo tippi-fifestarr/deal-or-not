@@ -13,6 +13,7 @@ interface GlassGameStatusProps {
   round?: number;
   maxRounds?: number;
   playerAddress?: string;
+  gameId?: bigint | number;
   className?: string;
   onClick?: () => void;
 }
@@ -22,6 +23,7 @@ export function GlassGameStatus({
   round,
   maxRounds = 4,
   playerAddress,
+  gameId,
   className,
   onClick,
 }: GlassGameStatusProps) {
@@ -66,7 +68,7 @@ export function GlassGameStatus({
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <div className="text-sm text-white/60 uppercase tracking-wider">
-            Game Status
+            {gameId !== undefined ? `Game #${gameId.toString()}` : "Game Status"}
           </div>
           <div className="text-2xl font-bold text-white">
             {getPhaseText()}

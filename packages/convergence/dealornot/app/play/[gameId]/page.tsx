@@ -3,17 +3,21 @@
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import {
   useGameState,
   useRemainingPool,
+  useBankerOfferCalc,
   useCentsToWei,
   useJackpot,
   useJackpotClaimed,
   useGameSponsor,
 } from "@/hooks/useGameContract";
 import { useBankerMessage } from "@/hooks/useBankerMessage";
+import { DEAL_OR_NOT_ABI } from "@/lib/abi";
+import { SPONSOR_JACKPOT_ABI } from "@/lib/sponsorAbi";
+import { CONTRACT_ADDRESS, SPONSOR_JACKPOT_ADDRESS } from "@/lib/config";
 import { Phase } from "@/types/game";
-import GameStatus from "@/components/game/GameStatus";
 import BriefcaseRow from "@/components/game/BriefcaseRow";
 import CommitReveal from "@/components/game/CommitReveal";
 import ValueBoard from "@/components/game/ValueBoard";
@@ -33,10 +37,19 @@ import {
 import { centsToUsd } from "@/lib/utils";
 import RotatingAd from "@/components/RotatingAd";
 
-export default function WatchGame({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+const contractConfig = {
+  address: CONTRACT_ADDRESS,
+  abi: DEAL_OR_NOT_ABI,
+} as const;
+
+export default function PlayGame({ params }: { params: Promise<{ gameId: string }> }) {
+  const { gameId: idStr } = use(params);
   const router = useRouter();
-  const gameId = BigInt(id);
+  const gameId = BigInt(idStr);
+
+  const { address } = useAccount();
+  const publicClient = usePublicClient();
+  const { writeContractAsync } = useWriteContract();
 
   const { gameState, refetch } = useGameState(gameId);
   const { remainingValues } = useRemainingPool(gameId);
@@ -46,6 +59,11 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
   const sponsorInfo = useGameSponsor(gameId);
   const payoutWei = useCentsToWei(gameId, gameState?.finalPayout);
 
+  const isAwaitingOffer = gameState?.phase === Phase.AwaitingOffer;
+  const calculatedOffer = useBankerOfferCalc(gameId, isAwaitingOffer ?? false);
+
+  const [txPending, setTxPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showBankerOfferModal, setShowBankerOfferModal] = useState(false);
   const [bankerOfferDismissed, setBankerOfferDismissed] = useState(false);
 
@@ -65,13 +83,79 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
     }
   }
 
+  const isPlayer = address?.toLowerCase() === gameState?.player.toLowerCase();
+
+  // ── TX helper ──
+  const sendTx = async (functionName: string, args?: readonly unknown[]) => {
+    setError(null);
+    setTxPending(true);
+    try {
+      const hash = await writeContractAsync({
+        ...contractConfig,
+        functionName,
+        args,
+      } as Parameters<typeof writeContractAsync>[0]);
+      if (publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
+      await refetch();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("User rejected") || msg.includes("user rejected")) {
+        setError("Transaction rejected");
+      } else {
+        const short = msg.replace(/^.*reason:\s*/i, "").replace(/\n.*/s, "");
+        setError(short.slice(0, 150) || "Transaction failed");
+      }
+    } finally {
+      setTxPending(false);
+    }
+  };
+
+  // ── Handlers ──
+  const handlePickCase = (index: number) => sendTx("pickCase", [gameId, index]);
+  const handleOpenCase = (caseIndex: number) => sendTx("openCase", [gameId, caseIndex]);
+  const handleRingBanker = () => {
+    if (calculatedOffer !== undefined) sendTx("setBankerOffer", [gameId, calculatedOffer]);
+  };
+  const handleAcceptDeal = () => {
+    setShowBankerOfferModal(false);
+    sendTx("acceptDeal", [gameId]);
+  };
+  const handleRejectDeal = () => {
+    setShowBankerOfferModal(false);
+    sendTx("rejectDeal", [gameId]);
+  };
+  const handleKeepCase = () => sendTx("keepCase", [gameId]);
+  const handleSwapCase = () => sendTx("swapCase", [gameId]);
+  const handleClaimJackpot = async () => {
+    setError(null);
+    setTxPending(true);
+    try {
+      const hash = await writeContractAsync({
+        address: SPONSOR_JACKPOT_ADDRESS,
+        abi: SPONSOR_JACKPOT_ABI,
+        functionName: "claimJackpot",
+        args: [gameId],
+      });
+      if (publicClient) await publicClient.waitForTransactionReceipt({ hash });
+      await refetch();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg.includes("User rejected") ? "Transaction rejected" : msg.slice(0, 150));
+    } finally {
+      setTxPending(false);
+    }
+  };
+
+  // ── Loading ──
   if (!gameState) {
     return (
       <main className="min-h-[80vh] flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="animate-spin h-10 w-10 border-4 border-white/40 border-t-transparent rounded-full mx-auto" />
-          <p className="text-white/60">Tuning into game #{id}...</p>
-          <p className="text-white/20 text-xs italic">The Banker is adjusting his tie.</p>
+          <p className="text-white/60">Loading game #{idStr}...</p>
+          <p className="text-white/20 text-xs italic">Consulting the blockchain oracle.</p>
         </div>
       </main>
     );
@@ -84,27 +168,21 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
       <div className="flex gap-6">
         {/* Main game area */}
         <div className="flex-1 space-y-6">
-          {/* Spectator bar */}
-          <GlassCard className="flex items-center justify-between px-4 py-3" tint="blue">
+          {/* Player bar */}
+          <GlassCard className="flex items-center justify-between px-4 py-3" tint={isPlayer ? "yellow" : "blue"}>
             <div className="flex items-center gap-3">
-              <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-blue-300 text-sm font-bold uppercase tracking-wider">
-                Live — Game #{id}
+              <span className={`inline-block w-2 h-2 rounded-full ${isPlayer ? "bg-yellow-400" : "bg-blue-400"} animate-pulse`} />
+              <span className={`${isPlayer ? "text-yellow-300" : "text-blue-300"} text-sm font-bold uppercase tracking-wider`}>
+                {isPlayer ? "Playing" : "Spectating"} — Game #{idStr}
               </span>
             </div>
             <div className="flex items-center gap-1">
-              <GlassButton size="sm" variant="regular" onClick={() => { const prev = Number(id) - 1; if (prev >= 0) router.push(`/watch/${prev}`); }}>
-                ◀
-              </GlassButton>
-              <GlassButton size="sm" variant="regular" onClick={() => router.push("/watch")}>
-                Choose Game
-              </GlassButton>
-              <GlassButton size="sm" variant="regular" onClick={() => router.push(`/watch/${Number(id) + 1}`)}>
-                ▶
+              <GlassButton size="sm" variant="regular" onClick={() => router.push("/play")}>
+                Lobby
               </GlassButton>
               <Link href="/">
                 <GlassButton size="sm" variant="regular">
-                  Exit
+                  Home
                 </GlassButton>
               </Link>
             </div>
@@ -115,6 +193,7 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
             round={gameState.currentRound}
             maxRounds={4}
             gameId={gameId}
+            playerAddress={isPlayer ? gameState.player : undefined}
             onClick={phase === Phase.BankerOffer && bankerOfferDismissed ? () => setBankerOfferDismissed(false) : undefined}
           />
 
@@ -126,21 +205,20 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
             />
           )}
 
+          {/* Phase: WaitingForVRF */}
           {phase === Phase.WaitingForVRF && (
             <VideoWait
               message="Quantum seed incoming..."
-              submessage="Chainlink VRF is generating this game's randomness"
+              submessage="Chainlink VRF is generating your game's randomness"
             />
           )}
 
+          {/* Phase: Created — pick your case */}
           {phase === Phase.Created && (
             <div className="text-center space-y-6">
               <GlassCard className="p-6">
                 <p className="text-white/90 text-xl font-semibold">
-                  Waiting for player to pick a case...
-                </p>
-                <p className="text-white/30 text-sm mt-2 italic">
-                  5 briefcases. Each containing between $0.01 and $1.00. Probably.
+                  {isPlayer ? "Choose a briefcase to keep as yours" : "Waiting for player to pick a case..."}
                 </p>
               </GlassCard>
               <GlassBriefcaseGrid columns={5}>
@@ -150,13 +228,16 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
                     caseNumber={caseIndex}
                     opened={false}
                     playerCase={false}
-                    disabled
+                    disabled={!isPlayer || txPending}
+                    onClick={isPlayer ? () => handlePickCase(caseIndex) : undefined}
                   />
                 ))}
               </GlassBriefcaseGrid>
+              {txPending && <p className="text-amber-400 animate-pulse">Picking case...</p>}
             </div>
           )}
 
+          {/* Phase: Round / WaitingForCRE */}
           {(phase === Phase.Round || phase === Phase.WaitingForCRE) && (
             <div className="flex gap-8 justify-center items-start">
               <ValueBoard eliminatedValues={eliminatedValues} />
@@ -164,13 +245,14 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
                 <CommitReveal
                   gameState={gameState}
                   gameId={gameId}
-                  onOpenCase={async () => {}}
-                  isPending={false}
+                  onOpenCase={isPlayer ? handleOpenCase : async () => {}}
+                  isPending={txPending}
                 />
               </div>
             </div>
           )}
 
+          {/* Phase: AwaitingOffer */}
           {phase === Phase.AwaitingOffer && (
             <div className="flex gap-8 justify-center items-start">
               <ValueBoard eliminatedValues={eliminatedValues} />
@@ -183,11 +265,30 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
                 />
                 <div className="space-y-3 pt-4">
                   <div className="animate-pulse text-amber-300 font-medium">
-                    The Banker is thinking...
+                    Waiting for CRE AI Banker response...
                   </div>
                   <p className="text-white/30 text-sm italic">
                     Gemini 2.5 Flash is crafting a psychologically devastating offer inside a CRE enclave.
                   </p>
+                  {isPlayer && calculatedOffer !== undefined && (
+                    <>
+                      <div className="border-t border-white/10 pt-3 mt-3">
+                        <p className="text-white/30 text-xs uppercase tracking-wider mb-2">
+                          Manual fallback
+                        </p>
+                        <p className="text-white/40 text-sm">
+                          On-chain offer: <span className="text-amber-300 font-bold">{centsToUsd(calculatedOffer)}</span>
+                        </p>
+                      </div>
+                      <GlassButton
+                        variant="regular"
+                        onClick={handleRingBanker}
+                        disabled={txPending}
+                      >
+                        {txPending ? "Calling..." : "Skip AI — Use On-Chain Offer"}
+                      </GlassButton>
+                    </>
+                  )}
                 </div>
                 <div className="pt-4">
                   <RotatingAd variant="break" seed={gameId} />
@@ -196,6 +297,7 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
             </div>
           )}
 
+          {/* Phase: BankerOffer */}
           {phase === Phase.BankerOffer && (
             <>
               <div className="flex gap-8 justify-center items-start">
@@ -222,15 +324,14 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
                   : Number(gameState.bankerOffer)}
                 round={gameState.currentRound}
                 quip={bankerMessage ?? undefined}
-                onDeal={async () => {}}
-                onNoDeal={async () => {}}
+                onDeal={isPlayer ? handleAcceptDeal : async () => {}}
+                onNoDeal={isPlayer ? handleRejectDeal : async () => {}}
                 isOpen={showBankerOfferModal && !bankerOfferDismissed}
                 seed={gameId}
-                spectatorMode
+                spectatorMode={!isPlayer}
                 onDismiss={() => setBankerOfferDismissed(true)}
               />
 
-              {/* Reopen pill when spectator dismissed the offer */}
               {bankerOfferDismissed && showBankerOfferModal && (
                 <button
                   onClick={() => setBankerOfferDismissed(false)}
@@ -243,6 +344,7 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
             </>
           )}
 
+          {/* Phase: FinalRound / WaitingForFinalCRE */}
           {(phase === Phase.FinalRound || phase === Phase.WaitingForFinalCRE) && (
             <div className="flex gap-8 justify-center items-start">
               <ValueBoard eliminatedValues={eliminatedValues} />
@@ -250,36 +352,51 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
                 <FinalDecision
                   gameState={gameState}
                   gameId={gameId}
-                  onKeepCase={async () => {}}
-                  onSwapCase={async () => {}}
-                  isPending={false}
+                  onKeepCase={isPlayer ? handleKeepCase : async () => {}}
+                  onSwapCase={isPlayer ? handleSwapCase : async () => {}}
+                  isPending={txPending}
                 />
               </div>
             </div>
           )}
 
+          {/* Phase: GameOver */}
           {phase === Phase.GameOver && (
             <GameOver
               gameState={gameState}
               payoutWei={payoutWei}
-              onPlayAgain={() => router.push("/watch")}
+              onPlayAgain={() => router.push("/play")}
               jackpotCents={jackpotCents}
               jackpotClaimed={jackpotClaimed}
-              onClaimJackpot={async () => {}}
-              claimPending={false}
+              onClaimJackpot={isPlayer ? handleClaimJackpot : async () => {}}
+              claimPending={txPending}
               sponsorName={sponsorInfo?.name}
             />
           )}
 
           <EventLog gameId={gameId} />
+
+          {/* Error display */}
+          {error && (
+            <GlassCard className="p-3 bg-red-500/10 border-red-500/30">
+              <p className="text-red-400 text-sm">{error}</p>
+            </GlassCard>
+          )}
+
+          {txPending && (
+            <p className="text-amber-400 text-sm text-center animate-pulse">
+              Transaction pending...
+            </p>
+          )}
         </div>
 
-        {/* Sidebar — ads + commentary */}
+        {/* Sidebar */}
         <div className="hidden lg:flex flex-col gap-4 w-64 shrink-0">
           <GlassCard className="p-4 text-center">
-            <p className="text-white/30 text-[10px] uppercase tracking-widest mb-1">Audience</p>
-            <p className="text-yellow-400 text-2xl font-black">1</p>
-            <p className="text-white/20 text-xs">(it&apos;s you)</p>
+            <p className="text-white/30 text-[10px] uppercase tracking-widest mb-1">Status</p>
+            <p className={`text-2xl font-black ${isPlayer ? "text-yellow-400" : "text-blue-400"}`}>
+              {isPlayer ? "Player" : "Viewer"}
+            </p>
           </GlassCard>
 
           <GlassCard className="p-4">
@@ -310,17 +427,29 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
             </div>
           </GlassCard>
 
-          {/* Rotating fake ads */}
           <RotatingAd variant="sidebar" seed={gameId} />
 
           <GlassCard className="p-4">
             <p className="text-white/40 text-xs uppercase tracking-wider mb-2 font-bold">
-              Audience Commentary
+              Quick Actions
             </p>
             <div className="space-y-2">
-              <p className="text-white/30 text-xs italic">&ldquo;SWAP IT&rdquo; — Anonymous</p>
-              <p className="text-white/30 text-xs italic">&ldquo;the banker is bluffing&rdquo; — 0xdead</p>
-              <p className="text-white/30 text-xs italic">&ldquo;this is not financial advice&rdquo; — a lawyer</p>
+              <GlassButton
+                variant="regular"
+                size="sm"
+                className="w-full"
+                onClick={() => router.push(`/watch/${idStr}`)}
+              >
+                Switch to Watch
+              </GlassButton>
+              <GlassButton
+                variant="regular"
+                size="sm"
+                className="w-full"
+                onClick={() => router.push("/play")}
+              >
+                New Game
+              </GlassButton>
             </div>
           </GlassCard>
         </div>

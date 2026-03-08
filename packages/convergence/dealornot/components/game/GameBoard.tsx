@@ -485,6 +485,7 @@ export default function GameBoard() {
         phase={phase.toString()}
         round={gameState.currentRound}
         maxRounds={4}
+        gameId={gameId}
         playerAddress={isPlayer ? gameState.player : undefined}
         onClick={phase === Phase.BankerOffer && bankerOfferDismissed ? () => setBankerOfferDismissed(false) : undefined}
       />
