@@ -97,18 +97,46 @@ run_banker() {
   echo "$result" | grep "AI Banker offer" | grep -o "tx=0x[a-f0-9]*" | cut -d= -f2
 }
 
-# Find event TX in recent blocks
+# Find event TX in recent blocks (optional game ID filter via topic1)
 find_event_tx() {
-  local topic=$1 from_block=$2 search_blocks=${3:-60}
-  for i in $(seq 0 $((search_blocks / 10))); do
-    local start=$((from_block + i * 10))
-    local end=$((start + 9))
+  local topic0="$1" from_block=$2 search_blocks=${3:-60} game_id=${4:-}
+  local to_block=$((from_block + search_blocks))
+
+  # Build topic args — if game_id provided, pad to 32-byte topic1
+  local topic1_arg=""
+  if [ -n "$game_id" ]; then
+    topic1_arg=$(printf "0x%064x" "$game_id")
+  fi
+
+  # Scan in 10-block windows, newest first (matches cre-support.sh pattern)
+  local window_end=$to_block
+  while [[ $window_end -ge $from_block ]]; do
+    local window_from=$((window_end - 9))
+    [[ $window_from -lt $from_block ]] && window_from=$from_block
+
     local result
-    result=$(cast logs --from-block "$start" --to-block "$end" --address "$AGENTS" "$topic" --rpc-url "$RPC_URL" 2>/dev/null | grep "transactionHash" | tail -1 | awk '{print $2}')
-    if [ -n "$result" ]; then
-      echo "$result"
+    if [ -n "$topic1_arg" ]; then
+      result=$(cast logs --from-block "$window_from" --to-block "$window_end" \
+        --address "$AGENTS" --json "$topic0" "$topic1_arg" \
+        --rpc-url "$RPC_URL" 2>/dev/null) || { window_end=$((window_end - 10)); continue; }
+    else
+      result=$(cast logs --from-block "$window_from" --to-block "$window_end" \
+        --address "$AGENTS" --json "$topic0" \
+        --rpc-url "$RPC_URL" 2>/dev/null) || { window_end=$((window_end - 10)); continue; }
+    fi
+
+    local tx
+    tx=$(echo "$result" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+if d: print(d[-1]['transactionHash'])
+" 2>/dev/null)
+
+    if [[ -n "$tx" ]]; then
+      echo "$tx"
       return 0
     fi
+    window_end=$((window_end - 10))
   done
   return 1
 }
@@ -165,7 +193,7 @@ case "$CMD" in
     VRF_TOPIC=$(cast keccak "VRFSeedReceived(uint256)")
     echo "Finding VRFSeedReceived event..."
     CURRENT_BLOCK=$(cast block-number --rpc-url "$RPC_URL")
-    VRF_TX=$(find_event_tx "$VRF_TOPIC" $((CURRENT_BLOCK - 100)) 100)
+    VRF_TX=$(find_event_tx "$VRF_TOPIC" $((CURRENT_BLOCK - 100)) 100 "$GID")
     if [ -z "$VRF_TX" ]; then
       echo "ERROR: VRFSeedReceived not found in recent blocks"
       exit 1
