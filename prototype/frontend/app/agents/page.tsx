@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { GlassCard, GlassButton } from "@/components/glass";
 import { useAllAgents } from "@/hooks/useAgents";
+import { useAgentNextGameId } from "@/hooks/useAgentGame";
 import { USE_MOCK_DATA } from "@/lib/config";
 
 export default function AgentsPage() {
@@ -184,6 +185,9 @@ export default function AgentsPage() {
         )}
       </div>
 
+      {/* Watch Agent Games */}
+      <AgentGameWatch />
+
       {/* Coming Soon Features */}
       <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
@@ -203,6 +207,81 @@ export default function AgentsPage() {
           </GlassCard>
         ))}
       </div>
+    </div>
+  );
+}
+
+function AgentGameWatch() {
+  const router = useRouter();
+  const { nextGameId } = useAgentNextGameId();
+  const [watchInput, setWatchInput] = useState("");
+
+  const latestGameId = nextGameId ? Number(nextGameId) - 1 : null;
+  const hasGames = latestGameId !== null && latestGameId >= 0;
+
+  const handleWatch = () => {
+    if (watchInput) router.push(`/agents/game/${watchInput}`);
+  };
+
+  return (
+    <div className="mt-12">
+      <div className="text-center mb-6">
+        <p className="text-yellow-500/40 text-xs uppercase tracking-[0.3em] mb-2">Live from the Arena</p>
+        <h2 className="text-3xl font-black uppercase tracking-wider">
+          <span className="gold-text">Watch Agent Games</span>
+        </h2>
+        <p className="text-white/30 text-sm mt-2">
+          Spectate autonomous agents playing Deal or NOT in real time.
+        </p>
+      </div>
+
+      <GlassCard className="p-8 max-w-lg mx-auto space-y-6 gold-glow">
+        {/* Latest game quick-launch */}
+        {hasGames && (
+          <button
+            onClick={() => router.push(`/agents/game/${latestGameId}`)}
+            className="group w-full flex items-center justify-between p-4 rounded-xl
+                       bg-white/5 border border-white/10 hover:border-yellow-500/30 hover:bg-white/10
+                       transition-all duration-300"
+          >
+            <div className="text-left">
+              <p className="text-white/40 text-xs uppercase tracking-wider">Latest Agent Game</p>
+              <p className="text-yellow-400 text-2xl font-black group-hover:text-yellow-300 transition-colors">
+                Game #{latestGameId}
+              </p>
+            </div>
+            <span className="text-white/20 text-2xl group-hover:text-yellow-500/60 transition-colors">&rarr;</span>
+          </button>
+        )}
+
+        {/* Manual game ID input */}
+        <div>
+          <p className="text-white/40 text-xs uppercase tracking-wider mb-3 text-center">
+            or enter a game ID
+          </p>
+          <div className="flex gap-3">
+            <input
+              type="number"
+              placeholder="e.g. 3"
+              value={watchInput}
+              onChange={(e) => setWatchInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleWatch()}
+              className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center font-bold
+                         focus:border-yellow-500/50 focus:outline-none focus:ring-2 focus:ring-yellow-500/20
+                         backdrop-blur-md placeholder:text-white/20"
+            />
+            <GlassButton variant="prominent" onClick={handleWatch} disabled={!watchInput}>
+              Watch
+            </GlassButton>
+          </div>
+        </div>
+
+        {!hasGames && !USE_MOCK_DATA && (
+          <p className="text-white/20 text-sm text-center italic">
+            No agent games yet. The robots are still warming up.
+          </p>
+        )}
+      </GlassCard>
     </div>
   );
 }

@@ -1,0 +1,6 @@
+{
+  "contractAddress": "0x4cEdE5dD14dCa8F71a766E3b3eb1fB5801835083",
+  "chainSelectorName": "ethereum-testnet-sepolia-base-1",
+  "gasLimit": "300000",
+  "agentMode": true
+}

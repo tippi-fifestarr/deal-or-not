@@ -1,0 +1,8 @@
+{
+  "contractAddress": "0x4cEdE5dD14dCa8F71a766E3b3eb1fB5801835083",
+  "bestOfBankerAddress": "0x05EdC924f92aBCbbB91737479948509dC7E23bF9",
+  "chainSelectorName": "ethereum-testnet-sepolia-base-1",
+  "gasLimit": "500000",
+  "geminiModel": "gemini-2.5-flash",
+  "agentMode": true
+}
