@@ -97,18 +97,46 @@ run_banker() {
   echo "$result" | grep "AI Banker offer" | grep -o "tx=0x[a-f0-9]*" | cut -d= -f2
 }
 
-# Find event TX in recent blocks
+# Find event TX in recent blocks (optional game ID filter via topic1)
 find_event_tx() {
-  local topic=$1 from_block=$2 search_blocks=${3:-60}
-  for i in $(seq 0 $((search_blocks / 10))); do
-    local start=$((from_block + i * 10))
-    local end=$((start + 9))
+  local topic0="$1" from_block=$2 search_blocks=${3:-60} game_id=${4:-}
+  local to_block=$((from_block + search_blocks))
+
+  # Build topic args — if game_id provided, pad to 32-byte topic1
+  local topic1_arg=""
+  if [ -n "$game_id" ]; then
+    topic1_arg=$(printf "0x%064x" "$game_id")
+  fi
+
+  # Scan in 10-block windows, newest first (matches cre-support.sh pattern)
+  local window_end=$to_block
+  while [[ $window_end -ge $from_block ]]; do
+    local window_from=$((window_end - 9))
+    [[ $window_from -lt $from_block ]] && window_from=$from_block
+
     local result
-    result=$(cast logs --from-block "$start" --to-block "$end" --address "$AGENTS" "$topic" --rpc-url "$RPC_URL" 2>/dev/null | grep "transactionHash" | tail -1 | awk '{print $2}')
-    if [ -n "$result" ]; then
-      echo "$result"
+    if [ -n "$topic1_arg" ]; then
+      result=$(cast logs --from-block "$window_from" --to-block "$window_end" \
+        --address "$AGENTS" --json "$topic0" "$topic1_arg" \
+        --rpc-url "$RPC_URL" 2>/dev/null) || { window_end=$((window_end - 10)); continue; }
+    else
+      result=$(cast logs --from-block "$window_from" --to-block "$window_end" \
+        --address "$AGENTS" --json "$topic0" \
+        --rpc-url "$RPC_URL" 2>/dev/null) || { window_end=$((window_end - 10)); continue; }
+    fi
+
+    local tx
+    tx=$(echo "$result" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+if d: print(d[-1]['transactionHash'])
+" 2>/dev/null)
+
+    if [[ -n "$tx" ]]; then
+      echo "$tx"
       return 0
     fi
+    window_end=$((window_end - 10))
   done
   return 1
 }
@@ -165,7 +193,7 @@ case "$CMD" in
     VRF_TOPIC=$(cast keccak "VRFSeedReceived(uint256)")
     echo "Finding VRFSeedReceived event..."
     CURRENT_BLOCK=$(cast block-number --rpc-url "$RPC_URL")
-    VRF_TX=$(find_event_tx "$VRF_TOPIC" $((CURRENT_BLOCK - 100)) 100)
+    VRF_TX=$(find_event_tx "$VRF_TOPIC" $((CURRENT_BLOCK - 100)) 100 "$GID")
     if [ -z "$VRF_TX" ]; then
       echo "ERROR: VRFSeedReceived not found in recent blocks"
       exit 1
@@ -179,64 +207,82 @@ case "$CMD" in
     if [ -z "$PICK_TX" ]; then echo "ERROR: Pick failed"; exit 1; fi
     echo ""
 
-    ROUND=0
     LAST_TX="$PICK_TX"
 
-    while [ $ROUND -lt $MAX_ROUNDS ]; do
+    # Main game loop — poll phase and run the right workflow
+    for ROUND in $(seq 0 $((MAX_ROUNDS - 1))); do
+      # Wait for chain state to settle
+      sleep 2
       PHASE=$(get_phase "$GID")
       echo "--- ROUND $ROUND (phase=${PHASE_NAMES[$PHASE]}) ---"
 
       if [ "$PHASE" = "8" ]; then echo "Game over!"; break; fi
 
-      # Open case
+      # Phase 2 (Round): Agent opens a case via orchestrator
       if [ "$PHASE" = "2" ]; then
         echo "Agent opening case..."
         OPEN_TX=$(run_orchestrator "$LAST_TX" 0)
         if [ -z "$OPEN_TX" ]; then echo "ERROR: Open failed"; exit 1; fi
+        LAST_TX="$OPEN_TX"
         echo ""
+        sleep 2
+        PHASE=$(get_phase "$GID")
       fi
 
-      # Reveal
-      PHASE=$(get_phase "$GID")
+      # Phase 3 (WaitingForCRE): Reveal the opened case value
       if [ "$PHASE" = "3" ]; then
         echo "Revealing case value..."
-        REVEAL_TX=$(run_reveal "$OPEN_TX" 0)
+        REVEAL_TX=$(run_reveal "$LAST_TX" 0)
         if [ -z "$REVEAL_TX" ]; then echo "ERROR: Reveal failed"; exit 1; fi
+        LAST_TX="$REVEAL_TX"
         echo ""
+        sleep 2
+        PHASE=$(get_phase "$GID")
       fi
 
-      # Banker
-      PHASE=$(get_phase "$GID")
+      # Phase 4 (AwaitingOffer): Banker makes an offer
       if [ "$PHASE" = "4" ]; then
         echo "Banker making offer..."
-        BANKER_TX=$(run_banker "$REVEAL_TX" 1)
+        BANKER_TX=$(run_banker "$LAST_TX" 1)
         if [ -z "$BANKER_TX" ]; then echo "ERROR: Banker failed"; exit 1; fi
+        LAST_TX="$BANKER_TX"
         echo ""
+        sleep 2
+        PHASE=$(get_phase "$GID")
       fi
 
-      # Agent responds to offer
-      PHASE=$(get_phase "$GID")
+      # Phase 5 (BankerOffer): Agent responds deal/no-deal
       if [ "$PHASE" = "5" ]; then
         echo "Agent responding to offer..."
-        DEAL_TX=$(run_orchestrator "$BANKER_TX" 0)
+        DEAL_TX=$(run_orchestrator "$LAST_TX" 0)
         if [ -z "$DEAL_TX" ]; then echo "ERROR: Deal response failed"; exit 1; fi
         LAST_TX="$DEAL_TX"
         echo ""
+        sleep 2
+        PHASE=$(get_phase "$GID")
       fi
 
-      # Final round (keep/swap)
-      PHASE=$(get_phase "$GID")
+      # Phase 6 (FinalRound): Agent decides keep/swap
       if [ "$PHASE" = "6" ]; then
         echo "Final round: agent deciding keep/swap..."
         FINAL_TX=$(run_orchestrator "$LAST_TX" 0)
+        if [ -n "$FINAL_TX" ]; then LAST_TX="$FINAL_TX"; fi
         echo ""
-        break
+        sleep 2
+        PHASE=$(get_phase "$GID")
       fi
 
-      PHASE=$(get_phase "$GID")
-      if [ "$PHASE" = "8" ]; then break; fi
+      # Phase 7 (WaitingFinalCRE): Reveal final case
+      if [ "$PHASE" = "7" ]; then
+        echo "Revealing final case..."
+        FINAL_REVEAL_TX=$(run_reveal "$LAST_TX" 1)
+        if [ -n "$FINAL_REVEAL_TX" ]; then LAST_TX="$FINAL_REVEAL_TX"; fi
+        echo ""
+        sleep 2
+        PHASE=$(get_phase "$GID")
+      fi
 
-      ROUND=$((ROUND + 1))
+      if [ "$PHASE" = "8" ]; then echo "Game over!"; break; fi
     done
 
     echo ""
