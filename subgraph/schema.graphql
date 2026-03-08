@@ -1,0 +1,85 @@
+type Market @entity {
+  id: ID! # marketId
+  gameId: BigInt!
+  agentId: BigInt!
+  agent: Agent
+  marketType: MarketType!
+  targetValue: BigInt!
+  status: MarketStatus!
+  createdAt: BigInt!
+  lockTime: BigInt!
+  outcome: Boolean
+  totalPool: BigInt!
+  yesPool: BigInt!
+  noPool: BigInt!
+  totalBets: Int!
+  resolved: Boolean!
+  resolvedAt: BigInt
+
+  # Relations
+  bets: [Bet!]! @derivedFrom(field: "market")
+
+  # Computed fields
+  yesOdds: BigInt! # basis points (10000 = 100%)
+  noOdds: BigInt!
+}
+
+type Bet @entity {
+  id: ID! # betId
+  market: Market!
+  bettor: User!
+  prediction: Boolean! # true = YES, false = NO
+  amount: BigInt!
+  timestamp: BigInt!
+  claimed: Boolean!
+
+  # Set when market is resolved
+  won: Boolean
+  payout: BigInt
+}
+
+type User @entity {
+  id: ID! # address
+  bets: [Bet!]! @derivedFrom(field: "bettor")
+  totalBets: Int!
+  totalStaked: BigInt!
+  totalWon: BigInt!
+  totalClaimed: BigInt!
+  activeBets: Int!
+  wonBets: Int!
+  lostBets: Int!
+}
+
+type Agent @entity {
+  id: ID! # agentId
+  owner: Bytes!
+  name: String!
+  markets: [Market!]! @derivedFrom(field: "agent")
+  totalMarkets: Int!
+  gamesPlayed: Int!
+  registered: Boolean!
+}
+
+type GlobalStats @entity {
+  id: ID! # "1"
+  totalMarkets: Int!
+  totalBets: Int!
+  totalVolume: BigInt!
+  totalFeesCollected: BigInt!
+  activeMarkets: Int!
+  resolvedMarkets: Int!
+}
+
+enum MarketType {
+  WillWin
+  EarningsOver
+  WillAcceptOffer
+  RoundPrediction
+}
+
+enum MarketStatus {
+  Open
+  Locked
+  Resolved
+  Cancelled
+}

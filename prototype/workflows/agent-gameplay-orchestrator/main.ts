@@ -1,26 +1,35 @@
 /**
  * CRE Workflow: Agent Gameplay Orchestrator (Log Trigger)
  *
- * TRIGGER: Multiple EVM Logs from DealOrNotConfidential
+ * TRIGGER: EVM Log — multiple events from DealOrNotAgents
  *
  * FLOW:
- *   1. Listen for game state change events (GameCreated, RoundStarted, AwaitingOffer, FinalRound)
- *   2. Check if player is a registered agent via AgentRegistry
- *   3. Fetch agent's API endpoint from AgentRegistry
- *   4. Call agent API with game state (HTTP POST)
- *   5. Parse agent decision (pick, open, deal, no-deal, keep, swap)
- *   6. Execute decision on-chain via report → KeystoneForwarder
- *   7. Update agent stats in AgentRegistry after game ends
+ *   1. Listen for game state change events from DealOrNotAgents
+ *   2. Check event type (VRFSeedReceived, CasePicked, BankerOfferMade, GameResolved)
+ *   3. Read game state from chain
+ *   4. Fetch agent's API endpoint from AgentRegistry
+ *   5. Call agent API via ConfidentialHTTPClient (enclave-only, protects agent strategy)
+ *   6. Execute agent decision on-chain via writeReport → KeystoneForwarder → onReport
+ *
+ * KEY DESIGN:
+ *   DealOrNotAgents accepts all agent actions through onReport, NOT direct calls.
+ *   The report payload is: bytes4(selector) + abi.encode(args)
+ *   onReport decodes the selector and routes to the correct internal function.
+ *   This solves the msg.sender blocker — CRE forwarder is the only caller.
  */
 
 import {
   bytesToHex,
-  cre,
+  ConfidentialHTTPClient,
+  EVMClient,
   type EVMLog,
   encodeCallMsg,
   getNetwork,
+  handler,
   hexToBase64,
+  json,
   LATEST_BLOCK_NUMBER,
+  ok,
   Runner,
   type Runtime,
   TxStatus,
@@ -29,6 +38,8 @@ import {
   encodeFunctionData,
   decodeFunctionResult,
   parseAbi,
+  keccak256,
+  toBytes,
   zeroAddress,
   type Address,
 } from "viem";
@@ -36,58 +47,68 @@ import {
 // ── Config ──
 
 type Config = {
-  contractAddress: string;
-  agentRegistryAddress: string;
+  contractAddress: string;       // DealOrNotAgents address
+  agentRegistryAddress: string;  // AgentRegistry address
   chainSelectorName: string;
   gasLimit: string;
-  httpTimeout: number; // milliseconds
+  owner: string;                 // For vault DON secrets
 };
 
-// ── Constants ──
+// ── Phase enum (must match DealOrNotAgents.sol) ──
 
-const NUM_CASES = 5;
 enum Phase {
-  Created = 0,
-  Round = 1,
+  WaitingForVRF = 0,
+  Created = 1,       // pick case
+  Round = 2,         // open case
+  WaitingForCRE = 3,
   AwaitingOffer = 4,
-  FinalRound = 5,
-  Complete = 6,
+  BankerOffer = 5,   // deal or no-deal
+  FinalRound = 6,    // keep or swap
+  WaitingForFinalCRE = 7,
+  GameOver = 8,
 }
+
+// ── Event signatures (keccak256 hashes from DealOrNotAgents) ──
+
+const EVENT_VRF_SEED_RECEIVED = keccak256(toBytes("VRFSeedReceived(uint256)"));
+const EVENT_CASE_PICKED = keccak256(toBytes("CasePicked(uint256,uint8)"));
+const EVENT_BANKER_OFFER_MADE = keccak256(toBytes("BankerOfferMade(uint256,uint8,uint256)"));
+const EVENT_GAME_RESOLVED = keccak256(toBytes("GameResolved(uint256,uint256,bool)"));
 
 // ── ABI Fragments ──
 
-const confidentialAbi = parseAbi([
-  "function getGameState(uint256 gameId) view returns (address host, address player, uint8 mode, uint8 phase, uint8 playerCase, uint8 currentRound, uint8 totalCollapsed, uint256 bankerOffer, uint256 finalPayout, uint256 ethPerDollar, uint256[5] caseValues, bool[5] opened)",
-  "function pickCase(uint256 gameId, uint8 caseIndex)",
-  "function openCase(uint256 gameId, uint8 caseIndex)",
-  "function acceptDeal(uint256 gameId)",
-  "function rejectDeal(uint256 gameId)",
-  "function keepCase(uint256 gameId)",
-  "function swapCase(uint256 gameId)",
+// DealOrNotAgents view functions
+const agentsAbi = parseAbi([
+  "function getGameState(uint256 gameId) view returns (address agent, uint256 agentId, uint8 phase, uint8 playerCase, uint8 currentRound, uint8 totalCollapsed, uint256 bankerOffer, uint256 finalPayout, uint256 ethPerDollar, uint256[5] caseValues, bool[5] opened)",
+  // Agent action selectors (used to build report payloads for onReport)
+  "function agentPickCase(uint256 gameId, uint8 caseIndex)",
+  "function agentOpenCase(uint256 gameId, uint8 caseIndex)",
+  "function agentAcceptDeal(uint256 gameId)",
+  "function agentRejectDeal(uint256 gameId)",
+  "function agentKeepCase(uint256 gameId)",
+  "function agentSwapCase(uint256 gameId)",
 ]);
 
-const agentRegistryAbi = parseAbi([
+// AgentRegistry view functions
+const registryAbi = parseAbi([
   "function isAgentEligible(address player) view returns (bool)",
   "function getAgentEndpoint(address player) view returns (string)",
   "function getAgentId(address player) view returns (uint256)",
-  "function updateAgentStats(uint256 agentId, uint256 gameId, uint256 earningsCents, bool won) external",
 ]);
 
 // ── Agent API Types ──
 
-type GameState = {
-  playerCase: number;
-  currentRound: number;
-  bankerOffer: number;
-  caseValues: number[];
-  opened: boolean[];
-  remainingValues: number[];
-};
-
 type DecisionRequest = {
   gameId: string;
   phase: string;
-  gameState: GameState;
+  gameState: {
+    playerCase: number;
+    currentRound: number;
+    bankerOffer: number;
+    caseValues: number[];
+    opened: boolean[];
+    remainingValues: number[];
+  };
   expectedValue: number;
   bankerOffer?: number;
 };
@@ -98,7 +119,9 @@ type DecisionResponse = {
   reasoning?: string;
 };
 
-// ── Helper Functions ──
+// ── Helpers ──
+
+const NUM_CASES = 5;
 
 function expectedValue(values: number[]): number {
   if (values.length === 0) return 0;
@@ -107,187 +130,93 @@ function expectedValue(values: number[]): number {
 
 function phaseToString(phase: number): string {
   switch (phase) {
-    case Phase.Created:
-      return "Created";
-    case Phase.Round:
-      return "Round";
-    case Phase.AwaitingOffer:
-      return "BankerOffer";
-    case Phase.FinalRound:
-      return "FinalRound";
-    case Phase.Complete:
-      return "Complete";
-    default:
-      return "Unknown";
+    case Phase.Created: return "Created";
+    case Phase.Round: return "Round";
+    case Phase.BankerOffer: return "BankerOffer";
+    case Phase.FinalRound: return "FinalRound";
+    case Phase.GameOver: return "GameOver";
+    default: return "Unknown";
   }
 }
 
-// ── Agent API Call ──
+// ── Core: Read game state, call agent, execute action ──
 
-function callAgentAPI(
+function handleAgentTurn(
   runtime: Runtime<Config>,
-  endpoint: string,
-  request: DecisionRequest
-): DecisionResponse {
-  try {
-    runtime.log(`Calling agent API: ${endpoint}`);
-
-    const httpResponse = runtime
-      .http({
-        url: endpoint,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(request),
-        timeout: runtime.config.httpTimeout,
-      })
-      .result();
-
-    if (httpResponse.statusCode !== 200) {
-      throw new Error(`Agent API returned ${httpResponse.statusCode}: ${String.fromCharCode(...httpResponse.body)}`);
-    }
-
-    const responseBody = String.fromCharCode(...httpResponse.body);
-    const decision: DecisionResponse = JSON.parse(responseBody);
-
-    // Validate decision
-    const validActions = ["pick", "open", "deal", "no-deal", "keep", "swap"];
-    if (!validActions.includes(decision.action)) {
-      throw new Error(`Invalid action: ${decision.action}`);
-    }
-
-    runtime.log(`Agent decision: ${decision.action}${decision.caseIndex !== undefined ? ` case ${decision.caseIndex}` : ""}`);
-    if (decision.reasoning) {
-      runtime.log(`Reasoning: ${decision.reasoning}`);
-    }
-
-    return decision;
-  } catch (err) {
-    runtime.log(`Agent API call failed: ${String(err)}`);
-    throw err;
-  }
-}
-
-// ── Game State Handler ──
-
-function handleGameStateChange(
-  runtime: Runtime<Config>,
-  log: EVMLog,
+  evmClient: EVMClient,
+  gameId: bigint,
   eventName: string
 ): string {
-  const topics = log.topics;
-  if (topics.length < 2) {
-    throw new Error(`${eventName}: missing topics`);
-  }
-
-  // Decode gameId from indexed parameter
-  const gameId = BigInt(bytesToHex(topics[1]));
-  runtime.log(`${eventName}: game=${gameId}`);
-
-  // Set up EVM client
-  const network = getNetwork({
-    chainFamily: "evm",
-    chainSelectorName: runtime.config.chainSelectorName,
-    isTestnet: true,
-  });
-  if (!network) throw new Error(`Network not found: ${runtime.config.chainSelectorName}`);
-
-  const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
   const contractAddr = runtime.config.contractAddress as Address;
   const registryAddr = runtime.config.agentRegistryAddress as Address;
 
   // 1. Read game state
-  const readCallData = encodeFunctionData({
-    abi: confidentialAbi,
-    functionName: "getGameState",
-    args: [gameId],
-  });
-
   const stateResult = evmClient
     .callContract(runtime, {
       call: encodeCallMsg({
         from: zeroAddress,
         to: contractAddr,
-        data: readCallData,
+        data: encodeFunctionData({
+          abi: agentsAbi,
+          functionName: "getGameState",
+          args: [gameId],
+        }),
       }),
       blockNumber: LATEST_BLOCK_NUMBER,
     })
     .result();
 
   const state = decodeFunctionResult({
-    abi: confidentialAbi,
+    abi: agentsAbi,
     functionName: "getGameState",
     data: bytesToHex(stateResult.data),
   });
 
-  // Destructure game state
-  const player = state[1] as Address;
-  const phase = Number(state[3]);
-  const playerCase = Number(state[4]);
-  const currentRound = Number(state[5]);
-  const bankerOffer = Number(state[7]);
-  const caseValues = (state[10] as readonly bigint[]).map(Number);
-  const opened = state[11] as readonly boolean[];
+  const agentAddress = state[0] as Address;
+  const phase = Number(state[2]);
+  const playerCase = Number(state[3]);
+  const currentRound = Number(state[4]);
+  const bankerOffer = Number(state[6]);
+  const caseValues = (state[9] as readonly bigint[]).map(Number);
+  const opened = state[10] as readonly boolean[];
 
-  // 2. Check if player is agent
-  const isAgentCallData = encodeFunctionData({
-    abi: agentRegistryAbi,
-    functionName: "isAgentEligible",
-    args: [player],
-  });
+  runtime.log(`${eventName}: game=${gameId}, agent=${agentAddress}, phase=${phaseToString(phase)}`);
 
-  const isAgentResult = evmClient
-    .callContract(runtime, {
-      call: encodeCallMsg({
-        from: zeroAddress,
-        to: registryAddr,
-        data: isAgentCallData,
-      }),
-      blockNumber: LATEST_BLOCK_NUMBER,
-    })
-    .result();
-
-  const isAgent = decodeFunctionResult({
-    abi: agentRegistryAbi,
-    functionName: "isAgentEligible",
-    data: bytesToHex(isAgentResult.data),
-  });
-
-  if (!isAgent) {
-    runtime.log(`Game ${gameId}: player ${player} is not an agent, skipping`);
-    return `Game ${gameId}: not an agent game`;
+  // Skip if game is over or waiting for CRE (not agent's turn)
+  if (phase === Phase.GameOver || phase === Phase.WaitingForCRE ||
+      phase === Phase.WaitingForFinalCRE || phase === Phase.WaitingForVRF ||
+      phase === Phase.AwaitingOffer) {
+    runtime.log(`Game ${gameId}: phase ${phaseToString(phase)} — not agent's turn, skipping`);
+    return `Game ${gameId}: skipped (phase=${phaseToString(phase)})`;
   }
 
-  // 3. Get agent endpoint
-  const getEndpointCallData = encodeFunctionData({
-    abi: agentRegistryAbi,
-    functionName: "getAgentEndpoint",
-    args: [player],
-  });
-
+  // 2. Get agent endpoint from registry
   const endpointResult = evmClient
     .callContract(runtime, {
       call: encodeCallMsg({
         from: zeroAddress,
         to: registryAddr,
-        data: getEndpointCallData,
+        data: encodeFunctionData({
+          abi: registryAbi,
+          functionName: "getAgentEndpoint",
+          args: [agentAddress],
+        }),
       }),
       blockNumber: LATEST_BLOCK_NUMBER,
     })
     .result();
 
   const endpoint = decodeFunctionResult({
-    abi: agentRegistryAbi,
+    abi: registryAbi,
     functionName: "getAgentEndpoint",
     data: bytesToHex(endpointResult.data),
   }) as string;
 
-  if (!endpoint || endpoint === "") {
-    throw new Error(`Game ${gameId}: agent ${player} has no endpoint registered`);
+  if (!endpoint) {
+    throw new Error(`Game ${gameId}: agent ${agentAddress} has no endpoint`);
   }
 
-  // 4. Compute remaining values for expected value calculation
+  // 3. Compute remaining values for EV calculation
   const remainingValues: number[] = [];
   for (let i = 0; i < NUM_CASES; i++) {
     if (!opened[i] && i !== playerCase) {
@@ -300,7 +229,9 @@ function handleGameStateChange(
 
   const ev = expectedValue(remainingValues);
 
-  // 5. Build decision request
+  // 4. Call agent API via ConfidentialHTTPClient (protects agent strategy)
+  const confHTTPClient = new ConfidentialHTTPClient();
+
   const decisionRequest: DecisionRequest = {
     gameId: gameId.toString(),
     phase: phaseToString(phase),
@@ -313,23 +244,44 @@ function handleGameStateChange(
       remainingValues,
     },
     expectedValue: ev,
-    bankerOffer: phase === Phase.AwaitingOffer ? bankerOffer : undefined,
+    bankerOffer: phase === Phase.BankerOffer ? bankerOffer : undefined,
   };
 
-  // 6. Call agent API
-  const decision = callAgentAPI(runtime, endpoint, decisionRequest);
+  runtime.log(`Calling agent API: ${endpoint}`);
 
-  // 7. Execute decision on-chain
-  let writeCallData: `0x${string}`;
+  const agentResponse = confHTTPClient
+    .sendRequest(runtime, {
+      request: {
+        url: endpoint,
+        method: "POST",
+        multiHeaders: {
+          "Content-Type": { values: ["application/json"] },
+        },
+        bodyString: JSON.stringify(decisionRequest),
+        encryptOutput: true,
+      },
+      vaultDonSecrets: [],
+    })
+    .result();
+
+  if (!ok(agentResponse)) {
+    throw new Error(`Agent API failed: status ${agentResponse.statusCode}`);
+  }
+
+  const decision = json(agentResponse) as DecisionResponse;
+  runtime.log(`Agent decision: ${decision.action}${decision.caseIndex !== undefined ? ` case=${decision.caseIndex}` : ""}`);
+
+  // 5. Build report payload (selector + args) for DealOrNotAgents.onReport
+  let reportPayload: `0x${string}`;
 
   switch (decision.action) {
     case "pick":
       if (decision.caseIndex === undefined || decision.caseIndex < 0 || decision.caseIndex >= NUM_CASES) {
         throw new Error(`Invalid caseIndex for pick: ${decision.caseIndex}`);
       }
-      writeCallData = encodeFunctionData({
-        abi: confidentialAbi,
-        functionName: "pickCase",
+      reportPayload = encodeFunctionData({
+        abi: agentsAbi,
+        functionName: "agentPickCase",
         args: [gameId, decision.caseIndex],
       });
       break;
@@ -338,41 +290,41 @@ function handleGameStateChange(
       if (decision.caseIndex === undefined || decision.caseIndex < 0 || decision.caseIndex >= NUM_CASES) {
         throw new Error(`Invalid caseIndex for open: ${decision.caseIndex}`);
       }
-      writeCallData = encodeFunctionData({
-        abi: confidentialAbi,
-        functionName: "openCase",
+      reportPayload = encodeFunctionData({
+        abi: agentsAbi,
+        functionName: "agentOpenCase",
         args: [gameId, decision.caseIndex],
       });
       break;
 
     case "deal":
-      writeCallData = encodeFunctionData({
-        abi: confidentialAbi,
-        functionName: "acceptDeal",
+      reportPayload = encodeFunctionData({
+        abi: agentsAbi,
+        functionName: "agentAcceptDeal",
         args: [gameId],
       });
       break;
 
     case "no-deal":
-      writeCallData = encodeFunctionData({
-        abi: confidentialAbi,
-        functionName: "rejectDeal",
+      reportPayload = encodeFunctionData({
+        abi: agentsAbi,
+        functionName: "agentRejectDeal",
         args: [gameId],
       });
       break;
 
     case "keep":
-      writeCallData = encodeFunctionData({
-        abi: confidentialAbi,
-        functionName: "keepCase",
+      reportPayload = encodeFunctionData({
+        abi: agentsAbi,
+        functionName: "agentKeepCase",
         args: [gameId],
       });
       break;
 
     case "swap":
-      writeCallData = encodeFunctionData({
-        abi: confidentialAbi,
-        functionName: "swapCase",
+      reportPayload = encodeFunctionData({
+        abi: agentsAbi,
+        functionName: "agentSwapCase",
         args: [gameId],
       });
       break;
@@ -381,10 +333,10 @@ function handleGameStateChange(
       throw new Error(`Unknown action: ${decision.action}`);
   }
 
-  // 8. Write to contract via report
+  // 6. Write to DealOrNotAgents via report → KeystoneForwarder → onReport
   const reportResponse = runtime
     .report({
-      encodedPayload: hexToBase64(writeCallData),
+      encodedPayload: hexToBase64(reportPayload),
       encoderName: "evm",
       signingAlgo: "ecdsa",
       hashingAlgo: "keccak256",
@@ -407,146 +359,47 @@ function handleGameStateChange(
     );
   }
 
-  const txHash = writeResult.txHash || new Uint8Array(32);
-  runtime.log(`Agent action executed: game=${gameId}, action=${decision.action}, tx=${bytesToHex(txHash)}`);
+  const txHash = bytesToHex(writeResult.txHash || new Uint8Array(32));
+  runtime.log(`Agent action executed: game=${gameId}, action=${decision.action}, tx=${txHash}`);
 
   return `Game ${gameId}: agent ${decision.action} executed`;
 }
 
 // ── Event Handlers ──
 
-const onGameCreated = (runtime: Runtime<Config>, log: EVMLog): string => {
-  return handleGameStateChange(runtime, log, "GameCreated");
-};
-
-const onRoundStarted = (runtime: Runtime<Config>, log: EVMLog): string => {
-  return handleGameStateChange(runtime, log, "RoundStarted");
-};
-
-const onBankerOfferMade = (runtime: Runtime<Config>, log: EVMLog): string => {
-  return handleGameStateChange(runtime, log, "BankerOfferMade");
-};
-
-const onFinalRoundStarted = (runtime: Runtime<Config>, log: EVMLog): string => {
-  return handleGameStateChange(runtime, log, "FinalRoundStarted");
-};
-
-// ── Game Complete Handler (Update Stats) ──
-
-const onGameComplete = (runtime: Runtime<Config>, log: EVMLog): string => {
-  const topics = log.topics;
-  if (topics.length < 2) {
-    throw new Error("GameComplete: missing topics");
-  }
-
-  const gameId = BigInt(bytesToHex(topics[1]));
-  runtime.log(`GameComplete: game=${gameId}`);
-
-  // Set up EVM client
-  const network = getNetwork({
-    chainFamily: "evm",
-    chainSelectorName: runtime.config.chainSelectorName,
-    isTestnet: true,
-  });
+// VRFSeedReceived → game moves to Created phase → agent needs to pick a case
+const onVRFSeedReceived = (runtime: Runtime<Config>, log: EVMLog): string => {
+  const gameId = BigInt(bytesToHex(log.topics[1]));
+  const network = getNetwork({ chainFamily: "evm", chainSelectorName: runtime.config.chainSelectorName, isTestnet: true });
   if (!network) throw new Error(`Network not found: ${runtime.config.chainSelectorName}`);
+  const evmClient = new EVMClient(network.chainSelector.selector);
+  return handleAgentTurn(runtime, evmClient, gameId, "VRFSeedReceived");
+};
 
-  const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
-  const contractAddr = runtime.config.contractAddress as Address;
-  const registryAddr = runtime.config.agentRegistryAddress as Address;
+// CasePicked → game moves to Round phase → agent needs to open a case
+// Also handles: after a case is revealed + round completes, agent opens next case
+const onCasePicked = (runtime: Runtime<Config>, log: EVMLog): string => {
+  const gameId = BigInt(bytesToHex(log.topics[1]));
+  const network = getNetwork({ chainFamily: "evm", chainSelectorName: runtime.config.chainSelectorName, isTestnet: true });
+  if (!network) throw new Error(`Network not found: ${runtime.config.chainSelectorName}`);
+  const evmClient = new EVMClient(network.chainSelector.selector);
+  return handleAgentTurn(runtime, evmClient, gameId, "CasePicked");
+};
 
-  // Read final game state
-  const readCallData = encodeFunctionData({
-    abi: confidentialAbi,
-    functionName: "getGameState",
-    args: [gameId],
-  });
+// BankerOfferMade → agent needs to decide: deal or no-deal
+const onBankerOfferMade = (runtime: Runtime<Config>, log: EVMLog): string => {
+  const gameId = BigInt(bytesToHex(log.topics[1]));
+  const network = getNetwork({ chainFamily: "evm", chainSelectorName: runtime.config.chainSelectorName, isTestnet: true });
+  if (!network) throw new Error(`Network not found: ${runtime.config.chainSelectorName}`);
+  const evmClient = new EVMClient(network.chainSelector.selector);
+  return handleAgentTurn(runtime, evmClient, gameId, "BankerOfferMade");
+};
 
-  const stateResult = evmClient
-    .callContract(runtime, {
-      call: encodeCallMsg({
-        from: zeroAddress,
-        to: contractAddr,
-        data: readCallData,
-      }),
-      blockNumber: LATEST_BLOCK_NUMBER,
-    })
-    .result();
-
-  const state = decodeFunctionResult({
-    abi: confidentialAbi,
-    functionName: "getGameState",
-    data: bytesToHex(stateResult.data),
-  });
-
-  const player = state[1] as Address;
-  const finalPayout = Number(state[8]); // cents
-
-  // Check if player is agent
-  const getAgentIdCallData = encodeFunctionData({
-    abi: agentRegistryAbi,
-    functionName: "getAgentId",
-    args: [player],
-  });
-
-  const agentIdResult = evmClient
-    .callContract(runtime, {
-      call: encodeCallMsg({
-        from: zeroAddress,
-        to: registryAddr,
-        data: getAgentIdCallData,
-      }),
-      blockNumber: LATEST_BLOCK_NUMBER,
-    })
-    .result();
-
-  const agentId = decodeFunctionResult({
-    abi: agentRegistryAbi,
-    functionName: "getAgentId",
-    data: bytesToHex(agentIdResult.data),
-  });
-
-  if (agentId === 0n) {
-    runtime.log(`Game ${gameId}: player ${player} is not an agent, skipping stats update`);
-    return `Game ${gameId}: not an agent game`;
-  }
-
-  // Update agent stats
-  const won = finalPayout >= 50; // Win if >= $0.50
-  const updateStatsCallData = encodeFunctionData({
-    abi: agentRegistryAbi,
-    functionName: "updateAgentStats",
-    args: [agentId, gameId, BigInt(finalPayout), won],
-  });
-
-  const reportResponse = runtime
-    .report({
-      encodedPayload: hexToBase64(updateStatsCallData),
-      encoderName: "evm",
-      signingAlgo: "ecdsa",
-      hashingAlgo: "keccak256",
-    })
-    .result();
-
-  const writeResult = evmClient
-    .writeReport(runtime, {
-      receiver: runtime.config.agentRegistryAddress,
-      report: reportResponse,
-      gasConfig: {
-        gasLimit: runtime.config.gasLimit,
-      },
-    })
-    .result();
-
-  if (writeResult.txStatus !== TxStatus.SUCCESS) {
-    runtime.log(`Stats update failed: ${writeResult.errorMessage || writeResult.txStatus}`);
-  } else {
-    const txHash = writeResult.txHash || new Uint8Array(32);
-    runtime.log(
-      `Agent stats updated: agentId=${agentId}, earnings=${finalPayout}c, won=${won}, tx=${bytesToHex(txHash)}`
-    );
-  }
-
-  return `Game ${gameId}: agent stats updated`;
+// GameResolved → log result, no action needed (stats auto-recorded by contract)
+const onGameResolved = (runtime: Runtime<Config>, log: EVMLog): string => {
+  const gameId = BigInt(bytesToHex(log.topics[1]));
+  runtime.log(`GameResolved: game=${gameId} — stats auto-recorded by DealOrNotAgents`);
+  return `Game ${gameId}: resolved`;
 };
 
 // ── Workflow Init ──
@@ -562,40 +415,29 @@ const initWorkflow = (config: Config) => {
     throw new Error(`Network not found: ${config.chainSelectorName}`);
   }
 
-  const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
+  const evmClient = new EVMClient(network.chainSelector.selector);
 
-  // Listen to multiple events for different game phases
+  // Single handler that catches all events from DealOrNotAgents, routes by topic[0]
   return [
-    cre.handler(
+    handler(
       evmClient.logTrigger({
         addresses: [hexToBase64(config.contractAddress)],
-        // Filter for: GameCreated, RoundStarted, BankerOfferMade, FinalRoundStarted, GameComplete
       }),
       (runtime: Runtime<Config>, log: EVMLog): string => {
-        // Route to appropriate handler based on event signature
         const eventSig = bytesToHex(log.topics[0]);
 
-        // Event signatures (keccak256 hashes)
-        const GAME_CREATED = "0x..."; // TODO: Add actual event signatures
-        const ROUND_STARTED = "0x...";
-        const BANKER_OFFER_MADE = "0x...";
-        const FINAL_ROUND_STARTED = "0x...";
-        const GAME_COMPLETE = "0x...";
-
         switch (eventSig) {
-          case GAME_CREATED:
-            return onGameCreated(runtime, log);
-          case ROUND_STARTED:
-            return onRoundStarted(runtime, log);
-          case BANKER_OFFER_MADE:
+          case EVENT_VRF_SEED_RECEIVED:
+            return onVRFSeedReceived(runtime, log);
+          case EVENT_CASE_PICKED:
+            return onCasePicked(runtime, log);
+          case EVENT_BANKER_OFFER_MADE:
             return onBankerOfferMade(runtime, log);
-          case FINAL_ROUND_STARTED:
-            return onFinalRoundStarted(runtime, log);
-          case GAME_COMPLETE:
-            return onGameComplete(runtime, log);
+          case EVENT_GAME_RESOLVED:
+            return onGameResolved(runtime, log);
           default:
-            runtime.log(`Unknown event signature: ${eventSig}`);
-            return "Unknown event";
+            runtime.log(`Ignoring event: ${eventSig}`);
+            return "Ignored event";
         }
       }
     ),

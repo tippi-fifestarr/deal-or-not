@@ -5,6 +5,7 @@ import Link from "next/link";
 import GameBoard from "@/components/game/GameBoard";
 import BestOfBanker from "@/components/BestOfBanker";
 import { GlassCard, GlassButton } from "@/components/glass";
+import { useAllAgents } from "@/hooks/useAgents";
 
 const CRYSTAL_CARDS = [
   {
@@ -44,11 +45,23 @@ const CRYSTAL_CARDS = [
   },
 ];
 
-const AI_AGENTS = [
+const FALLBACK_AGENTS = [
   { name: "GreedyBot", strategy: "Never accepts. Ever.", winRate: "68%", personality: "Chaotic Neutral" },
   { name: "ConservativeAgent", strategy: "Takes the safe bet.", winRate: "72%", personality: "Lawful Boring" },
   { name: "RiskyRick", strategy: "ALL OR NOTHING", winRate: "54%", personality: "Unhinged" },
 ];
+
+const AGENT_PERSONALITIES: Record<string, string> = {
+  "GreedyBot": "Chaotic Neutral",
+  "ConservativeAgent": "Lawful Boring",
+  "RiskyRick": "Unhinged",
+};
+
+const AGENT_STRATEGIES: Record<string, string> = {
+  "GreedyBot": "Never accepts. Ever.",
+  "ConservativeAgent": "Takes the safe bet.",
+  "RiskyRick": "ALL OR NOTHING",
+};
 
 const TICKER_ITEMS = [
   "PROTECTED BY $47 BILLION IN CRYPTOGRAPHIC INFRASTRUCTURE",
@@ -64,6 +77,17 @@ const TICKER_ITEMS = [
 
 export default function Home() {
   const gameRef = useRef<HTMLDivElement>(null);
+  const { agents } = useAllAgents();
+
+  // Map hook agents to display format, fall back to hardcoded for empty
+  const displayAgents = agents.length > 0
+    ? agents.slice(0, 3).map(a => ({
+        name: a.name,
+        strategy: AGENT_STRATEGIES[a.name] || a.metadata || "Autonomous player",
+        winRate: `${(a.winRate / 100).toFixed(0)}%`,
+        personality: AGENT_PERSONALITIES[a.name] || "Unknown Alignment",
+      }))
+    : FALLBACK_AGENTS;
 
   const scrollToGame = () => {
     gameRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -206,7 +230,7 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {AI_AGENTS.map((agent) => (
+          {displayAgents.map((agent) => (
             <Link key={agent.name} href={`/agents`}>
               <GlassCard className="p-6 text-center hover:scale-[1.03] transition-transform cursor-pointer gold-glow group">
                 <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-yellow-400/20 to-purple-500/20 border border-yellow-500/30 flex items-center justify-center">

@@ -68,6 +68,8 @@ contract AgentStaking {
     uint256 public totalRewardsDistributed;
 
     address public admin;
+    mapping(address => bool) public authorizedCallers;
+    mapping(uint256 => uint256) public stakeRewardDebt; // stakeId => reward debt (for accurate reward tracking)
 
     // ── Errors ──
     error AgentNotEligible();
@@ -120,6 +122,9 @@ contract AgentStaking {
         pool.totalStaked += msg.value;
         totalStaked += msg.value;
 
+        // Set reward debt so new staker doesn't earn retroactive rewards
+        stakeRewardDebt[stakeId] = (msg.value * pool.rewardPerShare) / SCALE;
+
         emit Staked(msg.sender, agentId, msg.value, stakeId);
     }
 
@@ -168,9 +173,10 @@ contract AgentStaking {
 
         // Calculate pending rewards
         uint256 pending = _calculatePendingRewards(stakeId);
-        if (pending == 0) revert NoRewards();
+        if (pending == 0) return; // Nothing to claim, don't revert (unstake calls this)
 
-        // Update last claim timestamp
+        // Update reward debt to current level
+        stakeRewardDebt[stakeId] = (s.amount * pool.rewardPerShare) / SCALE;
         s.lastClaimAt = block.timestamp;
 
         // Transfer rewards
@@ -182,17 +188,17 @@ contract AgentStaking {
         emit RewardsClaimed(s.staker, s.agentId, pending);
     }
 
-    /// @notice Calculate pending rewards for a stake
+    /// @notice Calculate pending rewards for a stake using rewardPerShare accumulator
     function _calculatePendingRewards(uint256 stakeId) internal view returns (uint256) {
         Stake memory s = stakes[stakeId];
         if (!s.active) return 0;
 
         AgentPool memory pool = agentPools[s.agentId];
-        if (pool.totalStaked == 0) return 0;
-
-        // Simple proportional reward: (stake amount / total staked) * pool rewards
-        uint256 share = (s.amount * SCALE) / pool.totalStaked;
-        return (pool.totalRewards * share) / SCALE;
+        // Reward = stakeAmount * (currentRewardPerShare - debtPerShare) / SCALE
+        uint256 accumulated = (s.amount * pool.rewardPerShare) / SCALE;
+        uint256 debt = stakeRewardDebt[stakeId];
+        if (accumulated <= debt) return 0;
+        return accumulated - debt;
     }
 
     /// @notice Update agent pool before modifying stakes
@@ -202,13 +208,22 @@ contract AgentStaking {
 
     // ── Reward Distribution (called by authorized contracts) ──
 
+    modifier onlyAuthorized() {
+        if (!authorizedCallers[msg.sender] && msg.sender != admin) revert Unauthorized();
+        _;
+    }
+
     /// @notice Add rewards to an agent pool (called after agent wins)
     /// @param agentId Agent that earned the reward
     /// @param gameId Game ID for tracking
-    function addAgentReward(uint256 agentId, uint256 gameId) external payable onlyAdmin {
+    function addAgentReward(uint256 agentId, uint256 gameId) external payable onlyAuthorized {
         if (msg.value == 0) revert ZeroAmount();
 
         AgentPool storage pool = agentPools[agentId];
+        // Update rewardPerShare so existing stakers get fair distribution
+        if (pool.totalStaked > 0) {
+            pool.rewardPerShare += (msg.value * SCALE) / pool.totalStaked;
+        }
         pool.totalRewards += msg.value;
         agentLifetimeRewards[agentId] += msg.value;
 
@@ -250,11 +265,9 @@ contract AgentStaking {
 
     // ── Admin Functions ──
 
-    /// @notice Update revenue share percentage
-    /// @dev Admin only, for tuning economics
+    /// @notice Authorize a caller to add rewards (e.g. DealOrNotAgents)
     function setAuthorizedCaller(address caller, bool authorized) external onlyAdmin {
-        // In production, maintain authorized callers mapping
-        // For now, admin handles reward distribution
+        authorizedCallers[caller] = authorized;
     }
 
     /// @notice Emergency withdraw (admin only, for contract upgrades)
