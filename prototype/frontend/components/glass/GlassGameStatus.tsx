@@ -14,6 +14,7 @@ interface GlassGameStatusProps {
   maxRounds?: number;
   playerAddress?: string;
   className?: string;
+  onClick?: () => void;
 }
 
 export function GlassGameStatus({
@@ -22,6 +23,7 @@ export function GlassGameStatus({
   maxRounds = 4,
   playerAddress,
   className,
+  onClick,
 }: GlassGameStatusProps) {
   const getPhaseColor = () => {
     if (phase.includes("Waiting")) return undefined;
@@ -49,6 +51,7 @@ export function GlassGameStatus({
       className={cn(
         getGlassClasses("regular", "card", false, getPhaseColor()),
         "p-6 space-y-3",
+        onClick && "cursor-pointer hover:ring-1 hover:ring-yellow-400/40 transition-shadow",
         className
       )}
       layout
@@ -57,6 +60,7 @@ export function GlassGameStatus({
         stiffness: 300,
         damping: 30,
       }}
+      onClick={onClick}
     >
       {/* Phase indicator */}
       <div className="flex items-center justify-between">

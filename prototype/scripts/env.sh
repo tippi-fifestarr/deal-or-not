@@ -1,35 +1,63 @@
 #!/usr/bin/env bash
 # Common environment for Deal or NOT scripts
-# Source this: source scripts/env.sh
+# Source this: source prototype/scripts/env.sh (from repo root)
+#   or: source scripts/env.sh (from prototype/)
 #
-# Keys are read from prototype/.env.example (already in repo with testnet burners).
-# DO NOT put real keys here.
+# Keys are read from prototype/.env (gitignored) or prototype/.env.example (fallback).
+# For hackathon submission: move keys from .env.example to .env and remove from .env.example.
+#
+# Works in both bash and zsh.
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve script directory (bash and zsh compatible)
+if [[ -n "${BASH_SOURCE[0]}" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+elif [[ -n "${(%):-%x}" ]] 2>/dev/null; then
+  SCRIPT_DIR="$(cd "$(dirname "${(%):-%x}")" && pwd)"
+else
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+fi
 PROJECT_DIR="$SCRIPT_DIR/.."
 
 export PATH="$HOME/.foundry/bin:$HOME/.cre/bin:$HOME/.bun/bin:$PATH"
 
-# Read keys from .env.example (testnet burners only!)
-if [[ -f "$PROJECT_DIR/.env.example" ]]; then
-  # RPC URL: use Alchemy from frontend .env.local, or fall back to public
-  if [[ -f "$PROJECT_DIR/frontend/.env.local" ]]; then
-    RPC_URL=$(grep NEXT_PUBLIC_ALCHEMY_RPC_URL "$PROJECT_DIR/frontend/.env.local" | cut -d= -f2)
-  fi
-  export RPC_URL="${RPC_URL:-https://sepolia.base.org}"
-  export DEPLOYER_KEY=$(grep DEPLOYER_PRIVATE_KEY "$PROJECT_DIR/.env.example" | cut -d= -f2)
-  export DEPLOYER_ADDR=$(grep DEPLOYER_ADDRESS "$PROJECT_DIR/.env.example" | cut -d= -f2)
-  export PLAYER_KEY=$(grep PLAYER_PRIVATE_KEY "$PROJECT_DIR/.env.example" | cut -d= -f2)
-  export PLAYER_ADDR=$(grep PLAYER_ADDRESS "$PROJECT_DIR/.env.example" | cut -d= -f2)
+# Read keys from .env (gitignored, preferred) or .env.example (fallback)
+ENV_FILE=""
+if [[ -f "$PROJECT_DIR/.env" ]]; then
+  ENV_FILE="$PROJECT_DIR/.env"
+elif [[ -f "$PROJECT_DIR/.env.example" ]]; then
+  ENV_FILE="$PROJECT_DIR/.env.example"
 else
-  echo "ERROR: prototype/.env.example not found"
+  echo "ERROR: No .env or .env.example found in prototype/"
+  echo "  Create prototype/.env with DEPLOYER_PRIVATE_KEY=0x..."
   exit 1
 fi
+
+# RPC URL: use Alchemy from frontend .env.local, or fall back to public
+if [[ -f "$PROJECT_DIR/frontend/.env.local" ]]; then
+  RPC_URL=$(grep NEXT_PUBLIC_ALCHEMY_RPC_URL "$PROJECT_DIR/frontend/.env.local" | cut -d= -f2)
+fi
+export RPC_URL="${RPC_URL:-https://sepolia.base.org}"
+export DEPLOYER_KEY=$(grep DEPLOYER_PRIVATE_KEY "$ENV_FILE" | cut -d= -f2)
+export DEPLOYER_ADDR=$(grep DEPLOYER_ADDRESS "$ENV_FILE" | cut -d= -f2)
+export PLAYER_KEY=$(grep PLAYER_PRIVATE_KEY "$ENV_FILE" | cut -d= -f2)
+export PLAYER_ADDR=$(grep PLAYER_ADDRESS "$ENV_FILE" | cut -d= -f2)
+
+# Forge deploy scripts expect PRIVATE_KEY
+export PRIVATE_KEY="$DEPLOYER_KEY"
 
 # Contract addresses (update after each redeploy)
 export CONTRACT="0xd9D4A974021055c46fD834049e36c21D7EE48137"
 export BEST_OF_BANKER="0x05EdC924f92aBCbbB91737479948509dC7E23bF9"
 export SPONSOR_JACKPOT="0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95"
+
+# Agent Infrastructure (redeployed Mar 8, 2026)
+export AGENT_REGISTRY="0xf3B0d29416d3504c802bab4A799349746A37E788"
+export DEAL_OR_NOT_AGENTS="0x12e23ff7954c62ae18959c5fd4aed6b51ebcd627"
+export MOCK_FORWARDER="0xf958dfa3167bea463a624dc03dcfa3b55e56043a"
+export AGENT_STAKING="0xd46eba96e29e83952ec0ef74eed3c7eb1a4ba6b4"
+export SEASONAL_LEADERBOARD="0x13c3c750ed19c935567dcb54ee4e88ff6789001a"
+export PREDICTION_MARKET="0x05408be7468d01852002156a1b380e3953a502ee"
+export SHARED_PRICE_FEED="0x91d8104e6e138607c00dd0bc132e1291a641c36d"
 
 # CCIP Cross-Chain
 export GATEWAY="0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124"       # ETH Sepolia

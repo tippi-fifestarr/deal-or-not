@@ -47,10 +47,12 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
   const payoutWei = useCentsToWei(gameId, gameState?.finalPayout);
 
   const [showBankerOfferModal, setShowBankerOfferModal] = useState(false);
+  const [bankerOfferDismissed, setBankerOfferDismissed] = useState(false);
 
   useEffect(() => {
     if (gameState?.phase === Phase.BankerOffer) {
       setShowBankerOfferModal(true);
+      setBankerOfferDismissed(false);
     }
   }, [gameState?.phase]);
 
@@ -112,6 +114,7 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
             phase={phase.toString()}
             round={gameState.currentRound}
             maxRounds={4}
+            onClick={phase === Phase.BankerOffer && bankerOfferDismissed ? () => setBankerOfferDismissed(false) : undefined}
           />
 
           {jackpotCents !== undefined && jackpotCents > 0n && phase !== Phase.GameOver && (
@@ -220,9 +223,22 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
                 quip={bankerMessage ?? undefined}
                 onDeal={async () => {}}
                 onNoDeal={async () => {}}
-                isOpen={showBankerOfferModal}
+                isOpen={showBankerOfferModal && !bankerOfferDismissed}
                 seed={gameId}
+                spectatorMode
+                onDismiss={() => setBankerOfferDismissed(true)}
               />
+
+              {/* Reopen pill when spectator dismissed the offer */}
+              {bankerOfferDismissed && showBankerOfferModal && (
+                <button
+                  onClick={() => setBankerOfferDismissed(false)}
+                  className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-2 rounded-full bg-black/70 backdrop-blur-xl border border-yellow-500/30 text-yellow-400 text-sm font-bold hover:bg-black/80 hover:border-yellow-500/50 transition-all shadow-[0_0_20px_rgba(255,215,0,0.15)]"
+                >
+                  <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                  Show Banker Offer
+                </button>
+              )}
             </>
           )}
 

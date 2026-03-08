@@ -26,6 +26,13 @@ dist
 # Playwright MCP artifacts
 .playwright-mcp/
 
+# CRE workflow secrets and runtime configs
+prototype/.env
+prototype/workflows/.env
+prototype/workflows/*/config.staging.json
+prototype/workflows/*/bun.lockb
+prototype/workflows/*/package-lock.json
+
 # Dev/test screenshots (root level only)
 /game-over-e2e.png
 /banker-calling-e2e.png

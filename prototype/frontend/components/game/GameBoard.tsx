@@ -16,6 +16,8 @@ import { useWriteContract } from "wagmi";
 import { DEAL_OR_NOT_ABI } from "@/lib/abi";
 import { SPONSOR_JACKPOT_ABI } from "@/lib/sponsorAbi";
 import { CONTRACT_ADDRESS, SPONSOR_JACKPOT_ADDRESS, CHAIN_ID } from "@/lib/config";
+import { isSpokeChain } from "@/lib/chains";
+import CrossChainJoin from "./CrossChainJoin";
 import { Phase } from "@/types/game";
 import GameStatus from "./GameStatus";
 import BriefcaseRow from "./BriefcaseRow";
@@ -65,6 +67,7 @@ export default function GameBoard() {
   const [txPending, setTxPending] = useState(false);
   const [spectatorMode, setSpectatorMode] = useState(false);
   const [showBankerOfferModal, setShowBankerOfferModal] = useState(false);
+  const [bankerOfferDismissed, setBankerOfferDismissed] = useState(false);
 
   const { gameState, refetch } = useGameState(gameId);
   const { nextGameId } = useNextGameId();
@@ -83,6 +86,7 @@ export default function GameBoard() {
   useEffect(() => {
     if (gameState?.phase === Phase.BankerOffer) {
       setShowBankerOfferModal(true);
+      setBankerOfferDismissed(false); // Reset dismiss on new offer
     }
   }, [gameState?.phase]);
 
@@ -314,6 +318,36 @@ export default function GameBoard() {
   }
 
   if (isWrongChain && !spectatorMode) {
+    // Spoke chain (ETH Sepolia) — offer cross-chain bridge join
+    if (chainId && isSpokeChain(chainId)) {
+      return (
+        <div className="max-w-lg mx-auto py-10 space-y-8">
+          <CrossChainJoin />
+
+          <div className="text-center space-y-4">
+            <div className="text-white/30 text-sm">or switch to the home chain</div>
+            <GlassButton
+              variant="regular"
+              size="md"
+              onClick={() => switchChain({ chainId: CHAIN_ID })}
+            >
+              Switch to Base Sepolia
+            </GlassButton>
+          </div>
+
+          <div className="text-center">
+            <button
+              onClick={() => disconnect()}
+              className="text-white/30 text-xs hover:text-white/60 transition-colors"
+            >
+              Disconnect
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Unsupported chain — prompt to switch
     return (
       <div className="max-w-md mx-auto text-center py-12 space-y-6">
         <GlassCard className="p-8 space-y-6 border-red-500/30">
@@ -447,6 +481,7 @@ export default function GameBoard() {
         round={gameState.currentRound}
         maxRounds={4}
         playerAddress={isPlayer ? gameState.player : undefined}
+        onClick={phase === Phase.BankerOffer && bankerOfferDismissed ? () => setBankerOfferDismissed(false) : undefined}
       />
 
       {/* Jackpot display — shown during active gameplay */}
@@ -585,9 +620,22 @@ export default function GameBoard() {
             quip={bankerMessage ?? undefined}
             onDeal={handleAcceptDeal}
             onNoDeal={handleRejectDeal}
-            isOpen={showBankerOfferModal}
+            isOpen={showBankerOfferModal && !bankerOfferDismissed}
             seed={gameId}
+            spectatorMode={spectatorMode}
+            onDismiss={() => setBankerOfferDismissed(true)}
           />
+
+          {/* Spectator: reopen pill when banker offer is dismissed */}
+          {spectatorMode && bankerOfferDismissed && showBankerOfferModal && (
+            <button
+              onClick={() => setBankerOfferDismissed(false)}
+              className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-2 rounded-full bg-black/70 backdrop-blur-xl border border-yellow-500/30 text-yellow-400 text-sm font-bold hover:bg-black/80 hover:border-yellow-500/50 transition-all shadow-[0_0_20px_rgba(255,215,0,0.15)]"
+            >
+              <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+              Show Banker Offer
+            </button>
+          )}
         </>
       )}
 

@@ -79,6 +79,7 @@ contract AgentStaking {
     error NoRewards();
     error Unauthorized();
     error ZeroAmount();
+    error NoStakersToReward();
 
     // ── Modifiers ──
     modifier onlyAdmin() {
@@ -220,10 +221,9 @@ contract AgentStaking {
         if (msg.value == 0) revert ZeroAmount();
 
         AgentPool storage pool = agentPools[agentId];
+        if (pool.totalStaked == 0) revert NoStakersToReward();
         // Update rewardPerShare so existing stakers get fair distribution
-        if (pool.totalStaked > 0) {
-            pool.rewardPerShare += (msg.value * SCALE) / pool.totalStaked;
-        }
+        pool.rewardPerShare += (msg.value * SCALE) / pool.totalStaked;
         pool.totalRewards += msg.value;
         agentLifetimeRewards[agentId] += msg.value;
 
@@ -270,10 +270,13 @@ contract AgentStaking {
         authorizedCallers[caller] = authorized;
     }
 
-    /// @notice Emergency withdraw (admin only, for contract upgrades)
+    /// @notice Emergency withdraw excess ETH only (admin only, for contract upgrades)
+    /// @dev Cannot withdraw user-staked funds — only surplus beyond totalStaked
     function emergencyWithdraw() external onlyAdmin {
         uint256 balance = address(this).balance;
-        (bool success, ) = payable(admin).call{value: balance}("");
+        if (balance <= totalStaked) revert ZeroAmount();
+        uint256 excess = balance - totalStaked;
+        (bool success, ) = payable(admin).call{value: excess}("");
         require(success, "Transfer failed");
     }
 

@@ -1,15 +1,19 @@
 "use client";
 
 import { useReadContract, useWriteContract } from "wagmi";
+import { baseSepolia } from "wagmi/chains";
 import { DEAL_OR_NOT_ABI } from "@/lib/abi";
 import { SPONSOR_JACKPOT_ABI } from "@/lib/sponsorAbi";
 import { CONTRACT_ADDRESS, SPONSOR_JACKPOT_ADDRESS } from "@/lib/config";
 import { type GameState, Phase } from "@/types/game";
 import { useMemo } from "react";
 
+// Force all reads to Base Sepolia (home chain) regardless of connected chain.
+// This lets ETH Sepolia users still view game state via cross-chain reads.
 const contractConfig = {
   address: CONTRACT_ADDRESS,
   abi: DEAL_OR_NOT_ABI,
+  chainId: baseSepolia.id,
 } as const;
 
 // ── Read Hooks ──
@@ -97,6 +101,7 @@ export function useCentsToWei(gameId: bigint | undefined, cents: bigint | undefi
 const jackpotConfig = {
   address: SPONSOR_JACKPOT_ADDRESS,
   abi: SPONSOR_JACKPOT_ABI,
+  chainId: baseSepolia.id,
 } as const;
 
 export function useJackpot(gameId: bigint | undefined) {

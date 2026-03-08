@@ -50,7 +50,7 @@ export default function CommitReveal({
           {selectedCase !== null ? (
             <>
               <p className="text-amber-300">
-                Open Case <span className="font-bold text-lg">#{selectedCase + 1}</span>?
+                Open Case <span className="font-bold text-lg">#{selectedCase}</span>?
               </p>
               <button
                 className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-3 px-8 rounded-xl transition-all disabled:opacity-50"

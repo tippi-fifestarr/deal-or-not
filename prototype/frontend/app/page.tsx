@@ -6,42 +6,53 @@ import GameBoard from "@/components/game/GameBoard";
 import BestOfBanker from "@/components/BestOfBanker";
 import { GlassCard, GlassButton } from "@/components/glass";
 import { useAllAgents } from "@/hooks/useAgents";
+import { useMockDataToggle } from "@/contexts/MockDataContext";
 
-const CRYSTAL_CARDS = [
+const INFRA_CARDS = [
   {
     video: "/chainlink/money-sized.mp4",
     label: "CHAINLINK PRICE FEEDS",
-    copy: "Real-time ETH/USD so the Banker can lowball you with mathematical precision.",
+    copy: "Real-time ETH/USD oracle on Base Sepolia so the Banker can lowball you with mathematical precision. Every offer is denominated in cents, converted to wei at settlement.",
     closer: "The only honest thing in this entire operation.",
-    number: "01",
-  },
-  {
-    video: "/chainlink/shield-sized.mp4",
-    label: "CRE: CONFIDENTIAL VAULT",
-    copy: "Case values computed inside a secure enclave. Not even the blockchain knows what's inside. We spent millions on this.",
-    closer: "A computer that keeps secrets better than your ex.",
-    number: "02",
-  },
-  {
-    video: "/chainlink/give-sized.mp4",
-    label: "SPONSOR JACKPOT",
-    copy: "Real ETH deposited by automated CRE cron workflow. Say 'No Deal' all the way and claim the pot.",
-    closer: "Free money. Terms and conditions do NOT apply.",
-    number: "03",
-  },
-  {
-    video: "/chainlink/trophy-sized.mp4",
-    label: "AI AGENT ARENA",
-    copy: "Autonomous bots compete on a leaderboard. Stake on winners. Watch robots make terrible financial decisions.",
-    closer: "The AI uprising will be televised.",
-    number: "04",
+    number: "00",
   },
   {
     video: "/chainlink/blockchain-sized.mp4",
     label: "VRF: QUANTUM DICE",
-    copy: "Chainlink VRF generates the seed. On-chain. Verifiable. Nobody — not even us — can rig your cases.",
+    copy: "Chainlink VRF generates a verifiable random seed on-chain when you create a game. That seed determines your case values — nobody can predict or rig them.",
     closer: "Fancy dice that can't be loaded.",
-    number: "05",
+    number: "01",
+  },
+  {
+    video: "/chainlink/launch-sized.mp4",
+    label: "CCIP: CROSS-CHAIN PLAY",
+    copy: "Start a game from ETH Sepolia via a Gateway contract — CCIP carries your move cross-chain to the Bridge on Base Sepolia. Two chains, one game show.",
+    closer: "Because one chain wasn't extra enough.",
+    number: "02",
+  },
+];
+
+const CRE_CARDS = [
+  {
+    video: "/chainlink/shield-sized.mp4",
+    label: "CONFIDENTIAL CASE REVEAL",
+    copy: "Each case value is computed inside a CRE enclave using hash(vrfSeed, caseIndex, entropy). The entropy is fetched via Confidential HTTP from an external source — not even the CRE node knows the value until runtime.",
+    closer: "A computer that keeps secrets better than your ex.",
+    number: "01",
+  },
+  {
+    video: "/chainlink/give-sized.mp4",
+    label: "SPONSOR JACKPOT",
+    copy: "A CRE workflow checks if you said 'No Deal' every round. Go all the way and a separate SponsorJackpot contract pays out real ETH deposited by sponsors.",
+    closer: "Free money. Terms and conditions do NOT apply.",
+    number: "02",
+  },
+  {
+    video: "/chainlink/trophy-sized.mp4",
+    label: "AI BANKER (GEMINI IN AN ENCLAVE)",
+    copy: "A CRE workflow reads the game state, calculates an EV-based offer, then calls Gemini 2.5 Flash via Confidential HTTP to generate the Banker's personality. Two writeReports: one for the offer, one for the BestOfBanker gallery.",
+    closer: "The AI uprising will be televised.",
+    number: "03",
   },
 ];
 
@@ -78,6 +89,7 @@ const TICKER_ITEMS = [
 export default function Home() {
   const gameRef = useRef<HTMLDivElement>(null);
   const { agents } = useAllAgents();
+  const { useMockData, toggleMockData } = useMockDataToggle();
 
   // Map hook agents to display format, fall back to hardcoded for empty
   const displayAgents = agents.length > 0
@@ -133,14 +145,11 @@ export default function Home() {
             Your cases don&apos;t exist until you open them.
             The Banker is an AI running inside a cryptographic enclave.
             The game is on a blockchain.{" "}
-            <span className="text-white/20 italic">
-              We are not making this up.{" "}
-              <span
-                className="border-b border-dotted border-white/20 cursor-help"
-                title="we are definitely making some of this up"
-              >
-                (we are)
-              </span>
+            <span
+              className="text-white/20 italic border-b border-dotted border-white/20 cursor-help"
+              title="Chainlink VRF (verifiable random seed) · CRE Confidential Compute (case reveals in a secure enclave) · Confidential HTTP (Gemini 2.5 Flash AI Banker running inside CRE) · Chainlink Price Feeds (real-time ETH/USD oracle) · CCIP (cross-chain messaging between ETH Sepolia and Base Sepolia) · SponsorJackpot (CRE cron workflow for real ETH payouts) · BestOfBanker (on-chain quote gallery) · MockKeystoneForwarder (testnet CRE simulation)"
+            >
+              We are not making this up.
             </span>
           </p>
         </div>
@@ -232,6 +241,18 @@ export default function Home() {
           <p className="text-white/30 text-sm mt-2">
             They play for keeps. They play for ETH. They play because they were programmed to.
           </p>
+          <button
+            onClick={toggleMockData}
+            className="inline-flex items-center gap-2 mt-3 px-3 py-1 text-xs rounded-full border cursor-pointer transition-all hover:scale-105"
+            style={{
+              background: useMockData ? "rgba(234,179,8,0.2)" : "rgba(34,197,94,0.2)",
+              borderColor: useMockData ? "rgba(234,179,8,0.3)" : "rgba(34,197,94,0.3)",
+              color: useMockData ? "#facc15" : "#22c55e",
+            }}
+          >
+            <span className={`inline-block w-2 h-2 rounded-full ${useMockData ? "bg-yellow-400" : "bg-green-400"}`} />
+            {useMockData ? "Mock Data" : "Live On-Chain"}
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -270,13 +291,18 @@ export default function Home() {
             </h2>
             <p className="text-white/30 text-sm max-w-xl mx-auto">
               We assembled trillion-dollar levels of cryptographic security
-              so you could play a game show for fifty cents.
-              You&apos;re welcome.
+              so you could play a game show for fifty cents.{" "}
+              <span
+                className="border-b border-dotted border-white/20 cursor-help"
+                title="Thanks to Chainlink, of course."
+              >
+                You&apos;re welcome.
+              </span>
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {CRYSTAL_CARDS.map((card) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {INFRA_CARDS.map((card) => (
               <CrystalCard key={card.label} {...card} />
             ))}
           </div>
@@ -297,6 +323,28 @@ export default function Home() {
           </p>
         </div>
         <GameBoard />
+      </section>
+
+      {/* ══ CRE FTW (Confidential Compute Cards) ══ */}
+      <section className="px-4 py-16 halftone-bg">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-yellow-500/40 text-xs uppercase tracking-[0.3em] mb-2">3 CRE Workflows. 1 Confidential Runtime.</p>
+            <h2 className="text-3xl md:text-4xl font-black uppercase tracking-wider mb-3">
+              <span className="gold-text">CRE FTW</span>
+            </h2>
+            <p className="text-white/30 text-sm max-w-xl mx-auto">
+              Every secret in this game is computed inside a Chainlink CRE enclave.
+              Case values, banker offers, jackpot checks — all confidential, all verifiable, all absurd.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {CRE_CARDS.map((card) => (
+              <CrystalCard key={card.label} {...card} />
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* ══ BEST OF BANKER ══ */}

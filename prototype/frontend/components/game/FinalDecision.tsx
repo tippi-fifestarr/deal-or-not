@@ -37,7 +37,7 @@ export default function FinalDecision({
             Two cases remain. Keep your case or swap?
           </p>
           <p className="text-gray-400 text-sm">
-            Your Case: #{gameState.playerCase + 1}
+            Your Case: #{gameState.playerCase}
           </p>
           <div className="flex gap-4 justify-center">
             <button
