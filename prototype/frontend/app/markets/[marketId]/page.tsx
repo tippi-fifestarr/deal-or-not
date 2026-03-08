@@ -13,7 +13,7 @@ import {
   STATUS_LABELS,
 } from "@/hooks/useMarkets";
 import { useAllAgents } from "@/hooks/useAgents";
-import { USE_MOCK_DATA } from "@/lib/config";
+import { useMockDataToggle } from "@/contexts/MockDataContext";
 
 // Mock bets for the detail page (would come from event indexing in production)
 const MOCK_BETS = [
@@ -25,6 +25,7 @@ const MOCK_BETS = [
 export default function MarketDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { useMockData, toggleMockData } = useMockDataToggle();
   const marketId = parseInt(params.marketId as string);
 
   const [betAmount, setBetAmount] = useState("0.01");
@@ -61,7 +62,7 @@ export default function MarketDetailPage() {
   const handlePlaceBet = async () => {
     if (selectedPrediction === null) return;
 
-    if (USE_MOCK_DATA) {
+    if (useMockData) {
       alert(`Bet placed (mock)! ${betAmount} ETH on ${selectedPrediction ? "YES" : "NO"}`);
       return;
     }
@@ -103,11 +104,18 @@ export default function MarketDetailPage() {
                 {STATUS_LABELS[market.status]}
               </span>
               <span className="text-sm text-gray-400">Game #{market.gameId}</span>
-              {USE_MOCK_DATA && (
-                <span className="px-2 py-0.5 text-xs bg-yellow-500/20 text-yellow-400 rounded-full border border-yellow-500/30">
-                  Mock
-                </span>
-              )}
+              <button
+                onClick={toggleMockData}
+                className="inline-flex items-center gap-2 mt-2 px-3 py-1 text-xs rounded-full border cursor-pointer transition-all hover:scale-105"
+                style={{
+                  background: useMockData ? "rgba(234,179,8,0.2)" : "rgba(34,197,94,0.2)",
+                  borderColor: useMockData ? "rgba(234,179,8,0.3)" : "rgba(34,197,94,0.3)",
+                  color: useMockData ? "#facc15" : "#22c55e",
+                }}
+              >
+                <span className={`inline-block w-2 h-2 rounded-full ${useMockData ? "bg-yellow-400" : "bg-green-400"}`} />
+                {useMockData ? "Mock Data" : "Live On-Chain"}
+              </button>
             </div>
 
             <h1 className="text-4xl font-bold text-white mb-2">

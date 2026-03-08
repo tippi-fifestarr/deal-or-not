@@ -1,0 +1,14 @@
+{
+  "name": "deal-or-not-agent-server",
+  "version": "1.0.0",
+  "description": "Demo agent server for Deal or NOT game - EV Maximizer strategy",
+  "main": "index.ts",
+  "scripts": {
+    "start": "bun run index.ts",
+    "dev": "bun --watch index.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

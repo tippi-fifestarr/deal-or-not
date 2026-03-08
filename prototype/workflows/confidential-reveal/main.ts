@@ -48,6 +48,7 @@ type Config = {
   chainSelectorName: string;
   gasLimit: string;
   entropyUrl?: string;
+  agentMode?: boolean;
 };
 
 // -- Constants --
@@ -56,13 +57,21 @@ const CASE_VALUES_CENTS = [1n, 5n, 10n, 50n, 100n];
 const NUM_CASES = 5;
 
 // Default entropy URL — mathjs.org randomInt returns a random integer.
-// Called inside the CRE enclave via Confidential HTTP — no node sees the result.
+// Called inside the CRE enclave via Confidential HTTP with encryptOutput=true,
+// so the response is AES-GCM encrypted before leaving the enclave.
+// No workflow DON node can see the entropy value.
 const DEFAULT_ENTROPY_URL = "https://api.mathjs.org/v4/?expr=randomInt(1,1000001)";
 
 // -- ABI Fragments --
 
 const confidentialAbi = parseAbi([
   "function getGameState(uint256 gameId) view returns (address host, address player, uint8 mode, uint8 phase, uint8 playerCase, uint8 currentRound, uint8 totalCollapsed, uint256 bankerOffer, uint256 finalPayout, uint256 ethPerDollar, uint256[5] caseValues, bool[5] opened)",
+  "function fulfillCaseValue(uint256 gameId, uint8 caseIndex, uint256 valueCents)",
+]);
+
+// DealOrNotAgents has a different getGameState return signature
+const agentsAbi = parseAbi([
+  "function getGameState(uint256 gameId) view returns (address agent, uint256 agentId, uint8 phase, uint8 playerCase, uint8 currentRound, uint8 totalCollapsed, uint256 bankerOffer, uint256 finalPayout, uint256 ethPerDollar, uint256[5] caseValues, bool[5] opened)",
   "function fulfillCaseValue(uint256 gameId, uint8 caseIndex, uint256 valueCents)",
 ]);
 
@@ -135,8 +144,10 @@ const onCaseOpenRequested = (runtime: Runtime<Config>, log: EVMLog): string => {
   const contractAddr = runtime.config.contractAddress as Address;
 
   // 1. Read game state from chain
+  const abi = runtime.config.agentMode ? agentsAbi : confidentialAbi;
+
   const readCallData = encodeFunctionData({
-    abi: confidentialAbi,
+    abi,
     functionName: "getGameState",
     args: [gameId],
   });
@@ -153,15 +164,23 @@ const onCaseOpenRequested = (runtime: Runtime<Config>, log: EVMLog): string => {
     .result();
 
   const state = decodeFunctionResult({
-    abi: confidentialAbi,
+    abi,
     functionName: "getGameState",
     data: bytesToHex(stateResult.data),
   });
 
-  const caseValues = state[10] as readonly bigint[];
-  const opened = state[11] as readonly boolean[];
+  // DealOrNotAgents: caseValues at [9], opened at [10]
+  // DealOrNotConfidential: caseValues at [10], opened at [11]
+  const caseValues = runtime.config.agentMode
+    ? (state[9] as readonly bigint[])
+    : (state[10] as readonly bigint[]);
+  const opened = runtime.config.agentMode
+    ? (state[10] as readonly boolean[])
+    : (state[11] as readonly boolean[]);
+  const totalCollapsed = runtime.config.agentMode ? state[5] : state[6];
+  const phase = runtime.config.agentMode ? state[2] : state[3];
 
-  runtime.log(`Game state read: totalCollapsed=${state[6]}, phase=${state[3]}`);
+  runtime.log(`Game state read: totalCollapsed=${totalCollapsed}, phase=${phase}`);
 
   // Reconstruct usedValuesBitmap from already-revealed values
   let usedBitmap = 0n;
@@ -193,6 +212,7 @@ const onCaseOpenRequested = (runtime: Runtime<Config>, log: EVMLog): string => {
       request: {
         url: entropyUrl,
         method: "GET",
+        encryptOutput: true,
       },
       vaultDonSecrets: [],
     })
@@ -220,7 +240,7 @@ const onCaseOpenRequested = (runtime: Runtime<Config>, log: EVMLog): string => {
 
   // 5. Write value to chain via report -> KeystoneForwarder -> contract
   const fulfillCallData = encodeFunctionData({
-    abi: confidentialAbi,
+    abi,
     functionName: "fulfillCaseValue",
     args: [gameId, caseIndex, valueCents],
   });

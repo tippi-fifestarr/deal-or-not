@@ -45,6 +45,7 @@ type Config = {
   geminiModel: string;
   geminiApiKey?: string;  // fallback for simulate mode (prefer Vault DON secret)
   owner?: string;         // Vault DON secret owner for Confidential HTTP
+  agentMode?: boolean;    // true = DealOrNotAgents (different getGameState ABI)
 };
 
 // ── Constants ──
@@ -116,6 +117,12 @@ const confidentialAbi = parseAbi([
   "function setBankerOfferWithMessage(uint256 gameId, uint256 offerCents, string message)",
 ]);
 
+// DealOrNotAgents has a different getGameState return signature
+const agentsAbi = parseAbi([
+  "function getGameState(uint256 gameId) view returns (address agent, uint256 agentId, uint8 phase, uint8 playerCase, uint8 currentRound, uint8 totalCollapsed, uint256 bankerOffer, uint256 finalPayout, uint256 ethPerDollar, uint256[5] caseValues, bool[5] opened)",
+  "function setBankerOfferWithMessage(uint256 gameId, uint256 offerCents, string message)",
+]);
+
 const bestOfBankerAbi = parseAbi([
   "function saveQuote(uint256 gameId, uint8 round, string message)",
 ]);
@@ -150,8 +157,10 @@ const onRoundComplete = (runtime: Runtime<Config>, log: EVMLog): string => {
   const contractAddr = runtime.config.contractAddress as Address;
 
   // 1. Read game state
+  const abi = runtime.config.agentMode ? agentsAbi : confidentialAbi;
+
   const readCallData = encodeFunctionData({
-    abi: confidentialAbi,
+    abi,
     functionName: "getGameState",
     args: [gameId],
   });
@@ -168,16 +177,21 @@ const onRoundComplete = (runtime: Runtime<Config>, log: EVMLog): string => {
     .result();
 
   const state = decodeFunctionResult({
-    abi: confidentialAbi,
+    abi,
     functionName: "getGameState",
     data: bytesToHex(stateResult.data),
   });
 
-  // Destructure game state
-  const phase = Number(state[3]);
-  const currentRound = Number(state[5]);
-  const caseValues = state[10] as readonly bigint[];
-  const opened = state[11] as readonly boolean[];
+  // DealOrNotAgents: phase[2], round[4], values[9], opened[10]
+  // DealOrNotConfidential: phase[3], round[5], values[10], opened[11]
+  const phase = runtime.config.agentMode ? Number(state[2]) : Number(state[3]);
+  const currentRound = runtime.config.agentMode ? Number(state[4]) : Number(state[5]);
+  const caseValues = runtime.config.agentMode
+    ? (state[9] as readonly bigint[])
+    : (state[10] as readonly bigint[]);
+  const opened = runtime.config.agentMode
+    ? (state[10] as readonly boolean[])
+    : (state[11] as readonly boolean[]);
 
   // Phase 4 = AwaitingOffer — only make offers in this phase
   if (phase !== 4) {
@@ -243,7 +257,7 @@ const onRoundComplete = (runtime: Runtime<Config>, log: EVMLog): string => {
 
   // 5. Write setBankerOfferWithMessage on-chain
   const writeCallData = encodeFunctionData({
-    abi: confidentialAbi,
+    abi,
     functionName: "setBankerOfferWithMessage",
     args: [gameId, offerCents, bankerMessage],
   });

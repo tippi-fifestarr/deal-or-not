@@ -5,6 +5,7 @@ import { WagmiProvider, createConfig, http } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 import { type ReactNode, useState } from "react";
+import { MockDataProvider } from "@/contexts/MockDataContext";
 
 const config = createConfig({
   chains: [baseSepolia],
@@ -21,7 +22,9 @@ export default function Web3Provider({ children }: { children: ReactNode }) {
 
   return (
     <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <MockDataProvider>{children}</MockDataProvider>
+      </QueryClientProvider>
     </WagmiProvider>
   );
 }

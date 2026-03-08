@@ -14,10 +14,11 @@ import {
   STATUS_LABELS,
 } from "@/hooks/useMarkets";
 import { useAllAgents } from "@/hooks/useAgents";
-import { USE_MOCK_DATA } from "@/lib/config";
+import { useMockDataToggle } from "@/contexts/MockDataContext";
 
 export default function MyBetsPage() {
   const router = useRouter();
+  const { useMockData, toggleMockData } = useMockDataToggle();
   const { isConnected } = useAccount();
   const [filter, setFilter] = useState<"all" | "active" | "claimable">("all");
 
@@ -35,7 +36,7 @@ export default function MyBetsPage() {
   const agentNames: Record<number, string> = {};
   agents.forEach(a => { agentNames[a.id] = a.name; });
 
-  if (!isConnected && !USE_MOCK_DATA) {
+  if (!isConnected && !useMockData) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         <GlassCard className="p-12 text-center">
@@ -82,7 +83,7 @@ export default function MyBetsPage() {
 
   const handleClaimPayout = async (betId: number) => {
     setClaimingBetId(betId);
-    if (USE_MOCK_DATA) {
+    if (useMockData) {
       await new Promise(r => setTimeout(r, 1000));
       alert("Claimed (mock)!");
       setClaimingBetId(null);
@@ -121,11 +122,18 @@ export default function MyBetsPage() {
         </button>
         <div className="flex items-center gap-3">
           <h1 className="text-4xl font-bold text-white mb-2">My Bets</h1>
-          {USE_MOCK_DATA && (
-            <span className="px-2 py-0.5 text-xs bg-yellow-500/20 text-yellow-400 rounded-full border border-yellow-500/30">
-              Mock
-            </span>
-          )}
+          <button
+            onClick={toggleMockData}
+            className="inline-flex items-center gap-2 mt-2 px-3 py-1 text-xs rounded-full border cursor-pointer transition-all hover:scale-105"
+            style={{
+              background: useMockData ? "rgba(234,179,8,0.2)" : "rgba(34,197,94,0.2)",
+              borderColor: useMockData ? "rgba(234,179,8,0.3)" : "rgba(34,197,94,0.3)",
+              color: useMockData ? "#facc15" : "#22c55e",
+            }}
+          >
+            <span className={`inline-block w-2 h-2 rounded-full ${useMockData ? "bg-yellow-400" : "bg-green-400"}`} />
+            {useMockData ? "Mock Data" : "Live On-Chain"}
+          </button>
         </div>
         <p className="text-gray-400">Track your predictions and claim your winnings.</p>
       </div>
