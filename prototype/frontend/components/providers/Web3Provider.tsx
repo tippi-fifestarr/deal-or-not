@@ -3,18 +3,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { baseSepolia, sepolia } from "wagmi/chains";
-import { injected, walletConnect } from "wagmi/connectors";
+import { injected } from "wagmi/connectors";
 import {
   RainbowKitProvider,
   darkTheme,
-  connectorsForWallets,
-  getDefaultWallets,
 } from "@rainbow-me/rainbowkit";
 import { type ReactNode, useState, useEffect } from "react";
 import { MockDataProvider } from "@/contexts/MockDataContext";
 import "@rainbow-me/rainbowkit/styles.css";
-
-const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "deal-or-not-dev";
 
 const config = createConfig({
   chains: [baseSepolia, sepolia],

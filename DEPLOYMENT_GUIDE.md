@@ -1,249 +1,263 @@
-# Deployment Guide - Deal or NOT Agent Infrastructure
+# Deployment Guide: Deal or NOT
 
-## What's Ready to Deploy
+All contracts deploy to Base Sepolia via Foundry. The Gateway (CCIP spoke) deploys to ETH Sepolia.
 
-### ✅ Contracts (100% Complete)
-- **AgentRegistry.sol** - Agent registration, stats tracking, API endpoint management
-- **AgentStaking.sol** - ETH staking on agents, reward distribution
-- **SeasonalLeaderboard.sol** - Monthly tournaments, point system, prize distribution
-- **PredictionMarket.sol** - Betting markets on game outcomes
+## Prerequisites
 
-### ✅ CRE Workflows (100% Complete)
-- **agent-gameplay-orchestrator** - Autonomous agent gameplay (compiles ✓)
-  - HTTP client: Uses Node.js `fetch()` for agent API calls
-  - Event handlers: GameCreated, RoundComplete, BankerOfferMade, GameResolved
-  - Stats tracking: Auto-updates AgentRegistry after game completion
+1. [Foundry](https://book.getfoundry.sh/) installed (`forge`, `cast`)
+2. Deployer wallet with ETH on Base Sepolia (and ETH Sepolia for CCIP)
+3. VRF subscription funded with LINK: [vrf.chain.link](https://vrf.chain.link)
 
-### ✅ Contract Updates
-- **AgentRegistry** enhancements:
-  - `playerToAgentId` mapping for O(1) lookups
-  - `getAgentId(address)` - for CRE orchestrator
-  - `isAgentEligible(address)` - overloaded for address-based checks
-  - `getAgentEndpoint(address)` - overloaded for orchestrator
-  - `updateAgentStats()` - alias for `recordGame()` (CRE compat)
+## Environment Setup
 
----
+Everything runs through `prototype/scripts/env.sh`, which reads keys from `prototype/.env` (gitignored) or falls back to `prototype/.env.example`.
 
-## Deployment Script
+```bash
+# From the repo root:
+source prototype/scripts/env.sh
 
-**Location**: `/Users/uni/deal-or-not/prototype/contracts/script/DeployAgentInfrastructure.s.sol`
+# This exports: DEPLOYER_KEY, DEPLOYER_ADDR, PLAYER_KEY, PLAYER_ADDR,
+#               PRIVATE_KEY (alias for DEPLOYER_KEY, used by forge scripts),
+#               RPC_URL, CONTRACT, BEST_OF_BANKER, SPONSOR_JACKPOT, etc.
+```
 
-**What it deploys**:
-1. AgentRegistry
-2. AgentStaking (linked to AgentRegistry)
-3. SeasonalLeaderboard (linked to AgentRegistry)
-4. PredictionMarket
+Before hackathon submission, move keys from `.env.example` to `.env` (gitignored) and strip keys from `.env.example` so they're not in the repo.
 
-**Command**:
+For manual forge deploys, env.sh exports `PRIVATE_KEY` so forge scripts work directly:
+```bash
+source prototype/scripts/env.sh
+cd prototype/contracts
+forge script script/DeployDealOrNotAgents.s.sol:DeployDealOrNotAgents \
+  --rpc-url $RPC_URL --broadcast
+```
+
+Or use the deploy helper:
+```bash
+bash prototype/scripts/deploy.sh all        # Deploy + wire everything
+bash prototype/scripts/deploy.sh agents     # Just DealOrNotAgents
+bash prototype/scripts/deploy.sh wire       # Post-deploy authorizations
+bash prototype/scripts/deploy.sh verify     # Sourcify verification
+bash prototype/scripts/deploy.sh addresses  # Show all current addresses
+```
+
+## Compile and Test
+
 ```bash
 cd prototype/contracts
+forge build    # Should compile with warnings only
+forge test     # 204 tests across 9 suites, all passing
+```
+
+The `chainlink-brownie-contracts` submodule should be at v1.3.0 (`5cb41fbc`) for CCIP support.
+If CCIP contracts fail to compile:
+```bash
+cd lib/chainlink-brownie-contracts
+git checkout 5cb41fbc   # v1.3.0 (has CCIP support)
+cd ../..
+```
+
+## What to Deploy
+
+There are 8 deploy scripts. Not all contracts need redeploying every time.
+
+| Script | Deploys | When to Use |
+|--------|---------|-------------|
+| `DeployConfidential.s.sol` | DealOrNotConfidential (core game) | Rarely, already deployed |
+| `DeployBestOfBanker.s.sol` | BestOfBanker (AI quote gallery) | Rarely, already deployed |
+| `DeploySponsorJackpot.s.sol` | SponsorJackpot | Rarely, already deployed |
+| `DeployBridge.s.sol` | DealOrNotBridge (CCIP hub, Base Sepolia) | When CCIP changes |
+| `DeployGateway.s.sol` | DealOrNotGateway (CCIP spoke, ETH Sepolia) | When CCIP changes |
+| `DeployAgentInfrastructure.s.sol` | AgentStaking, SeasonalLeaderboard, PredictionMarket | When agent infra changes |
+| `DeployDealOrNotAgents.s.sol` | DealOrNotAgents + MockKeystoneForwarder | When agent game logic changes |
+| `DeploySharedPriceFeed.s.sol` | SharedPriceFeed | First deploy or price feed changes |
+
+## Deploy Commands
+
+### Agent Game (DealOrNotAgents)
+
+```bash
+cd prototype/contracts
+
+# Loads PRIVATE_KEY from .env
+source .env 2>/dev/null
+
+forge script script/DeployDealOrNotAgents.s.sol:DeployDealOrNotAgents \
+  --rpc-url $RPC_URL \
+  --broadcast
+```
+
+Outputs:
+- MockKeystoneForwarder address
+- DealOrNotAgents address
+
+### Agent Infrastructure (Staking, Leaderboard, Markets)
+
+Only needed if AgentStaking, SeasonalLeaderboard, or PredictionMarket code changed.
+
+```bash
 forge script script/DeployAgentInfrastructure.s.sol:DeployAgentInfrastructure \
   --rpc-url $RPC_URL \
-  --broadcast \
-  --verify
+  --broadcast
 ```
 
----
+Uses existing AgentRegistry at `0xf3B0d29416d3504c802bab4A799349746A37E788`.
 
-## Post-Deployment Configuration
+### SharedPriceFeed
 
-After deploying, you need to authorize contracts to interact with each other:
-
-### 1. Authorize DealOrNotConfidential to update AgentRegistry
 ```bash
-REGISTRY_ADDR=<AgentRegistry_address>
-GAME_ADDR=0xd9D4A974021055c46fD834049e36c21D7EE48137  # Base Sepolia
+# Base Sepolia (default ETH/USD feed)
+forge script script/DeploySharedPriceFeed.s.sol \
+  --rpc-url $RPC_URL \
+  --broadcast
 
-cast send $REGISTRY_ADDR \
-  "authorizeContract(address)" \
-  $GAME_ADDR \
-  --private-key $DEPLOYER_KEY \
-  --rpc-url $RPC_URL
+# ETH Sepolia (different feed address)
+PRICE_FEED=0x694AA1769357215DE4FAC081bf1f309aDC325306 \
+forge script script/DeploySharedPriceFeed.s.sol \
+  --rpc-url $ETH_SEPOLIA_RPC \
+  --broadcast
 ```
 
-### 2. Authorize SeasonalLeaderboard to record games
-```bash
-LEADERBOARD_ADDR=<SeasonalLeaderboard_address>
+## Post-Deploy Wiring
 
+After deploying new contracts, they need to be authorized to talk to each other.
+
+### After deploying DealOrNotAgents
+
+```bash
+# 1. Add as VRF consumer at https://vrf.chain.link
+#    Subscription ID: 20136374336138753384898843390506225296052091906296406953567310616148092014984
+
+# 2. Authorize in AgentRegistry
+cast send 0xf3B0d29416d3504c802bab4A799349746A37E788 \
+  "authorizeContract(address)" $NEW_AGENTS_ADDR \
+  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
+
+# 3. Authorize in AgentStaking (so DealOrNotAgents can add rewards)
+cast send $STAKING_ADDR \
+  "setAuthorizedCaller(address,bool)" $NEW_AGENTS_ADDR true \
+  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
+
+# 4. Authorize in SeasonalLeaderboard
 cast send $LEADERBOARD_ADDR \
-  "authorizeRecorder(address)" \
-  $GAME_ADDR \
-  --private-key $DEPLOYER_KEY \
-  --rpc-url $RPC_URL
+  "authorizeRecorder(address)" $NEW_AGENTS_ADDR \
+  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
 ```
 
-### 3. Authorize PredictionMarket resolver (for CRE workflow)
-```bash
-MARKET_ADDR=<PredictionMarket_address>
-CRE_RESOLVER=<CRE_orchestrator_or_admin>
+### After deploying AgentStaking
 
-cast send $MARKET_ADDR \
-  "authorizeResolver(address)" \
-  $CRE_RESOLVER \
-  --private-key $DEPLOYER_KEY \
-  --rpc-url $RPC_URL
+```bash
+# Authorize DealOrNotAgents to add rewards
+cast send $NEW_STAKING_ADDR \
+  "setAuthorizedCaller(address,bool)" $AGENTS_ADDR true \
+  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
 ```
 
-### 4. Start First Season (Optional)
+### After deploying SeasonalLeaderboard
+
 ```bash
-cast send $LEADERBOARD_ADDR \
+# Authorize recorder + start first season
+cast send $NEW_LEADERBOARD_ADDR \
+  "authorizeRecorder(address)" $AGENTS_ADDR \
+  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
+
+cast send $NEW_LEADERBOARD_ADDR \
   "startSeason()" \
-  --private-key $DEPLOYER_KEY \
-  --rpc-url $RPC_URL
+  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
 ```
 
----
+## Update Frontend
 
-## CRE Workflow Deployment
+After deploying, update the addresses in `prototype/frontend/lib/chains.ts`:
 
-### Prerequisites
-- Contracts deployed (addresses above)
-- CRE CLI installed: `npm install -g @chainlink/cre`
+```typescript
+export const CHAIN_CONTRACTS = {
+  [baseSepolia.id]: {
+    dealOrNot: "0xd9D4A974021055c46fD834049e36c21D7EE48137",
+    // ... update any redeployed contract addresses here
+    dealOrNotAgents: "NEW_ADDRESS_HERE",
+    agentStaking: "NEW_ADDRESS_HERE",
+  },
+};
+```
 
-### Deploy agent-gameplay-orchestrator
-
-1. **Update config with contract addresses**:
+Then rebuild the frontend:
 ```bash
-cd prototype/workflows/agent-gameplay-orchestrator
+cd prototype/frontend
+npm run build
 ```
 
-Edit `config.staging.json`:
-```json
-{
-  "contractAddress": "0xd9D4A974021055c46fD834049e36c21D7EE48137",
-  "agentRegistryAddress": "<AgentRegistry_address>",
-  "chainSelectorName": "base-sepolia",
-  "gasLimit": "500000",
-  "httpTimeout": 30000
-}
-```
+## Verify on Sourcify
 
-2. **Deploy to CRE**:
+Sourcify verification is free (no API key needed) and works with Blockscout:
+
 ```bash
-cre deploy --config config.staging.json
+forge verify-contract $CONTRACT_ADDR ContractName \
+  --verifier sourcify \
+  --chain-id 84532 \
+  --watch
 ```
 
-3. **Monitor logs**:
+For contracts with constructor args, add `--constructor-args $(cast abi-encode "constructor(address)" $ARG)`.
+
+## Currently Deployed (Base Sepolia)
+
+| Contract | Address | Status |
+|----------|---------|--------|
+| DealOrNotConfidential | [`0xd9D4A974021055c46fD834049e36c21D7EE48137`](https://sepolia.basescan.org/address/0xd9D4A974021055c46fD834049e36c21D7EE48137) | Active, core game |
+| BestOfBanker | [`0x05EdC924f92aBCbbB91737479948509dC7E23bF9`](https://sepolia.basescan.org/address/0x05EdC924f92aBCbbB91737479948509dC7E23bF9) | Active |
+| SponsorJackpot | [`0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95`](https://sepolia.basescan.org/address/0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95) | Active |
+| DealOrNotBridge | [`0xcF3B0d1575b30B53d8Db4EDe30Ebb47D51a2650a`](https://sepolia.basescan.org/address/0xcF3B0d1575b30B53d8Db4EDe30Ebb47D51a2650a) | CCIP hub |
+| AgentRegistry | [`0xf3B0d29416d3504c802bab4A799349746A37E788`](https://base-sepolia.blockscout.com/address/0xf3B0d29416d3504c802bab4A799349746A37E788) | Active |
+| DealOrNotAgents | [`0x12e23ff7954c62ae18959c5fd4aed6b51ebcd627`](https://base-sepolia.blockscout.com/address/0x12e23ff7954c62ae18959c5fd4aed6b51ebcd627) | Redeployed Mar 8 (price validation, staleness, swap fix) |
+| MockKeystoneForwarder | [`0xf958dfa3167bea463a624dc03dcfa3b55e56043a`](https://base-sepolia.blockscout.com/address/0xf958dfa3167bea463a624dc03dcfa3b55e56043a) | For DealOrNotAgents |
+| AgentStaking | [`0xd46eba96e29e83952ec0ef74eed3c7eb1a4ba6b4`](https://base-sepolia.blockscout.com/address/0xd46eba96e29e83952ec0ef74eed3c7eb1a4ba6b4) | Redeployed Mar 8 (emergency withdraw, reward loss fix) |
+| SeasonalLeaderboard | [`0x13c3c750ed19c935567dcb54ee4e88ff6789001a`](https://base-sepolia.blockscout.com/address/0x13c3c750ed19c935567dcb54ee4e88ff6789001a) | Redeployed Mar 8 |
+| PredictionMarket | [`0x05408be7468d01852002156a1b380e3953a502ee`](https://base-sepolia.blockscout.com/address/0x05408be7468d01852002156a1b380e3953a502ee) | Redeployed Mar 8 |
+| SharedPriceFeed | [`0x91d8104e6e138607c00dd0bc132e1291a641c36d`](https://base-sepolia.blockscout.com/address/0x91d8104e6e138607c00dd0bc132e1291a641c36d) | New, deployed Mar 8 |
+
+### ETH Sepolia
+
+| Contract | Address |
+|----------|---------|
+| DealOrNotGateway | [`0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124`](https://sepolia.etherscan.io/address/0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124) |
+
+### Chainlink Infrastructure (Base Sepolia)
+
+| Service | Address |
+|---------|---------|
+| VRF Coordinator | `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE` |
+| ETH/USD Price Feed | `0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1` |
+| CRE Keystone Forwarder | `0x82300bd7c3958625581cc2F77bC6464dcEcDF3e5` |
+
+## Quick Verification
+
 ```bash
-cre logs agent-gameplay-orchestrator -f
+# Check AgentRegistry has agents
+cast call 0xf3B0d29416d3504c802bab4A799349746A37E788 "nextAgentId()(uint256)" --rpc-url https://sepolia.base.org
+
+# Check DealOrNotAgents game count
+cast call 0x12e23ff7954c62ae18959c5fd4aed6b51ebcd627 "nextGameId()(uint256)" --rpc-url https://sepolia.base.org
+
+# Check core game is active
+cast call 0xd9D4A974021055c46fD834049e36c21D7EE48137 "nextGameId()(uint256)" --rpc-url https://sepolia.base.org
 ```
 
----
+## Deployment Checklist (fix/pr15-audit-fixes)
 
-## Known Issues & Workarounds
-
-### Foundry Compilation Error (Broken Pipe)
-**Issue**: `forge build` fails with "Broken pipe (os error 32)" on macOS
-
-**Root cause**: Verbose output + terminal buffer issues on Darwin 20.6.0
-
-**Workarounds**:
-1. **Use different machine**: Build on Linux or newer macOS
-2. **Use pre-compiled artifacts**: Contracts already compile on GitHub Actions
-3. **Deploy via Remix**: Copy contract code to Remix IDE and deploy manually
-4. **Use solc directly**: Skip forge and use raw solc compiler
-
-### Missing CCIP Dependencies
-**Issue**: `chainlink-brownie-contracts` missing CCIP files
-
-**Affected contracts**: `DealOrNotBridge.sol`, `DealOrNotGateway.sol` (not needed for agent infrastructure)
-
-**Workaround**: Agent contracts don't use CCIP, so can deploy without fixing this
-
----
-
-## Testing the Agent Orchestrator
-
-### 1. Register a Test Agent
-```bash
-REGISTRY_ADDR=<AgentRegistry_address>
-
-cast send $REGISTRY_ADDR \
-  "registerAgent(string,string,string)" \
-  "TestAgent" \
-  "https://test-agent.example.com/api" \
-  '{"version":"1.0"}' \
-  --private-key $AGENT_OWNER_KEY \
-  --rpc-url $RPC_URL
-```
-
-### 2. Create a Game with Agent as Player
-```bash
-GAME_ADDR=0xd9D4A974021055c46fD834049e36c21D7EE48137
-
-cast send $GAME_ADDR \
-  "createGame()" \
-  --from <agent_owner_address> \
-  --private-key $AGENT_OWNER_KEY \
-  --rpc-url $RPC_URL
-```
-
-### 3. Watch CRE Orchestrator Logs
-The orchestrator will:
-- Detect the agent game via `GameCreated` event
-- Call the agent API at each decision point
-- Execute agent decisions on-chain
-- Update AgentRegistry stats on completion
-
----
-
-## Deployment Checklist
-
-- [ ] Fix Foundry compilation (or use workaround)
-- [ ] Deploy AgentRegistry, AgentStaking, SeasonalLeaderboard, PredictionMarket
-- [ ] Authorize DealOrNotConfidential on AgentRegistry
-- [ ] Authorize SeasonalLeaderboard as recorder
-- [ ] Deploy agent-gameplay-orchestrator CRE workflow
-- [ ] Register test agent
-- [ ] Run E2E test: agent plays full game
-- [ ] Verify stats updated in AgentRegistry
-- [ ] Deploy prediction market UI integration
-- [ ] Polish agent dashboard
-
----
-
-## Next Steps After Deployment
-
-1. **Build Prediction Market UI** (`prototype/frontend/`)
-   - Market creation form
-   - Betting interface with odds display
-   - Live market stats
-   - Claim payouts UI
-
-2. **Agent Dashboard** (`prototype/frontend/app/agents/`)
-   - Leaderboard with live rankings
-   - Agent registration form
-   - Staking interface
-   - Stats visualization
-
-3. **Demo Agent Implementation**
-   - Simple HTTP server with decision logic
-   - Deploy to Fly.io or Railway
-   - Register in AgentRegistry
-   - Test full gameplay loop
-
-4. **Hackathon Submission Video**
-   - Show agent vs agent gameplay
-   - Demonstrate prediction markets
-   - Highlight CRE workflows
-   - Walk through leaderboard and staking
-
----
-
-## Deployed Contracts (Existing)
-
-From Tippi's previous work:
-
-- **DealOrNotConfidential**: `0xd9D4A974021055c46fD834049e36c21D7EE48137` (Base Sepolia)
-- **BestOfBanker**: `0x05EdC924f92aBCbbB91737479948509dC7E23bF9` (Base Sepolia)
-- **SponsorJackpot**: `0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95` (Base Sepolia)
-
----
-
-## Contact
-
-- GitHub: https://github.com/rdobbeck/deal-or-not
-- Branch: `feat/glass-ui-agent-integration`
-- Commits: 3 new commits with agent orchestrator + registry fixes
-
-**Ready for deployment when Foundry issues are resolved!**
+- [x] Forge build passes (204 tests, 0 failures)
+- [x] CCIP submodule fixed (v1.2.0 to v1.3.0)
+- [x] Deploy new DealOrNotAgents (`0x12e2...`) with price validation, staleness, swap flag fixes
+- [x] Deploy new AgentStaking (`0xd46e...`) with emergency withdraw, reward loss fixes
+- [x] Deploy new SeasonalLeaderboard (`0x13c3...`)
+- [x] Deploy new PredictionMarket (`0x0540...`)
+- [x] Deploy SharedPriceFeed (`0x91d8...`) with staleness + decimals validation
+- [ ] Add DealOrNotAgents as VRF consumer at https://vrf.chain.link
+- [x] Authorize DealOrNotAgents in AgentRegistry
+- [x] Authorize DealOrNotAgents in AgentStaking
+- [x] Authorize DealOrNotAgents in SeasonalLeaderboard
+- [x] Update `prototype/frontend/lib/chains.ts` with new addresses
+- [x] Frontend `npm run build` passes with new addresses
+- [ ] Verify contracts on Sourcify
+- [ ] Manual test: create agent game, verify price validation works
+- [ ] Manual test: frontend renders agent game state correctly
+- [ ] Move burner keys from `.env.example` to `.env` before submission

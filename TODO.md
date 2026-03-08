@@ -11,20 +11,20 @@ Audit findings from PR #15 review. Prioritized by judge impact.
 
 ## Critical (Chainlink best-practice violations)
 
-- [ ] **SharedPriceFeed: staleness check in `_getPrice()`** — Only `snapshotPriceWithStaleness()` checks freshness. The other 4 functions (`usdToWei`, `weiToUsd`, `getEthUsdPrice`, `snapshotPrice`) accept arbitrarily stale prices. Add a default staleness constant or require staleness on all reads.
-- [ ] **SharedPriceFeed: validate `decimals()` in constructor** — Math assumes 8-decimal feeds. Add `require(AggregatorV3Interface(_priceFeed).decimals() == 8)` to prevent silent miscalculation.
+- [x] **SharedPriceFeed: staleness check in `_getPrice()`** — Added `DEFAULT_MAX_STALENESS = 3600` constant, all reads now check freshness. *(fix/pr15-audit-fixes)*
+- [x] **SharedPriceFeed: validate `decimals()` in constructor** — Added `if (feed.decimals() != 8) revert UnexpectedDecimals()`. *(fix/pr15-audit-fixes)*
 
 ## High (Judges will probe)
 
-- [ ] **CrossChainJoin: fake CCIP delivery confirmation** — `setTimeout(() => setBridgeState("success"), 3000)` doesn't verify cross-chain delivery. Either poll CCIP Explorer API or show "pending" with a link instead of "confirmed."
+- [x] **CrossChainJoin: fake CCIP delivery confirmation** — Replaced `setTimeout` with `useWaitForTransactionReceipt` hook. Shows real TX status. *(fix/pr15-audit-fixes)*
 - [ ] **CRE privacy angle undersold on landing page** — Lead CRE section copy with the privacy narrative ("the DON sees nothing, the blockchain sees nothing"). Confidential HTTP for Gemini + enclave case reveals is the most novel integration — sell it.
-- [ ] **SharedPriceFeed: add fuzz tests** — All test values are hardcoded. Add `testFuzz_UsdToWei_Roundtrip(uint256 cents)` and `testFuzz_CentsToWeiSnapshot(uint256 cents, int256 price)` to demonstrate robustness.
+- [x] **SharedPriceFeed: add fuzz tests** — Added `testFuzz_UsdToWei_Roundtrip` and `testFuzz_CentsToWeiSnapshot`. *(fix/pr15-audit-fixes)*
 
 ## Medium (Code quality)
 
-- [ ] **Web3Provider: remove unused imports** — `connectorsForWallets`, `getDefaultWallets`, `walletConnect` are imported but never used. Only `injected()` is configured, `projectId` is dead code.
+- [x] **Web3Provider: remove unused imports** — Removed `connectorsForWallets`, `getDefaultWallets`, `walletConnect`, dead `projectId`. *(fix/pr15-audit-fixes)*
 - [ ] **Extract reopen-offer pill** — The "reopen banker offer" button markup is duplicated between `GameBoard.tsx` and `watch/[id]/page.tsx`. Extract to a shared component.
-- [ ] **CCIP Explorer link format** — Verify `msg/${txHash}` is correct (should it be message ID, not source TX hash?).
+- [x] **CCIP Explorer link format** — Fixed to `#/side-drawer/msg/${txHash}`. *(fix/pr15-audit-fixes)*
 
 ## Low (Polish)
 

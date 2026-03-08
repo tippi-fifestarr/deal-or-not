@@ -27,6 +27,7 @@ dist
 .playwright-mcp/
 
 # CRE workflow secrets and runtime configs
+prototype/.env
 prototype/workflows/.env
 prototype/workflows/*/config.staging.json
 prototype/workflows/*/bun.lockb

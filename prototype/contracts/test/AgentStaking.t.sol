@@ -306,17 +306,45 @@ contract AgentStakingTest is Test {
         staking.setAuthorizedCaller(address(0xCA11), true);
     }
 
-    function test_EmergencyWithdraw() public {
-        vm.deal(address(staking), 5 ether);
+    function test_EmergencyWithdraw_OnlyExcess() public {
+        // Bob stakes 1 ETH
+        vm.deal(bob, 1 ether);
+        vm.prank(bob);
+        staking.stake{value: 1 ether}(agentId);
+
+        // Someone sends 2 ETH directly (excess)
+        vm.deal(address(staking), 3 ether); // 1 staked + 2 excess
+
         uint256 before = admin.balance;
         staking.emergencyWithdraw();
-        assertEq(admin.balance, before + 5 ether);
+        // Should only withdraw 2 ETH excess, not the 1 ETH staked
+        assertEq(admin.balance, before + 2 ether);
+        // Staked funds remain
+        assertEq(address(staking).balance, 1 ether);
+    }
+
+    function test_EmergencyWithdraw_NoExcess_Reverts() public {
+        // Bob stakes 1 ETH, no excess
+        vm.deal(bob, 1 ether);
+        vm.prank(bob);
+        staking.stake{value: 1 ether}(agentId);
+
+        vm.expectRevert(AgentStaking.ZeroAmount.selector);
+        staking.emergencyWithdraw();
     }
 
     function test_EmergencyWithdraw_NotAdmin_Reverts() public {
         vm.prank(bob);
         vm.expectRevert(AgentStaking.Unauthorized.selector);
         staking.emergencyWithdraw();
+    }
+
+    // ── Reward with no stakers ──
+
+    function test_AddReward_NoStakers_Reverts() public {
+        vm.deal(admin, 1 ether);
+        vm.expectRevert(AgentStaking.NoStakersToReward.selector);
+        staking.addAgentReward{value: 0.1 ether}(agentId, 0);
     }
 
     // Needed to receive ETH from emergency withdraw

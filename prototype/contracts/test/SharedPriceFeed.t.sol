@@ -229,4 +229,59 @@ contract SharedPriceFeedTest is Test {
         // Snapshot should give ~2x the live amount (old price was half)
         assertApproxEqRel(snapshotWei, liveWei * 2, 0.001e18);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        DECIMALS VALIDATION
+    //////////////////////////////////////////////////////////////*/
+
+    function test_Constructor_RevertsOnWrongDecimals() public {
+        MockV3Aggregator wrongDecimals = new MockV3Aggregator(18, 2000e18);
+        vm.expectRevert(SharedPriceFeed.UnexpectedDecimals.selector);
+        new SharedPriceFeed(address(wrongDecimals));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        DEFAULT STALENESS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_GetPrice_RevertsWhenStale() public {
+        vm.warp(block.timestamp + 3601);
+        vm.expectRevert(SharedPriceFeed.StalePriceFeed.selector);
+        feed.getEthUsdPrice();
+    }
+
+    function test_UsdToWei_RevertsWhenStale() public {
+        vm.warp(block.timestamp + 3601);
+        vm.expectRevert(SharedPriceFeed.StalePriceFeed.selector);
+        feed.usdToWei(25);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        FUZZ TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function testFuzz_UsdToWei_Roundtrip(uint256 cents) public view {
+        // Bound to reasonable range: 1 cent to $1M
+        cents = bound(cents, 1, 100_000_000);
+        uint256 weiAmount = feed.usdToWei(cents);
+        uint256 centsBack = feed.weiToUsd(weiAmount);
+        // Allow 1 cent rounding
+        assertApproxEqAbs(centsBack, cents, 1);
+    }
+
+    function testFuzz_CentsToWeiSnapshot(uint256 cents, int256 price) public {
+        // Bound price to realistic range: $100-$100k (8 decimals)
+        price = int256(bound(uint256(price), 100e8, 100_000e8));
+        cents = bound(cents, 0, 100_000_000);
+
+        mockAggregator.updateAnswer(price);
+        uint256 ethPerDollar = feed.snapshotPrice();
+        uint256 weiResult = feed.centsToWeiSnapshot(cents, ethPerDollar);
+
+        if (cents == 0) {
+            assertEq(weiResult, 0);
+        } else {
+            assertTrue(weiResult > 0);
+        }
+    }
 }
