@@ -1,27 +1,16 @@
 # Deal or NOT — Frontend
 
-Playable Deal or No Deal with CRE Confidential Compute on Base Sepolia.
+Next.js 16 frontend for Deal or NOT on Base Sepolia. Convergence edition.
 
 ## Quick Start
 
 ```bash
-cd prototype/frontend
-npm install
-npm run dev
+cd packages/convergence/dealornot
+bun install
+bun run dev
 ```
 
 Open http://localhost:3000, connect MetaMask to Base Sepolia.
-
-## Before Playing
-
-1. **Add contract as VRF consumer** on the Chainlink VRF subscription (requires the subscription owner wallet):
-   - Go to https://vrf.chain.link on Base Sepolia
-   - Find subscription `20136374336138753384898843390506225296052091906296406953567310616148092014984`
-   - Add `0xd9D4A974021055c46fD834049e36c21D7EE48137` as a consumer
-2. **Import a burner wallet** into MetaMask on Base Sepolia
-   - Deployer PK: `0x671ea01f6ac1b2d53d49eea104c69e64680ddecc230e5faed864ecd055fbb6fd`
-   - Player PK: `0x7bccdcecede835466aafe20ea5aa11bad825c5bea940473e4f865b8013fc2340`
-   - Both have Base Sepolia ETH
 
 ## Deployed Addresses (Base Sepolia 84532)
 
@@ -29,30 +18,16 @@ All addresses are hardcoded in `lib/config.ts` — no `.env` needed.
 
 | Contract | Address |
 |----------|---------|
-| **DealOrNotConfidential** (CRE) | `0xd9D4A974021055c46fD834049e36c21D7EE48137` |
-| **SponsorJackpot** | `0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95` |
+| **DealOrNotQuickPlay** | `0x46B6b547A4683ac5533CAce6aDc4d399b50424A7` |
+| **Bank** | `0x5De581956fcCEAae90a0C4cf02E4bDDC7F1253BB` |
+| **SponsorVault** | `0x14a26cb376d8e36c47261A46d6b203A7BaADaE53` |
+| **BestOfBanker** | `0x55100EF4168d21631EEa6f2b73D6303Bb008F554` |
+| **DealOrNotBridge** (CCIP) | `0xB233eFD1623f843151C97a1fB32f9115AaE6a875` |
+| **AgentRegistry** | `0x2eDE9C65F4Ff33F4190aee798478bb579f248F52` |
+| **SharedPriceFeed** | `0x9AB27e309E677c0ec488E37E8F3B193958D2bBc7` |
 | VRF Coordinator | `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE` |
 | ETH/USD Price Feed | `0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1` |
-| LINK Token | `0xE4aB69C077896252FAFBD49EFD26B5D171A32410` |
-
-### CRE Forwarder Addresses (Base Sepolia)
-
-| Environment | Address |
-|-------------|---------|
-| **Simulation** (MockKeystoneForwarder) | `0x82300bd7c3958625581cc2f77bc6464dcecdf3e5` |
-| **Production** (KeystoneForwarder) | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` |
-
-Currently set to MockKeystoneForwarder for `cre simulate --broadcast` testing. Switch to production via:
-```bash
-cast send 0xd9D4A974021055c46fD834049e36c21D7EE48137 "setCREForwarder(address)" 0xF8344CFd5c43616a4366C34E3EEE75af79a74482 --private-key $DEPLOYER_PK --rpc-url https://base-sepolia-rpc.publicnode.com
-```
-
-| Wallet | Address |
-|--------|---------|
-| Deployer / Host | `0x75a32D24fd4EDB2C5895aCE905dA5Ee1fBD584A1` |
-| Player | `0xC96Bcb1EACE35d09189a6e52758255b8951a7587` |
-
-VRF Subscription ID: `20136374336138753384898843390506225296052091906296406953567310616148092014984`
+| CRE Keystone Forwarder | `0x82300bd7c3958625581cc2F77bC6464dcEcDF3e5` |
 
 ## Game Flow
 
@@ -102,8 +77,16 @@ Current sponsors: Ceptor Club, Chainlink, letswritean.email, Wingbird Enterprise
 ### Running Tests
 
 ```bash
+# E2E browser tests (Playwright)
+bun run test:e2e              # headless
+bun run test:e2e:headed       # with browser visible
+bun run test:e2e:ui           # Playwright UI mode
+
+# Unit tests
 npx tsx --test lib/ads.test.ts
 ```
+
+E2E specs in `e2e/`: homepage, watch lobby, watch game (spectator), agents, markets.
 
 ## Known Issues
 

@@ -60,6 +60,12 @@ The `prototype/` package proved the concept: 5-case Deal or NOT with VRF randomn
 | **BestOfBanker** | [`0x55100EF4168d21631EEa6f2b73D6303Bb008F554`](https://sepolia.basescan.org/address/0x55100EF4168d21631EEa6f2b73D6303Bb008F554) |
 | **DealOrNotBridge** (CCIP hub) | [`0xB233eFD1623f843151C97a1fB32f9115AaE6a875`](https://sepolia.basescan.org/address/0xB233eFD1623f843151C97a1fB32f9115AaE6a875) |
 | **DealOrNotGateway** (ETH Sepolia, CCIP spoke) | [`0x366215E1F493f3420AbD5551c0618c2B28CBc18A`](https://sepolia.etherscan.io/address/0x366215E1F493f3420AbD5551c0618c2B28CBc18A) |
+| **AgentRegistry** | [`0x2eDE9C65F4Ff33F4190aee798478bb579f248F52`](https://sepolia.basescan.org/address/0x2eDE9C65F4Ff33F4190aee798478bb579f248F52) |
+| **DealOrNotAgents** | [`0xa04cF1072A33B3FF4aB6bb1E054e69e66BaD5430`](https://sepolia.basescan.org/address/0xa04cF1072A33B3FF4aB6bb1E054e69e66BaD5430) |
+| **AgentStaking** | [`0xaFb6D74eD5286158312163671E93fba8A6Fd058e`](https://sepolia.basescan.org/address/0xaFb6D74eD5286158312163671E93fba8A6Fd058e) |
+| **SeasonalLeaderboard** | [`0x2C91eF4616f7D4386F27C237D77169395e9EfCE0`](https://sepolia.basescan.org/address/0x2C91eF4616f7D4386F27C237D77169395e9EfCE0) |
+| **PredictionMarket** | [`0x2CC14972e946460cA82fDD7f2A9B436f868d4a5E`](https://sepolia.basescan.org/address/0x2CC14972e946460cA82fDD7f2A9B436f868d4a5E) |
+| **SharedPriceFeed** | [`0x9AB27e309E677c0ec488E37E8F3B193958D2bBc7`](https://sepolia.basescan.org/address/0x9AB27e309E677c0ec488E37E8F3B193958D2bBc7) |
 | CRE Keystone Forwarder | `0x82300bd7c3958625581cc2F77bC6464dcEcDF3e5` |
 | VRF Coordinator | `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE` |
 | ETH/USD Price Feed | `0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1` |
@@ -260,6 +266,9 @@ bash scripts/cre-simulate.sh banker <TX_HASH> [EVENT_INDEX]
 # Save banker quote to gallery
 bash scripts/cre-simulate.sh savequote <TX_HASH> [EVENT_INDEX]
 
+# Sponsor jackpot accumulation (CaseOpenRequested)
+bash scripts/cre-simulate.sh jackpot <TX_HASH> [EVENT_INDEX]
+
 # Agent gameplay orchestrator (DealOrNotAgents events)
 bash scripts/cre-simulate.sh agent <TX_HASH> [EVENT_INDEX]
 
@@ -268,6 +277,23 @@ bash scripts/cre-simulate.sh timer
 
 # Auto-watch: polls game state, triggers workflows automatically
 bash scripts/cre-simulate.sh support <GAME_ID> [POLL_INTERVAL]
+```
+
+## Diagnostic Scripts
+
+Test Chainlink infrastructure without playing a game:
+
+```bash
+# Price feeds: ETH/USD price, conversions, snapshots, staleness
+bash scripts/test-price-feed.sh
+
+# VRF: coordinator config, game VRF state, wait for callback
+bash scripts/test-vrf.sh
+bash scripts/test-vrf.sh wait <GID>
+
+# CCIP: Bridge/Gateway wiring, cross-chain costs, join status
+bash scripts/test-ccip.sh
+bash scripts/test-ccip.sh cost <GID>
 ```
 
 ## Contracts: 16 Total

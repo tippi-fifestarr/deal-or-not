@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # CRE Simulate — single script for all CRE workflows
-# Usage: ./scripts/cre-simulate.sh <reveal|banker|savequote|support> [args...]
+# Usage: ./scripts/cre-simulate.sh <reveal|banker|savequote|jackpot|agent|timer|support> [args...]
 #
 # Commands:
 #   reveal    <TX_HASH> [EVENT_INDEX]  Reveal case value (CaseOpenRequested)
 #   banker    <TX_HASH> [EVENT_INDEX]  AI Banker offer (RoundComplete)
 #   savequote <TX_HASH> [EVENT_INDEX]  Save banker quote to BestOfBanker (BankerMessage)
+#   jackpot   <TX_HASH> [EVENT_INDEX]  Sponsor jackpot accumulation (CaseOpenRequested)
 #   agent     <TX_HASH> [EVENT_INDEX]  Agent gameplay orchestrator (any DealOrNotAgents event)
 #   timer                               Scan and expire stale games (cron trigger)
 #   support   <GAME_ID> [POLL]         Auto-watch game and trigger workflows
@@ -15,7 +16,7 @@ source "$SCRIPT_DIR/../script/env.sh"
 
 WORKFLOWS="$PROJECT_DIR/workflows"
 
-CMD="${1:?Usage: cre-simulate.sh <reveal|banker|savequote|agent|timer|support> [args...]}"
+CMD="${1:?Usage: cre-simulate.sh <reveal|banker|savequote|jackpot|agent|timer|support> [args...]}"
 shift
 
 # ── Generate CRE workflow configs from env vars (never committed) ──
@@ -217,6 +218,15 @@ case "$CMD" in
     run_save_quote "$TX_HASH" "$EVENT_INDEX"
     ;;
 
+  jackpot)
+    TX_HASH="${1:?Usage: cre-simulate.sh jackpot <TX_HASH> [EVENT_INDEX]}"
+    EVENT_INDEX="${2:-0}"
+    echo "Running CRE sponsor-jackpot..."
+    echo "  TX:    $TX_HASH"
+    echo "  Event: log index $EVENT_INDEX"
+    run_jackpot "$TX_HASH" "$EVENT_INDEX"
+    ;;
+
   agent)
     TX_HASH="${1:?Usage: cre-simulate.sh agent <TX_HASH> [EVENT_INDEX]}"
     EVENT_INDEX="${2:-0}"
@@ -334,7 +344,7 @@ case "$CMD" in
 
   *)
     echo "Unknown command: $CMD"
-    echo "Usage: cre-simulate.sh <reveal|banker|savequote|agent|timer|support> [args...]"
+    echo "Usage: cre-simulate.sh <reveal|banker|savequote|jackpot|agent|timer|support> [args...]"
     exit 1
     ;;
 esac
