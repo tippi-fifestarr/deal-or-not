@@ -253,3 +253,24 @@ Saved in `frontend/public/sponsors/`:
 - `chainlink.svg` — Chainlink (powers VRF + CRE)
 - `wingbird.svg` — Wingbird Enterprises (global wingbirds, CyberJam)
 - `letswritean-email.png` — letswritean.email (retro terminal aesthetic)
+
+---
+
+## 9. Prediction Markets — Live On-Chain (Empty State)
+
+![Markets Live On-Chain](screenshots/markets-live-onchain.png)
+
+**Date**: March 7, 2026
+**Branch**: `worktree-cross-chain-ui` (PR #15, rebased on main after PRs #13, #17, #18 merged)
+
+The `/markets` page with mock data toggled off ("Live On-Chain" mode). Stats show 0 across the board — no prediction markets deployed on-chain yet. The empty state reads: *"No markets found. The prophecy remains unwritten."*
+
+**How the mock/live toggle works**: `MockDataContext` wraps the app and exposes a `useMockData` boolean (defaults `true` unless `NEXT_PUBLIC_USE_MOCK_DATA=false`). Every hook in `useMarkets.ts` checks this flag — if true, returns hardcoded demo data; if false, makes real `useReadContract` / `useReadContracts` multicall reads against the PredictionMarket contract on Base Sepolia.
+
+**The betting model is parimutuel** — all bets go into a pool split between YES and NO sides. When a market resolves, winners split the pool proportionally after a 2% platform fee. Odds shift dynamically as bets are placed: `yesOdds = yesPool / totalPool`. Four market types are supported:
+1. **WillWin** — will the agent win anything?
+2. **EarningsOver** — will earnings exceed a target?
+3. **WillAcceptOffer** — will the agent accept the banker's offer?
+4. **RoundPrediction** — which round will the agent finish in?
+
+Markets transition through 4 states: Open → Locked → Resolved (or Cancelled). The contract ABI is defined in `predictionMarketAbi.ts` with `placeBet()` (payable) and `claimPayout()` write functions. A subgraph-powered alternate page (`page.subgraph.tsx`) and GraphQL queries in `lib/queries.ts` are prepared but the subgraph isn't deployed yet — currently all reads go through wagmi multicalls.
