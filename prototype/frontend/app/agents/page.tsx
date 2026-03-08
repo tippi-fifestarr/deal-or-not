@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { GlassCard, GlassButton } from "@/components/glass";
 import { useAllAgents } from "@/hooks/useAgents";
 import { useAgentNextGameId } from "@/hooks/useAgentGame";
-import { USE_MOCK_DATA } from "@/lib/config";
+import { useMockDataToggle } from "@/contexts/MockDataContext";
 
 export default function AgentsPage() {
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "top" | "new">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const { useMockData, toggleMockData } = useMockDataToggle();
 
   const { agents, isLoading } = useAllAgents();
 
@@ -44,11 +45,18 @@ export default function AgentsPage() {
         <p className="text-white/30 text-sm mt-2 italic">
           The AI uprising starts with a game show.
         </p>
-        {USE_MOCK_DATA && (
-          <span className="inline-block mt-2 px-3 py-1 text-xs bg-yellow-500/20 text-yellow-400 rounded-full border border-yellow-500/30">
-            Mock Data — set NEXT_PUBLIC_USE_MOCK_DATA=false for onchain reads
-          </span>
-        )}
+        <button
+          onClick={toggleMockData}
+          className="inline-flex items-center gap-2 mt-2 px-3 py-1 text-xs rounded-full border cursor-pointer transition-all hover:scale-105"
+          style={{
+            background: useMockData ? "rgba(234,179,8,0.2)" : "rgba(34,197,94,0.2)",
+            borderColor: useMockData ? "rgba(234,179,8,0.3)" : "rgba(34,197,94,0.3)",
+            color: useMockData ? "#facc15" : "#22c55e",
+          }}
+        >
+          <span className={`inline-block w-2 h-2 rounded-full ${useMockData ? "bg-yellow-400" : "bg-green-400"}`} />
+          {useMockData ? "Mock Data" : "Live On-Chain"}
+        </button>
       </div>
 
       {/* Stats Overview */}
@@ -213,6 +221,7 @@ export default function AgentsPage() {
 
 function AgentGameWatch() {
   const router = useRouter();
+  const { useMockData } = useMockDataToggle();
   const { nextGameId } = useAgentNextGameId();
   const [watchInput, setWatchInput] = useState("");
 
@@ -276,7 +285,7 @@ function AgentGameWatch() {
           </div>
         </div>
 
-        {!hasGames && !USE_MOCK_DATA && (
+        {!hasGames && !useMockData && (
           <p className="text-white/20 text-sm text-center italic">
             No agent games yet. The robots are still warming up.
           </p>

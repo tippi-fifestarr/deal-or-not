@@ -57,7 +57,9 @@ const CASE_VALUES_CENTS = [1n, 5n, 10n, 50n, 100n];
 const NUM_CASES = 5;
 
 // Default entropy URL — mathjs.org randomInt returns a random integer.
-// Called inside the CRE enclave via Confidential HTTP — no node sees the result.
+// Called inside the CRE enclave via Confidential HTTP with encryptOutput=true,
+// so the response is AES-GCM encrypted before leaving the enclave.
+// No workflow DON node can see the entropy value.
 const DEFAULT_ENTROPY_URL = "https://api.mathjs.org/v4/?expr=randomInt(1,1000001)";
 
 // -- ABI Fragments --
@@ -210,6 +212,7 @@ const onCaseOpenRequested = (runtime: Runtime<Config>, log: EVMLog): string => {
       request: {
         url: entropyUrl,
         method: "GET",
+        encryptOutput: true,
       },
       vaultDonSecrets: [],
     })

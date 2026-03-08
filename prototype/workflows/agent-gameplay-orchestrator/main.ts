@@ -258,6 +258,7 @@ function handleAgentTurn(
           "Content-Type": { values: ["application/json"] },
         },
         bodyString: JSON.stringify(decisionRequest),
+        encryptOutput: true,
       },
       vaultDonSecrets: [],
     })

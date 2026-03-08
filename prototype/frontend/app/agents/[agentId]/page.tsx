@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { GlassCard, GlassButton } from "@/components/glass";
 import { formatEther, parseEther } from "viem";
 import { useAgent } from "@/hooks/useAgents";
-import { USE_MOCK_DATA } from "@/lib/config";
+import { useMockDataToggle } from "@/contexts/MockDataContext";
 
 type AgentGame = {
   gameId: number;
@@ -46,6 +46,7 @@ const MOCK_PERFORMANCE: Record<number, { dealRate: string; avgRoundExit: string;
 
 export default function AgentDetailsPage({ params }: { params: Promise<{ agentId: string }> }) {
   const router = useRouter();
+  const { useMockData, toggleMockData } = useMockDataToggle();
   const resolvedParams = use(params);
   const agentId = parseInt(resolvedParams.agentId);
 
@@ -106,11 +107,18 @@ export default function AgentDetailsPage({ params }: { params: Promise<{ agentId
               <div>
                 <div className="flex items-center gap-3">
                   <h1 className="text-4xl font-bold mb-2">{agent.name}</h1>
-                  {USE_MOCK_DATA && (
-                    <span className="px-2 py-0.5 text-xs bg-yellow-500/20 text-yellow-400 rounded-full border border-yellow-500/30">
-                      Mock
-                    </span>
-                  )}
+                  <button
+                    onClick={toggleMockData}
+                    className="inline-flex items-center gap-2 mt-2 px-3 py-1 text-xs rounded-full border cursor-pointer transition-all hover:scale-105"
+                    style={{
+                      background: useMockData ? "rgba(234,179,8,0.2)" : "rgba(34,197,94,0.2)",
+                      borderColor: useMockData ? "rgba(234,179,8,0.3)" : "rgba(34,197,94,0.3)",
+                      color: useMockData ? "#facc15" : "#22c55e",
+                    }}
+                  >
+                    <span className={`inline-block w-2 h-2 rounded-full ${useMockData ? "bg-yellow-400" : "bg-green-400"}`} />
+                    {useMockData ? "Mock Data" : "Live On-Chain"}
+                  </button>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-sm text-gray-400">{agent.owner.slice(0, 10)}...{agent.owner.slice(-6)}</span>

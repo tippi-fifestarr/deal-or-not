@@ -3,7 +3,8 @@
 import { useReadContract, useReadContracts, useWriteContract, useAccount } from "wagmi";
 import { parseEther, formatEther } from "viem";
 import { PREDICTION_MARKET_ABI } from "@/lib/predictionMarketAbi";
-import { PREDICTION_MARKET_ADDRESS, USE_MOCK_DATA } from "@/lib/config";
+import { PREDICTION_MARKET_ADDRESS } from "@/lib/config";
+import { useMockDataToggle } from "@/contexts/MockDataContext";
 import { useMemo } from "react";
 
 // ── Types ──
@@ -115,23 +116,25 @@ const MOCK_BETS: BetData[] = [
 // ── Hooks ──
 
 export function useMarketCount() {
+  const { useMockData } = useMockDataToggle();
   const { data, isLoading } = useReadContract({
     ...marketConfig,
     functionName: "nextMarketId",
-    query: { enabled: !USE_MOCK_DATA },
+    query: { enabled: !useMockData },
   });
 
-  if (USE_MOCK_DATA) return { count: MOCK_MARKETS.length, isLoading: false };
+  if (useMockData) return { count: MOCK_MARKETS.length, isLoading: false };
   // nextMarketId is 1-indexed, so count = nextMarketId - 1
   return { count: data ? Number(data) - 1 : 0, isLoading };
 }
 
 export function useAllMarkets() {
+  const { useMockData } = useMockDataToggle();
   const { count } = useMarketCount();
 
   // Read market data via the `markets` public mapping (returns all fields in one call)
   const contracts = useMemo(() => {
-    if (USE_MOCK_DATA || count === 0) return [];
+    if (useMockData || count === 0) return [];
     return Array.from({ length: count }, (_, i) => {
       const id = BigInt(i + 1);
       return [
@@ -144,11 +147,11 @@ export function useAllMarkets() {
 
   const { data, isLoading } = useReadContracts({
     contracts,
-    query: { enabled: !USE_MOCK_DATA && contracts.length > 0 },
+    query: { enabled: !useMockData && contracts.length > 0 },
   });
 
   const markets: MarketData[] = useMemo(() => {
-    if (USE_MOCK_DATA) return MOCK_MARKETS;
+    if (useMockData) return MOCK_MARKETS;
     if (!data) return [];
 
     const result: MarketData[] = [];
@@ -185,11 +188,12 @@ export function useAllMarkets() {
     return result;
   }, [data, count]);
 
-  return { markets, isLoading: USE_MOCK_DATA ? false : isLoading };
+  return { markets, isLoading: useMockData ? false : isLoading };
 }
 
 export function useMarket(marketId: number | undefined) {
-  const enabled = !USE_MOCK_DATA && marketId !== undefined;
+  const { useMockData } = useMockDataToggle();
+  const enabled = !useMockData && marketId !== undefined;
   const args = marketId !== undefined ? [BigInt(marketId)] as const : undefined;
 
   const { data: mData, isLoading: l1 } = useReadContract({
@@ -206,7 +210,7 @@ export function useMarket(marketId: number | undefined) {
   });
 
   const market: MarketData | null = useMemo(() => {
-    if (USE_MOCK_DATA) {
+    if (useMockData) {
       return MOCK_MARKETS.find(m => m.marketId === marketId) ?? MOCK_MARKETS[0];
     }
     if (!mData || !statsData || !oddsData || marketId === undefined) return null;
@@ -234,22 +238,23 @@ export function useMarket(marketId: number | undefined) {
     };
   }, [mData, statsData, oddsData, marketId]);
 
-  return { market, isLoading: USE_MOCK_DATA ? false : (l1 || l2 || l3) };
+  return { market, isLoading: useMockData ? false : (l1 || l2 || l3) };
 }
 
 export function useUserBets() {
+  const { useMockData } = useMockDataToggle();
   const { address } = useAccount();
 
   const { data: betIds, isLoading: l1 } = useReadContract({
     ...marketConfig,
     functionName: "getUserBets",
     args: address ? [address] : undefined,
-    query: { enabled: !USE_MOCK_DATA && !!address },
+    query: { enabled: !useMockData && !!address },
   });
 
   // Build multicall for each bet
   const betContracts = useMemo(() => {
-    if (USE_MOCK_DATA || !betIds) return [];
+    if (useMockData || !betIds) return [];
     const ids = betIds as bigint[];
     return ids.flatMap(id => [
       { ...marketConfig, functionName: "getBet" as const, args: [id] as const },
@@ -259,11 +264,11 @@ export function useUserBets() {
 
   const { data: betData, isLoading: l2 } = useReadContracts({
     contracts: betContracts,
-    query: { enabled: !USE_MOCK_DATA && betContracts.length > 0 },
+    query: { enabled: !useMockData && betContracts.length > 0 },
   });
 
   const bets: BetData[] = useMemo(() => {
-    if (USE_MOCK_DATA) return MOCK_BETS;
+    if (useMockData) return MOCK_BETS;
     if (!betIds || !betData) return [];
 
     const ids = betIds as bigint[];
@@ -287,7 +292,7 @@ export function useUserBets() {
     return result;
   }, [betIds, betData]);
 
-  return { bets, isLoading: USE_MOCK_DATA ? false : (l1 || l2) };
+  return { bets, isLoading: useMockData ? false : (l1 || l2) };
 }
 
 export function usePlaceBet() {

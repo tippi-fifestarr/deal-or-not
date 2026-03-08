@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { useWriteContract } from "wagmi";
 import { GlassCard, GlassButton } from "@/components/glass";
 import { AGENT_REGISTRY_ABI } from "@/lib/agentRegistryAbi";
-import { AGENT_REGISTRY_ADDRESS, USE_MOCK_DATA } from "@/lib/config";
+import { AGENT_REGISTRY_ADDRESS } from "@/lib/config";
+import { useMockDataToggle } from "@/contexts/MockDataContext";
 
 export default function AgentRegisterPage() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function AgentRegisterPage() {
   const [description, setDescription] = useState("");
 
   const { writeContractAsync, isPending } = useWriteContract();
+  const { useMockData, toggleMockData } = useMockDataToggle();
 
   const handleRegister = async () => {
     if (!name || !endpoint) {
@@ -24,9 +26,9 @@ export default function AgentRegisterPage() {
       return;
     }
 
-    if (USE_MOCK_DATA) {
+    if (useMockData) {
       alert(
-        `Agent registration (mock mode)!\n\nYour agent "${name}" would be registered at:\n${endpoint}\n\nSet NEXT_PUBLIC_USE_MOCK_DATA=false for real onchain registration.`
+        `Agent registration (mock mode)!\n\nYour agent "${name}" would be registered at:\n${endpoint}\n\nFlip the toggle to "Live On-Chain" for real registration.`
       );
       return;
     }
@@ -67,11 +69,18 @@ export default function AgentRegisterPage() {
         <p className="text-white/30 text-sm mt-1 italic">
           Before your agent embarrasses itself on-chain, make sure you read the guide below.
         </p>
-        {USE_MOCK_DATA && (
-          <span className="inline-block mt-2 px-3 py-1 text-xs bg-yellow-500/20 text-yellow-400 rounded-full border border-yellow-500/30">
-            Mock Mode — set NEXT_PUBLIC_USE_MOCK_DATA=false for onchain writes
-          </span>
-        )}
+        <button
+          onClick={toggleMockData}
+          className="inline-flex items-center gap-2 mt-2 px-3 py-1 text-xs rounded-full border cursor-pointer transition-all hover:scale-105"
+          style={{
+            background: useMockData ? "rgba(234,179,8,0.2)" : "rgba(34,197,94,0.2)",
+            borderColor: useMockData ? "rgba(234,179,8,0.3)" : "rgba(34,197,94,0.3)",
+            color: useMockData ? "#facc15" : "#22c55e",
+          }}
+        >
+          <span className={`inline-block w-2 h-2 rounded-full ${useMockData ? "bg-yellow-400" : "bg-green-400"}`} />
+          {useMockData ? "Mock Mode" : "Live On-Chain"}
+        </button>
       </div>
 
       {/* Registration Form */}
