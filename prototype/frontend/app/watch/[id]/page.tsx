@@ -114,6 +114,7 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
             phase={phase.toString()}
             round={gameState.currentRound}
             maxRounds={4}
+            gameId={gameId}
             onClick={phase === Phase.BankerOffer && bankerOfferDismissed ? () => setBankerOfferDismissed(false) : undefined}
           />
 
