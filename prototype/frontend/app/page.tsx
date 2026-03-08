@@ -183,7 +183,12 @@ export default function Home() {
             <div className="md:w-1/3 bg-gradient-to-br from-[#00015E] to-purple-900 p-8 flex items-center justify-center">
               <div className="text-center">
                 <div className="text-6xl mb-2">&#128373;</div>
-                <p className="text-white/30 text-xs uppercase tracking-widest">Identity: Classified</p>
+                <p className="text-white/30 text-xs uppercase tracking-widest mb-4">Identity: Classified</p>
+                <Link href="/best-of-banker">
+                  <GlassButton variant="strong" size="sm" className="border-yellow-500/20 text-yellow-200/80">
+                    Greatest Hits &rarr;
+                  </GlassButton>
+                </Link>
               </div>
             </div>
             <div className="md:w-2/3 p-8 md:p-10">
@@ -297,6 +302,13 @@ export default function Home() {
       {/* ══ BEST OF BANKER ══ */}
       <section className="px-4 py-8">
         <BestOfBanker />
+        <div className="text-center mt-6">
+          <Link href="/best-of-banker">
+            <GlassButton variant="strong" className="border-yellow-500/20 text-yellow-200/80">
+              See All Banker Quotes &rarr;
+            </GlassButton>
+          </Link>
+        </div>
       </section>
 
       {/* ══ FINE PRINT ══ */}

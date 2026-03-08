@@ -5,7 +5,7 @@
  *
  * FLOW:
  *   1. Listen for game state change events from DealOrNotAgents
- *   2. Check event type (VRFSeedReceived, CasePicked, BankerOfferMade, GameResolved)
+ *   2. Check event type (VRFSeedReceived, CasePicked, BankerOfferMade, DealRejected, GameResolved)
  *   3. Read game state from chain
  *   4. Fetch agent's API endpoint from AgentRegistry
  *   5. Call agent API via ConfidentialHTTPClient (enclave-only, protects agent strategy)
@@ -73,6 +73,7 @@ enum Phase {
 const EVENT_VRF_SEED_RECEIVED = keccak256(toBytes("VRFSeedReceived(uint256)"));
 const EVENT_CASE_PICKED = keccak256(toBytes("CasePicked(uint256,uint8)"));
 const EVENT_BANKER_OFFER_MADE = keccak256(toBytes("BankerOfferMade(uint256,uint8,uint256)"));
+const EVENT_DEAL_REJECTED = keccak256(toBytes("DealRejected(uint256,uint8)"));
 const EVENT_GAME_RESOLVED = keccak256(toBytes("GameResolved(uint256,uint256,bool)"));
 
 // ── ABI Fragments ──
@@ -395,6 +396,15 @@ const onBankerOfferMade = (runtime: Runtime<Config>, log: EVMLog): string => {
   return handleAgentTurn(runtime, evmClient, gameId, "BankerOfferMade");
 };
 
+// DealRejected → agent said no-deal, game moves to next round → agent needs to open a case
+const onDealRejected = (runtime: Runtime<Config>, log: EVMLog): string => {
+  const gameId = BigInt(bytesToHex(log.topics[1]));
+  const network = getNetwork({ chainFamily: "evm", chainSelectorName: runtime.config.chainSelectorName, isTestnet: true });
+  if (!network) throw new Error(`Network not found: ${runtime.config.chainSelectorName}`);
+  const evmClient = new EVMClient(network.chainSelector.selector);
+  return handleAgentTurn(runtime, evmClient, gameId, "DealRejected");
+};
+
 // GameResolved → log result, no action needed (stats auto-recorded by contract)
 const onGameResolved = (runtime: Runtime<Config>, log: EVMLog): string => {
   const gameId = BigInt(bytesToHex(log.topics[1]));
@@ -433,6 +443,8 @@ const initWorkflow = (config: Config) => {
             return onCasePicked(runtime, log);
           case EVENT_BANKER_OFFER_MADE:
             return onBankerOfferMade(runtime, log);
+          case EVENT_DEAL_REJECTED:
+            return onDealRejected(runtime, log);
           case EVENT_GAME_RESOLVED:
             return onGameResolved(runtime, log);
           default:
