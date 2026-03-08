@@ -10,7 +10,7 @@ import { CHAIN_META } from "@/lib/chains";
 import { baseSepolia } from "wagmi/chains";
 
 const NAV_LINKS = [
-  { href: "/", label: "PLAY" },
+  { href: "/play", label: "PLAY" },
   { href: "/agents", label: "AGENTS" },
   { href: "/watch", label: "WATCH" },
   { href: "/markets", label: "MARKETS" },
