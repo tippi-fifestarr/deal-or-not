@@ -116,6 +116,8 @@ contract DealOrNotAgents is VRFConsumerBaseV2Plus, IReceiver {
     error GameNotActive();
     error GameNotExpired();
     error MessageTooLong();
+    error InvalidPrice();
+    error StalePriceFeed();
 
     // ── Constructor ──
     constructor(
@@ -149,7 +151,9 @@ contract DealOrNotAgents is VRFConsumerBaseV2Plus, IReceiver {
         g.agentId = agentId;
         g.phase = Phase.WaitingForVRF;
 
-        (, int256 price,,,) = priceFeed.latestRoundData();
+        (, int256 price,,uint256 updatedAt,) = priceFeed.latestRoundData();
+        if (price <= 0) revert InvalidPrice();
+        if (block.timestamp - updatedAt > 3600) revert StalePriceFeed();
         g.ethPerDollar = 1e26 / uint256(price);
 
         uint256 requestId = s_vrfCoordinator.requestRandomWords(
@@ -454,6 +458,7 @@ contract DealOrNotAgents is VRFConsumerBaseV2Plus, IReceiver {
     function _agentRejectDeal(uint256 gameId) internal {
         Game storage g = _games[gameId];
         _requirePhase(g, Phase.BankerOffer);
+        if (g.currentRound >= NUM_ROUNDS) revert WrongPhase(Phase.FinalRound, g.phase);
         emit DealRejected(gameId, g.currentRound);
         g.currentRound++;
         g.bankerOffer = 0;
@@ -556,7 +561,8 @@ contract DealOrNotAgents is VRFConsumerBaseV2Plus, IReceiver {
         g.phase = Phase.GameOver;
 
         emit CaseRevealed(gameId, g.playerCase, playerValue);
-        emit GameResolved(gameId, g.finalPayout, false);
+        bool swapped = (g.playerCase != g.pendingCaseIndex);
+        emit GameResolved(gameId, g.finalPayout, swapped);
         _recordAgentStats(g, gameId);
     }
 

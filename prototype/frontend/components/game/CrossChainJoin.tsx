@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useChainId, useWriteContract, useReadContract } from "wagmi";
+import { useAccount, useChainId, useWriteContract, useReadContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther, formatEther } from "viem";
 import { sepolia, baseSepolia } from "wagmi/chains";
 import { motion, AnimatePresence } from "framer-motion";
@@ -63,6 +63,21 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
 
   const { writeContractAsync } = useWriteContract();
 
+  // Wait for TX receipt before showing success
+  const { isSuccess: txConfirmed, isError: txFailed } = useWaitForTransactionReceipt({
+    hash: txHash as `0x${string}` | undefined,
+    chainId: sepolia.id,
+  });
+
+  // Update bridge state based on TX receipt
+  if (txConfirmed && bridgeState === "bridging") {
+    setBridgeState("success");
+  }
+  if (txFailed && bridgeState === "bridging") {
+    setBridgeState("error");
+    setErrorMsg("Transaction failed on-chain");
+  }
+
   // Only render on spoke chains (ETH Sepolia)
   if (!isSpokeChain(chainId)) return null;
 
@@ -88,9 +103,7 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
 
       setTxHash(hash);
       setBridgeState("bridging");
-
-      // After TX confirms, show success (CCIP takes ~2min)
-      setTimeout(() => setBridgeState("success"), 3000);
+      // TX receipt handled by useWaitForTransactionReceipt above
     } catch (err: unknown) {
       setBridgeState("error");
       setErrorMsg(err instanceof Error ? err.message : "Transaction failed");
@@ -258,7 +271,7 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
               </div>
               {txHash && (
                 <a
-                  href={`${CCIP_EXPLORER_URL}/msg/${txHash}`}
+                  href={`${CCIP_EXPLORER_URL}/#/side-drawer/msg/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block text-[0.6rem] text-[#00f0ff]/60 hover:text-[#00f0ff] transition-colors underline"

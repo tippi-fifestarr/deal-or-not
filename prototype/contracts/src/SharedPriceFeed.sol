@@ -21,12 +21,17 @@ contract SharedPriceFeed is Ownable {
     error PriceNotPositive();
     error StalePriceFeed();
     error ZeroAddress();
+    error UnexpectedDecimals();
 
     event PriceFeedUpdated(address indexed oldFeed, address indexed newFeed);
 
+    uint256 public constant DEFAULT_MAX_STALENESS = 3600; // 1 hour
+
     constructor(address _priceFeed) Ownable(msg.sender) {
         if (_priceFeed == address(0)) revert ZeroAddress();
-        priceFeed = AggregatorV3Interface(_priceFeed);
+        AggregatorV3Interface feed = AggregatorV3Interface(_priceFeed);
+        if (feed.decimals() != 8) revert UnexpectedDecimals();
+        priceFeed = feed;
     }
 
     // ── Conversions (live) ──
@@ -103,8 +108,9 @@ contract SharedPriceFeed is Ownable {
     // ── Internal ──
 
     function _getPrice() internal view returns (uint256) {
-        (, int256 price,,,) = priceFeed.latestRoundData();
+        (, int256 price,, uint256 updatedAt,) = priceFeed.latestRoundData();
         if (price <= 0) revert PriceNotPositive();
+        if (block.timestamp - updatedAt > DEFAULT_MAX_STALENESS) revert StalePriceFeed();
         return uint256(price);
     }
 }
