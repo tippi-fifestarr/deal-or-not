@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { GlassCard, GlassButton, GlassBriefcase, GlassBriefcaseGrid } from "@/components/glass";
@@ -7,6 +8,9 @@ import { useAgentGameState } from "@/hooks/useAgentGame";
 import { useAgent } from "@/hooks/useAgents";
 import { Phase, PHASE_NAMES, CASE_VALUES_CENTS, CASE_VALUES_USD } from "@/types/game";
 import { centsToUsd } from "@/lib/utils";
+import { BANKER_CALL_VIDEOS, getRandomVideo } from "@/lib/videos";
+import VideoPlayer from "@/components/game/VideoPlayer";
+import VideoWait from "@/components/game/VideoWait";
 
 const PHASE_COLORS: Record<number, string> = {
   [Phase.WaitingForVRF]: "text-purple-400",
@@ -27,6 +31,20 @@ export default function AgentGamePage() {
 
   const { gameState, isLoading } = useAgentGameState(gameId);
   const { agent } = useAgent(gameState ? Number(gameState.agentId) : undefined);
+  const [bankerVideo, setBankerVideo] = useState<string | null>(null);
+  const prevPhaseRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    const phase = gameState?.phase;
+    if (phase === Phase.BankerOffer) {
+      if (prevPhaseRef.current !== undefined && prevPhaseRef.current !== Phase.BankerOffer) {
+        setBankerVideo(getRandomVideo(BANKER_CALL_VIDEOS));
+      }
+    } else {
+      setBankerVideo(null);
+    }
+    prevPhaseRef.current = phase;
+  }, [gameState?.phase]);
 
   if (isLoading || !gameState) {
     return (
@@ -123,6 +141,7 @@ export default function AgentGamePage() {
               playerCase={gameState.playerCase === i}
               value={gameState.opened[i] && gameState.caseValues[i] > 0n ? Number(gameState.caseValues[i]) : undefined}
               disabled
+              ownerLabel="AGENT'S CASE"
             />
           ))}
         </GlassBriefcaseGrid>
@@ -152,27 +171,24 @@ export default function AgentGamePage() {
 
       {/* Phase-specific info */}
       {phase === Phase.WaitingForVRF && (
-        <GlassCard className="p-8 text-center">
-          <div className="animate-spin h-10 w-10 border-4 border-purple-400/40 border-t-purple-400 rounded-full mx-auto mb-4" />
-          <p className="text-purple-400 font-bold">Quantum Seed Incoming...</p>
-          <p className="text-white/30 text-sm">Chainlink VRF is generating randomness for this game.</p>
-        </GlassCard>
+        <VideoWait
+          message="Quantum seed incoming..."
+          submessage="Chainlink VRF is generating randomness for this game"
+        />
       )}
 
       {(phase === Phase.WaitingForCRE || phase === Phase.WaitingForFinalCRE) && (
-        <GlassCard className="p-8 text-center">
-          <div className="animate-spin h-10 w-10 border-4 border-purple-400/40 border-t-purple-400 rounded-full mx-auto mb-4" />
-          <p className="text-purple-400 font-bold">CRE Computing...</p>
-          <p className="text-white/30 text-sm">Confidential compute enclave is revealing the case value.</p>
-        </GlassCard>
+        <VideoWait
+          message="CRE Computing..."
+          submessage="Confidential compute enclave is revealing the case value"
+        />
       )}
 
       {phase === Phase.AwaitingOffer && (
-        <GlassCard className="p-8 text-center">
-          <div className="animate-pulse text-yellow-400 text-4xl mb-4">&#128222;</div>
-          <p className="text-yellow-400 font-bold">The Banker Is Calculating...</p>
-          <p className="text-white/30 text-sm">Gemini 2.5 Flash is crafting an offer inside the CRE enclave.</p>
-        </GlassCard>
+        <VideoWait
+          message="The Banker is calculating..."
+          submessage="Gemini 2.5 Flash is crafting an offer inside the CRE enclave"
+        />
       )}
 
       {phase === Phase.BankerOffer && (
@@ -219,6 +235,15 @@ export default function AgentGamePage() {
         <p className="text-white/15 text-xs text-center mt-6 italic">
           Auto-refreshing every 3 seconds. The Banker knows you&apos;re watching.
         </p>
+      )}
+
+      {/* Banker call video overlay */}
+      {bankerVideo && (
+        <VideoPlayer
+          videoUrl={bankerVideo}
+          onEnded={() => setBankerVideo(null)}
+          showSkipButton={true}
+        />
       )}
     </div>
   );

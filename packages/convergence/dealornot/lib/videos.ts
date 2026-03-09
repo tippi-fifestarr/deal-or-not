@@ -22,7 +22,7 @@ export const DEAL_VIDEOS = [
 ];
 
 export const NO_DEAL_VIDEOS = [
-  "/videos/no-deal/NODEAL_sendit_use",
+  "/videos/no-deal/NODEAL_sendit_use it.mp4",
   "/videos/no-deal/nodeal_useit.mp4",
   "/videos/no-deal/nodeal_letsgoo_useit.mp4",
   "/videos/no-deal/nodeal_letsgoooooo_useit.mp4",

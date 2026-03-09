@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -31,6 +31,8 @@ import {
   GlassCard,
 } from "@/components/glass";
 import { centsToUsd } from "@/lib/utils";
+import { BANKER_CALL_VIDEOS, getRandomVideo } from "@/lib/videos";
+import VideoPlayer from "@/components/game/VideoPlayer";
 import RotatingAd from "@/components/RotatingAd";
 
 export default function WatchGame({ params }: { params: Promise<{ id: string }> }) {
@@ -48,12 +50,22 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
 
   const [showBankerOfferModal, setShowBankerOfferModal] = useState(false);
   const [bankerOfferDismissed, setBankerOfferDismissed] = useState(false);
+  const [bankerVideo, setBankerVideo] = useState<string | null>(null);
+  const prevPhaseRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    if (gameState?.phase === Phase.BankerOffer) {
+    const phase = gameState?.phase;
+    if (phase === Phase.BankerOffer) {
       setShowBankerOfferModal(true);
       setBankerOfferDismissed(false);
+      // Only play video on actual transition, not remount/refresh
+      if (prevPhaseRef.current !== undefined && prevPhaseRef.current !== Phase.BankerOffer) {
+        setBankerVideo(getRandomVideo(BANKER_CALL_VIDEOS));
+      }
+    } else {
+      setBankerVideo(null);
     }
+    prevPhaseRef.current = phase;
   }, [gameState?.phase]);
 
   const eliminatedValues = new Set<number>();
@@ -272,6 +284,15 @@ export default function WatchGame({ params }: { params: Promise<{ id: string }> 
           )}
 
           <EventLog gameId={gameId} />
+
+          {/* Banker call video overlay for spectators */}
+          {bankerVideo && (
+            <VideoPlayer
+              videoUrl={bankerVideo}
+              onEnded={() => setBankerVideo(null)}
+              showSkipButton={true}
+            />
+          )}
         </div>
 
         {/* Sidebar — ads + commentary */}
