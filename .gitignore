@@ -32,6 +32,11 @@ prototype/workflows/.env
 prototype/workflows/*/config.staging.json
 prototype/workflows/*/bun.lockb
 prototype/workflows/*/package-lock.json
+packages/convergence/.env
+packages/convergence/workflows/.env
+packages/convergence/workflows/*/config.staging.json
+packages/convergence/workflows/*/bun.lockb
+packages/convergence/workflows/*/package-lock.json
 
 # Dev/test screenshots (root level only)
 /game-over-e2e.png
