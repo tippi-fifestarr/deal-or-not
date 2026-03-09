@@ -7,10 +7,10 @@ This is the production package for **Deal or NOT**, an on-chain game show powere
 ```
 packages/convergence/
 ├── contracts/          # 16 Solidity contracts (source of truth)
-├── test/               # Forge tests (244 tests, 13 suites)
+├── test/               # Forge tests (246 tests, 13 suites)
 ├── script/             # Forge deploy scripts + env.sh
 ├── scripts/            # Bash CLI tools (play-game, play-agent, cre-simulate, e2e-full)
-├── workflows/          # 6 CRE TypeScript workflows
+├── workflows/          # 7 CRE TypeScript workflows
 ├── dealornot/          # Next.js 16 frontend (separate app)
 └── foundry.toml        # Forge config
 ```
@@ -78,7 +78,7 @@ All scripts source `script/env.sh` for contract addresses and keys. Scripts are 
 |--------|---------|---------|
 | `scripts/cre-simulate.sh` | Run CRE workflows | `bash scripts/cre-simulate.sh reveal <TX> 0` |
 
-**Commands:** `reveal <TX> [IDX]`, `banker <TX> [IDX]`, `savequote <TX> [IDX]`, `jackpot <TX> [IDX]`, `agent <TX> [IDX]`, `timer`, `support <GID> [POLL]`
+**Commands:** `reveal <TX> [IDX]`, `banker <TX> [IDX]`, `savequote <TX> [IDX]`, `jackpot <TX> [IDX]`, `agent <TX> [IDX]`, `market <TX> [IDX]`, `timer`, `support <GID> [POLL]`
 
 ### Diagnostic Scripts (test infrastructure without playing)
 
@@ -107,9 +107,9 @@ The prototype used 6 separate CRE scripts (`cre-reveal.sh`, `cre-banker.sh`, etc
 - **Config generation**: `cre-simulate.sh` generates workflow configs from env vars at runtime, deletes them on exit via `trap`. No config files committed.
 - **Nonce collision fix**: Prototype's `cre-banker.sh` did 2 `writeReport` calls (offer + save-quote) in one workflow, causing nonce collisions. Convergence splits this into separate `banker` and `savequote` workflows with independent nonces.
 - **Gemini key safety**: Prototype modified `config.staging.json` in place (crash = leaked key). Convergence generates configs in memory, guaranteed cleanup.
-- **Consolidation**: 6 scripts → 1 `cre-simulate.sh` with 7 subcommands. Shared error handling and logging.
+- **Consolidation**: 6 scripts → 1 `cre-simulate.sh` with 8 subcommands. Shared error handling and logging.
 
-## CRE Workflows (6 total)
+## CRE Workflows (7 total)
 
 All in `workflows/`. Each has `main.ts`, `package.json`, `tsconfig.json`. Install deps with `bun install` in each.
 
@@ -119,6 +119,7 @@ All in `workflows/`. Each has `main.ts`, `package.json`, `tsconfig.json`. Instal
 | `banker-ai` | `RoundComplete` | Calls Gemini 2.5 Flash for offer + personality message |
 | `save-quote` | `BankerMessage` | Archives banker quote to BestOfBanker |
 | `sponsor-jackpot` | `CaseOpenRequested` | Adds jackpot bonus from sponsor funds |
+| `market-creator` | `GameCreated` (Agents) | Auto-creates 3 prediction markets per agent game via `createMarketBatch()` |
 | `agent-gameplay-orchestrator` | DealOrNotAgents events | Autonomous agent gameplay via Confidential HTTP |
 | `game-timer` | Cron `*/5 * * * *` | Expires stale games |
 
@@ -153,7 +154,7 @@ Next.js 16, React 19, Tailwind CSS 4, wagmi v2, viem v2, RainbowKit.
 cd dealornot && bun install && bun run dev
 ```
 
-Key pages: `/` (home + game), `/watch` (spectator lobby), `/watch/[id]` (spectator view), `/agents` (AI agent list), `/agents/register`, `/markets` (prediction markets), `/best-of-banker` (AI quote gallery).
+Key pages: `/` (home), `/play` (game lobby + active games), `/play/[gameId]` (play a game), `/watch` (spectator lobby), `/watch/[id]` (spectator view), `/agents` (AI agent list), `/agents/register`, `/markets` (prediction markets — toggle Mock/Live On-Chain), `/best-of-banker` (AI quote gallery).
 
 E2E tests: `bun run test:e2e` (Playwright, specs in `dealornot/e2e/`).
 
