@@ -8,29 +8,38 @@ Guidance for AI coding agents working in this repository.
 
 Live at **dealornot.vercel.app**.
 
-## Repository Structure
+## How This Repo Was Built
+
+We built iteratively, deploying and testing at each stage:
+
+1. **`legacy/`** — ETHDenver 2026. Proved the game was fun. Tried Fisher-Yates shuffle and ZK proofs. Neither was secure. But the concept worked.
+2. **`prototype/`** — Chainlink Convergence hackathon. Proved CRE Confidential Compute solves the privacy problem. Single monolith contract, 44+ games played on Base Sepolia. Battle-tested but messy.
+3. **`packages/convergence/`** — Production rewrite. 16 contracts with proper separation of concerns, 244 tests, 6 CRE workflows, standalone frontend. **This is the source of truth.**
+
+Each stage exists in the repo because it was deployed to testnet and used. Prototype is the safety net on main. Legacy is the archive. Convergence is where all new work happens.
+
+## Where Everything Lives
+
+**All new and improved contracts** are in `packages/convergence/contracts/` (16 total).
+**The new frontend** is in `packages/convergence/dealornot/` (Next.js 16, standalone app).
+**Scripts are written for judges** to play a full game end-to-end with no setup beyond Foundry + CRE CLI.
 
 ```
-deal-or-not/
-├── packages/convergence/       # Production package (active development)
-│   ├── contracts/              # 16 Solidity contracts
-│   ├── test/                   # Forge tests (244 tests, 13 suites)
-│   ├── workflows/              # 6 CRE TypeScript workflows
-│   ├── scripts/                # Bash CLI (play-game, cre-simulate, e2e-full)
-│   ├── script/                 # Forge deploy scripts + env.sh
-│   └── dealornot/              # Next.js 16 frontend
-│
-├── prototype/                  # Original monolith (safety net, don't modify)
-│   ├── contracts/              # Foundry, single contract
-│   ├── frontend/               # Legacy frontend (was shared, now superseded)
-│   └── workflows/              # CRE workflows (original versions)
-│
-├── docs/                       # Planning docs, whitepaper, hackathon submission
-├── legacy/                     # Historical archive (ETHDenver, early attempts)
-└── agent-server/               # HTTP API with 3 agent strategies
+packages/convergence/           # THE SOURCE OF TRUTH
+├── contracts/                  # 16 Solidity contracts (all new/improved)
+├── test/                       # 244 Forge tests, 13 suites
+├── workflows/                  # 6 CRE TypeScript workflows
+├── scripts/                    # Judge-ready CLI (play-game, cre-simulate, e2e-full)
+├── script/                     # Forge deploy scripts + env.sh (all addresses)
+└── dealornot/                  # Next.js 16 frontend (standalone, not shared)
+
+prototype/                      # Battle-tested proof-of-concept (don't modify)
+legacy/                         # ETHDenver archive (historical reference)
+docs/                           # Whitepaper, PRD, hackathon submission
+agent-server/                   # HTTP API with 3 agent strategies
 ```
 
-**Active work happens in `packages/convergence/`.** Read `packages/convergence/CLAUDE.md` for detailed contract functions, game phases, CRE workflow details, and frontend architecture.
+Read `packages/convergence/CLAUDE.md` for detailed contract functions, game phases, CRE workflow details, and frontend architecture.
 
 ## Common Commands
 
