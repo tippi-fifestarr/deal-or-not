@@ -23,7 +23,7 @@ On a blockchain, every storage slot is public. For Deal or No Deal, that is fata
 
 These alternatives were not just insecure, they were slow to develop and hard to test. Chainlink CRE + VRF gave us fast development (CRE SDK, VRF callbacks, Price Feed helpers), real security guarantees, and a working E2E prototype in days.
 
-The full technical journey is in [`Whitepaper.md`](Whitepaper.md).
+The full technical journey is in [`Whitepaper.md`](docs/Whitepaper.md).
 
 ## Five Chainlink Products
 
@@ -178,32 +178,29 @@ npm run dev
 
 ```
 deal-or-not/
-+-- packages/convergence/        # Production rewrite (active)
-|   +-- src/                     # Solidity contracts (10 files)
-|   +-- test/                    # Forge tests (47 tests)
-|   +-- workflows/               # CRE workflows (4 total)
-|   +-- scripts/                 # CLI game + CRE helpers
-|   +-- script/                  # Forge deploy scripts
-|
-+-- prototype/                   # CRE Confidential prototype (original)
-|   +-- contracts/               # Foundry, monolith contract
-|   +-- frontend/                # Next.js frontend (shared)
-|   +-- workflows/               # CRE workflows (original versions)
-|   +-- scripts/                 # Testing scripts
-|
-+-- Whitepaper.md                # 4 approaches to hiding case values
-+-- PRD.md                       # Product requirements
-+-- HACKATHON.md                 # Hackathon submission details
-|
-+-- packages/foundry/            # ETHDenver legacy (ZK Mode)
-+-- deal/                        # ETHDenver legacy (Brodinger's Case)
+├── packages/convergence/       # Production package (active development)
+│   ├── contracts/              # 16 Solidity contracts (source of truth)
+│   ├── test/                   # Forge tests (244 tests, 13 suites)
+│   ├── workflows/              # 6 CRE TypeScript workflows
+│   ├── scripts/                # Bash CLI (play-game, cre-simulate, e2e-full)
+│   ├── script/                 # Forge deploy scripts + env.sh
+│   └── dealornot/              # Next.js 16 frontend (standalone app)
+│
+├── prototype/                  # Battle-tested prototype (44+ games played)
+│   ├── contracts/              # Foundry monolith contract
+│   ├── frontend/               # Legacy Next.js frontend
+│   └── workflows/              # CRE workflows (original versions)
+│
+├── docs/                       # Whitepaper, PRD, hackathon submission
+├── legacy/                     # ETHDenver archive (Fisher-Yates, ZK attempts)
+└── agent-server/               # HTTP API with 3 agent strategies
 ```
 
-The [`packages/convergence/`](packages/convergence/README.md) package is the production version. It splits the prototype monolith into focused, testable contracts. The `prototype/` package proved the concept. The `prototype/frontend/` is shared and points to convergence contract addresses.
+Built iteratively: `legacy/` (ETHDenver) proved the concept was fun, `prototype/` proved CRE works on-chain, `packages/convergence/` is the production rewrite with 16 contracts, proper separation of concerns, and its own frontend. Scripts in convergence are written for judges to play a full game end-to-end.
 
 ## Origin: ETHDenver 2026
 
-We [built the first version at ETHDenver](https://devfolio.co/projects/deal-or-not-9c01). Two separate game contracts (ZK Mode and Brodinger's Case), a working frontend, and good ideas, but neither approach was actually secure. The Chainlink Convergence hackathon gave us the right tool: CRE Confidential Compute. See [`Whitepaper.md`](Whitepaper.md) for the full analysis.
+We [built the first version at ETHDenver](https://devfolio.co/projects/deal-or-not-9c01). Two separate game contracts (ZK Mode and Brodinger's Case), a working frontend, and good ideas, but neither approach was actually secure. The Chainlink Convergence hackathon gave us the right tool: CRE Confidential Compute. See [`Whitepaper.md`](docs/Whitepaper.md) for the full analysis.
 
 ## Sponsor Technologies
 

@@ -1,225 +1,152 @@
 # AGENTS.md
 
-This file provides guidance to coding agents working in this repository.
+Guidance for AI coding agents working in this repository.
 
 ## Project Overview
 
-Scaffold-ETH 2 (SE-2) is a starter kit for building dApps on Ethereum. It comes in **two flavors** based on the Solidity framework:
+**Deal or NOT** is a fully on-chain game show ("Deal or No Deal") powered by 5 Chainlink products: VRF, CRE Confidential Compute, Price Feeds, CCIP, and Gemini 2.5 Flash via CRE HTTP. Deployed on Base Sepolia.
 
-- **Hardhat flavor**: Uses `packages/hardhat` with hardhat-deploy plugin
-- **Foundry flavor**: Uses `packages/foundry` with Forge scripts
+Live at **dealornot.vercel.app**.
 
-Both flavors share the same frontend package:
+## Repository Structure
 
-- **packages/nextjs**: React frontend (Next.js App Router, not Pages Router, RainbowKit, Wagmi, Viem, TypeScript, Tailwind CSS with DaisyUI)
+```
+deal-or-not/
+├── packages/convergence/       # Production package (active development)
+│   ├── contracts/              # 16 Solidity contracts
+│   ├── test/                   # Forge tests (244 tests, 13 suites)
+│   ├── workflows/              # 6 CRE TypeScript workflows
+│   ├── scripts/                # Bash CLI (play-game, cre-simulate, e2e-full)
+│   ├── script/                 # Forge deploy scripts + env.sh
+│   └── dealornot/              # Next.js 16 frontend
+│
+├── prototype/                  # Original monolith (safety net, don't modify)
+│   ├── contracts/              # Foundry, single contract
+│   ├── frontend/               # Legacy frontend (was shared, now superseded)
+│   └── workflows/              # CRE workflows (original versions)
+│
+├── docs/                       # Planning docs, whitepaper, hackathon submission
+├── legacy/                     # Historical archive (ETHDenver, early attempts)
+└── agent-server/               # HTTP API with 3 agent strategies
+```
 
-### Detecting Which Flavor You're Using
-
-Check which package exists in the repository:
-
-- If `packages/hardhat` exists → **Hardhat flavor** (follow Hardhat instructions)
-- If `packages/foundry` exists → **Foundry flavor** (follow Foundry instructions)
+**Active work happens in `packages/convergence/`.** Read `packages/convergence/CLAUDE.md` for detailed contract functions, game phases, CRE workflow details, and frontend architecture.
 
 ## Common Commands
 
-Commands work the same for both flavors unless noted otherwise:
-
 ```bash
-# Development workflow (run each in separate terminal)
-yarn chain          # Start local blockchain (Hardhat or Anvil)
-yarn deploy         # Deploy contracts to local network
-yarn start          # Start Next.js frontend at http://localhost:3000
+# Contracts
+cd packages/convergence
+forge build                     # Compile all 16 contracts
+forge test                      # Run 244 tests
+forge test --summary            # Quick pass/fail overview
 
-# Code quality
-yarn lint           # Lint both packages
-yarn format         # Format both packages
+# Frontend
+cd packages/convergence/dealornot
+bun install && bun run dev      # Dev server on http://localhost:3001
 
-# Building
-yarn next:build     # Build frontend
-yarn compile        # Compile Solidity contracts
+# Game CLI (requires Foundry + cast)
+bash scripts/play-game.sh create            # Create a game ($0.25 entry)
+bash scripts/play-game.sh state <GID>       # Check game state
+bash scripts/play-game.sh pick <GID> 2      # Pick case #2
+bash scripts/play-game.sh open <GID> 0      # Open case #0
 
-# Contract verification (works for both)
-yarn verify --network <network>
+# CRE workflows (requires CRE CLI)
+bash scripts/cre-simulate.sh reveal <TX> 0  # Reveal case value
+bash scripts/cre-simulate.sh banker <TX> 1  # AI banker offer
+bash scripts/cre-simulate.sh support <GID>  # Auto-orchestrate all workflows
 
-# Account management (works for both)
-yarn generate            # Generate new deployer account
-yarn account:import      # Import existing private key
-yarn account             # View current account info
-
-# Deploy to live network
-yarn deploy --network <network>   # e.g., sepolia, mainnet, base
-
-yarn vercel:yolo --prod # for deployment of frontend
+# Frontend deployment
+cd packages/convergence/dealornot
+npx vercel --prod
 ```
 
 ## Architecture
 
-### Smart Contract Development
+| Layer | Tech | Key Files |
+|-------|------|-----------|
+| Contracts | Foundry / Solidity | `packages/convergence/contracts/` |
+| Frontend | Next.js 16, React 19, wagmi v2, RainbowKit | `packages/convergence/dealornot/` |
+| CRE Workflows | TypeScript, @chainlink/cre-sdk | `packages/convergence/workflows/` |
+| CCIP Bridge | Solidity (Gateway + Bridge) | `contracts/DealOrNotGateway.sol`, `contracts/DealOrNotBridge.sol` |
+| AI Banker | Gemini 2.5 Flash via CRE Confidential HTTP | `workflows/banker-ai/` |
 
-#### Hardhat Flavor
+## Frontend Conventions
 
-- Contracts: `packages/hardhat/contracts/`
-- Deployment scripts: `packages/hardhat/deploy/` (uses hardhat-deploy plugin)
-- Tests: `packages/hardhat/test/`
-- Config: `packages/hardhat/hardhat.config.ts`
-- Deploying specific contract:
-  - If the deploy script has:
-    ```typescript
-    // In packages/hardhat/deploy/01_deploy_my_contract.ts
-    deployMyContract.tags = ["MyContract"];
-    ```
-  - `yarn deploy --tags MyContract`
+- **Next.js App Router** (not Pages Router)
+- **Tailwind CSS 4** — no DaisyUI in convergence frontend
+- **wagmi v2 + viem v2** — direct contract hooks (not Scaffold-ETH hooks)
+- **`@/` path alias** for imports (e.g., `import { useGameState } from "@/hooks/useGameContract"`)
+- **Glass UI system** — custom components in `components/glass/` (GlassCard, GlassButton, GlassBriefcase, etc.)
+- **RainbowKit** for wallet connect + chain switching
 
-#### Foundry Flavor
-
-- Contracts: `packages/foundry/contracts/`
-- Deployment scripts: `packages/foundry/script/` (uses custom deployment strategy)
-  - Example: `packages/foundry/script/Deploy.s.sol` and `packages/foundry/script/DeployYourContract.s.sol`
-- Tests: `packages/foundry/test/`
-- Config: `packages/foundry/foundry.toml`
-- Deploying a specific contract:
-  - Create a separate deployment script and run `yarn deploy --file DeployYourContract.s.sol`
-
-#### Both Flavors
-
-- After `yarn deploy`, ABIs are auto-generated to `packages/nextjs/contracts/deployedContracts.ts`
-
-### Frontend Contract Interaction
-
-**Correct interact hook names (use these):**
-
-- `useScaffoldReadContract` - NOT ~~useScaffoldContractRead~~
-- `useScaffoldWriteContract` - NOT ~~useScaffoldContractWrite~~
-
-Contract data is read from two files in `packages/nextjs/contracts/`:
-
-- `deployedContracts.ts`: Auto-generated from deployments
-- `externalContracts.ts`: Manually added external contracts
-
-#### Reading Contract Data
+### Contract Interaction Pattern
 
 ```typescript
-const { data: totalCounter } = useScaffoldReadContract({
-  contractName: "YourContract",
-  functionName: "userGreetingCounter",
-  args: ["0xd8da6bf26964af9d7eed9e03e53415d37aa96045"],
-});
-```
+import { useReadContract, useWriteContract } from "wagmi";
+import { DEAL_OR_NOT_ABI } from "@/lib/abi";
+import { CONTRACT_ADDRESS } from "@/lib/config";
 
-#### Writing to Contracts
-
-```typescript
-const { writeContractAsync, isPending } = useScaffoldWriteContract({
-  contractName: "YourContract",
+// Reading
+const { data } = useReadContract({
+  address: CONTRACT_ADDRESS,
+  abi: DEAL_OR_NOT_ABI,
+  functionName: "getGameState",
+  args: [gameId],
 });
 
+// Writing
+const { writeContractAsync } = useWriteContract();
 await writeContractAsync({
-  functionName: "setGreeting",
-  args: [newGreeting],
-  value: parseEther("0.01"), // for payable functions
+  address: CONTRACT_ADDRESS,
+  abi: DEAL_OR_NOT_ABI,
+  functionName: "createGame",
+  value: entryFeeWei,
 });
 ```
 
-#### Reading Events
+## Solidity Conventions
 
-```typescript
-const { data: events, isLoading } = useScaffoldEventHistory({
-  contractName: "YourContract",
-  eventName: "GreetingChange",
-  watch: true,
-  fromBlock: 31231n,
-  blockData: true,
-});
-```
+- **Foundry** for compilation, testing, deployment
+- Libraries (VRFManager, PriceFeedHelper, BankerAlgorithm, GameMath) are imported by game contracts
+- Deploy scripts in `script/` — run with `forge script`
+- Environment: `script/env.sh` sources `.env` for keys and exports all contract addresses
+- Tests use Foundry's `Test` base with `vm.prank`, `vm.expectRevert`, etc.
 
-SE-2 also provides other hooks to interact with blockchain data: `useScaffoldWatchContractEvent`, `useScaffoldEventHistory`, `useDeployedContractInfo`, `useScaffoldContract`, `useTransactor`.
+## Code Style
 
-**IMPORTANT: Always use hooks from `packages/nextjs/hooks/scaffold-eth` for contract interactions. Always refer to the hook names as they exist in the codebase.**
+| Style | Category |
+|-------|----------|
+| `UpperCamelCase` | Components, types, contracts |
+| `lowerCamelCase` | Variables, functions, hooks |
+| `CONSTANT_CASE` | Constants, contract addresses |
+| `snake_case` | Foundry script files, bash scripts |
 
-### UI Components
+## Key Constraints
 
-**Always use `@scaffold-ui/components` library for web3 UI components:**
+- **VRF callback**: ~10s on Base Sepolia. Don't poll faster than 3s.
+- **CRE workflows**: ~5-10s per simulation. Max sleep in scripts: 10-12s.
+- **Gemini rate limits**: Free tier = 20 req/hour. 3 calls per game.
+- **Price feed staleness**: 3600s default. SharedPriceFeed reverts with `StalePriceFeed()`.
+- **env.sh doesn't persist across Bash tool calls**: Always inline `source script/env.sh && ...`
+- **Don't install new deps without asking.**
+- **Don't modify `prototype/`** — it's the safety net on main.
 
-- `Address`: Display ETH addresses with ENS resolution, blockie avatars, and explorer links
-- `AddressInput`: Input field with address validation and ENS resolution
-- `Balance`: Show ETH balance in ether and USD
-- `EtherInput`: Number input with ETH/USD conversion toggle
-- `IntegerInput`: Integer-only input with wei conversion
+## Deployed Contracts
 
-### Styling
+All addresses are in `packages/convergence/script/env.sh`. Key ones:
 
-**Use DaisyUI classes** for building frontend components.
-
-```tsx
-// ✅ Good - using DaisyUI classes
-<button className="btn btn-primary">Connect</button>
-<div className="card bg-base-100 shadow-xl">...</div>
-
-// ❌ Avoid - raw Tailwind when DaisyUI has a component
-<button className="px-4 py-2 bg-blue-500 text-white rounded">Connect</button>
-```
-
-### Configure Target Network before deploying to testnet / mainnet.
-
-#### Hardhat
-
-Add networks in `packages/hardhat/hardhat.config.ts` if not present.
-
-#### Foundry
-
-Add RPC endpoints in `packages/foundry/foundry.toml` if not present.
-
-#### NextJs
-
-Add networks in `packages/nextjs/scaffold.config.ts` if not present. This file also contains configuration for polling interval, API keys. Remember to decrease the polling interval for L2 chains.
-
-## Code Style Guide
-
-### Identifiers
-
-| Style            | Category                                                                                                               |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `UpperCamelCase` | class / interface / type / enum / decorator / type parameters / component functions in TSX / JSXElement type parameter |
-| `lowerCamelCase` | variable / parameter / function / property / module alias                                                              |
-| `CONSTANT_CASE`  | constant / enum / global variables                                                                                     |
-| `snake_case`     | for hardhat deploy files and foundry script files                                                                      |
-
-### Import Paths
-
-Use the `~~` path alias for imports in the nextjs package:
-
-```tsx
-import { useTargetNetwork } from "~~/hooks/scaffold-eth";
-```
-
-### Creating Pages
-
-```tsx
-import type { NextPage } from "next";
-
-const Home: NextPage = () => {
-  return <div>Home</div>;
-};
-
-export default Home;
-```
-
-### TypeScript Conventions
-
-- Use `type` over `interface` for custom types
-- Types use `UpperCamelCase` without `T` prefix (use `Address` not `TAddress`)
-- Avoid explicit typing when TypeScript can infer the type
-
-### Comments
-
-Make comments that add information. Avoid redundant JSDoc for simple functions.
+| Contract | Chain | Address |
+|----------|-------|---------|
+| DealOrNotQuickPlay | Base Sepolia | `0x46B6b547A4683ac5533CAce6aDc4d399b50424A7` |
+| Bank | Base Sepolia | `0x5De581956fcCEAae90a0C4cf02E4bDDC7F1253BB` |
+| DealOrNotBridge | Base Sepolia | `0xB233eFD1623f843151C97a1fB32f9115AaE6a875` |
+| DealOrNotGateway | ETH Sepolia | `0x366215E1F493f3420AbD5551c0618c2B28CBc18A` |
 
 ## Documentation
 
-Use **Context7 MCP** tools to fetch up-to-date documentation for any library (Wagmi, Viem, RainbowKit, DaisyUI, Hardhat, Next.js, etc.). Context7 is configured as an MCP server and provides access to indexed documentation with code examples.
-
-## Specialized Agents
-
-Use these specialized agents for specific tasks:
-
-- **`grumpy-carlos-code-reviewer`**: Use this agent for code reviews before finalizing changes
+- `README.md` — Project overview, architecture, quick start for judges
+- `claude-judges.md` — 5-minute technical review for hackathon judges
+- `packages/convergence/CLAUDE.md` — Deep technical reference (contracts, phases, workflows, frontend)
+- `docs/Whitepaper.md` — Why CRE is the right solution (4 approaches analyzed)
+- `DEPLOYMENT_GUIDE.md` — How to deploy contracts
