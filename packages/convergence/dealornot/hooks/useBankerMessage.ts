@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePublicClient } from "wagmi";
 import { parseAbiItem } from "viem";
 import { CONTRACT_ADDRESS } from "@/lib/config";
@@ -10,16 +10,18 @@ const BANKER_MESSAGE_EVENT = parseAbiItem(
 );
 
 /// Read the banker message from the BankerMessage event log on the game contract.
-/// This is reliable — the event is always emitted in the primary setBankerOfferWithMessage tx.
+/// Uses both log polling and watchContractEvent for reliability on public RPCs.
 export function useBankerMessage(gameId: bigint | undefined): string | null {
   const [message, setMessage] = useState<string | null>(null);
+  const foundRef = useRef(false);
   const publicClient = usePublicClient();
 
   useEffect(() => {
     if (!publicClient || gameId === undefined) return;
+    foundRef.current = false;
 
-    // Fetch historical logs for this game
     const fetchMessage = async () => {
+      if (foundRef.current) return;
       try {
         const currentBlock = await publicClient.getBlockNumber();
         const fromBlock = currentBlock - 10000n;
@@ -35,7 +37,10 @@ export function useBankerMessage(gameId: bigint | undefined): string | null {
         if (logs.length > 0) {
           const latest = logs[logs.length - 1];
           const msg = (latest.args as { message?: string }).message;
-          if (msg) setMessage(msg);
+          if (msg) {
+            foundRef.current = true;
+            setMessage(msg);
+          }
         }
       } catch (err) {
         console.error("Error fetching BankerMessage event:", err);
@@ -44,7 +49,9 @@ export function useBankerMessage(gameId: bigint | undefined): string | null {
 
     fetchMessage();
 
-    // Watch for new BankerMessage events in real-time
+    // Poll every 3s until found — watchContractEvent is unreliable on public RPCs
+    const interval = setInterval(fetchMessage, 3000);
+
     const unwatch = publicClient.watchContractEvent({
       address: CONTRACT_ADDRESS,
       abi: [BANKER_MESSAGE_EVENT],
@@ -53,12 +60,16 @@ export function useBankerMessage(gameId: bigint | undefined): string | null {
       onLogs: (logs) => {
         for (const log of logs) {
           const msg = (log.args as { message?: string }).message;
-          if (msg) setMessage(msg);
+          if (msg) {
+            foundRef.current = true;
+            setMessage(msg);
+          }
         }
       },
     });
 
     return () => {
+      clearInterval(interval);
       unwatch();
       setMessage(null);
     };

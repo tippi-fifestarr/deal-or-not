@@ -23,7 +23,7 @@ function BankerQuip({ quip }: { quip?: string }) {
       if (timerRef.current) clearTimeout(timerRef.current);
       return;
     }
-    timerRef.current = setTimeout(() => setShowFallback(true), 9000);
+    timerRef.current = setTimeout(() => setShowFallback(true), 6000);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [quip]);
 
@@ -42,7 +42,16 @@ function BankerQuip({ quip }: { quip?: string }) {
           <p className="text-xs text-white/50 mt-2">— The Banker {quip ? "(AI)" : ""}</p>
         </>
       ) : (
-        <p className="text-white/50 italic animate-pulse">The Banker is composing a message...</p>
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-white/50 italic animate-pulse">The Banker is composing a message...</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-xs text-white/30 hover:text-white/60 transition-colors flex items-center gap-1"
+          >
+            <span className="inline-block rotate-0 hover:rotate-180 transition-transform">&#x21bb;</span>
+            Not loading? Try refreshing
+          </button>
+        </div>
       )}
     </motion.div>
   );
