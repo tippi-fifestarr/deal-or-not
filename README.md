@@ -2,6 +2,8 @@
 
 An on-chain game show powered by Chainlink. The name is the product: Deal Or Not = DON, running on the Chainlink DON (Decentralized Oracle Network). The Banker IS the DON.
 
+**Live at [dealornot.vercel.app](https://dealornot.vercel.app)** — no wallet required to spectate at [`/watch`](https://dealornot.vercel.app/watch).
+
 Convergence: A Chainlink Hackathon (Feb 6 - Mar 8, 2026). Built by Ryan & Tippi Fifestarr.
 
 ## The Vision
@@ -29,13 +31,13 @@ The full technical journey is in [`Whitepaper.md`](docs/Whitepaper.md).
 
 | Product | Role | Source | Deployed |
 |---------|------|--------|----------|
-| **VRF v2.5** | Provably random seed at game creation. Ensures fair case value derivation. | [`VRFManager.sol`](packages/convergence/src/VRFManager.sol), [`DealOrNotQuickPlay.sol`](packages/convergence/src/DealOrNotQuickPlay.sol) | [BaseScan](https://sepolia.basescan.org/address/0x46B6b547A4683ac5533CAce6aDc4d399b50424A7) |
+| **VRF v2.5** | Provably random seed at game creation. Ensures fair case value derivation. | [`VRFManager.sol`](packages/convergence/contracts/VRFManager.sol), [`DealOrNotQuickPlay.sol`](packages/convergence/contracts/DealOrNotQuickPlay.sol) | [BaseScan](https://sepolia.basescan.org/address/0x46B6b547A4683ac5533CAce6aDc4d399b50424A7) |
 | **CRE Confidential Compute** | Case values derived from `hash(vrfSeed, caseIndex, CRE_SECRET, bitmap)`. Player cannot precompute. | [`confidential-reveal/main.ts`](packages/convergence/workflows/confidential-reveal/main.ts) | Writes to [game contract](https://sepolia.basescan.org/address/0x46B6b547A4683ac5533CAce6aDc4d399b50424A7) |
 | **CRE + Gemini 2.5 Flash** | AI Banker personality. Computes EV-based offer, calls Gemini for snarky messages. | [`banker-ai/main.ts`](packages/convergence/workflows/banker-ai/main.ts), [`gemini.ts`](packages/convergence/workflows/banker-ai/gemini.ts) | Writes to [game](https://sepolia.basescan.org/address/0x46B6b547A4683ac5533CAce6aDc4d399b50424A7) + [BestOfBanker](https://sepolia.basescan.org/address/0x55100EF4168d21631EEa6f2b73D6303Bb008F554) |
-| **Price Feeds** | ETH/USD conversion for entry fees, payouts, $0.02 upvotes on BestOfBanker gallery. | [`PriceFeedHelper.sol`](packages/convergence/src/PriceFeedHelper.sol), [`BestOfBanker.sol`](packages/convergence/src/BestOfBanker.sol) | [Bank](https://sepolia.basescan.org/address/0x5De581956fcCEAae90a0C4cf02E4bDDC7F1253BB), [BestOfBanker](https://sepolia.basescan.org/address/0x55100EF4168d21631EEa6f2b73D6303Bb008F554) |
-| **CCIP** | Cross-chain play. Start games from ETH Sepolia, execute on Base Sepolia. | [`DealOrNotGateway.sol`](packages/convergence/src/DealOrNotGateway.sol), [`DealOrNotBridge.sol`](packages/convergence/src/DealOrNotBridge.sol) | [Gateway (EtherScan)](https://sepolia.etherscan.io/address/0x366215E1F493f3420AbD5551c0618c2B28CBc18A), [Bridge (BaseScan)](https://sepolia.basescan.org/address/0xB233eFD1623f843151C97a1fB32f9115AaE6a875) |
+| **Price Feeds** | ETH/USD conversion for entry fees, payouts, $0.02 upvotes on BestOfBanker gallery. | [`PriceFeedHelper.sol`](packages/convergence/contracts/PriceFeedHelper.sol), [`BestOfBanker.sol`](packages/convergence/contracts/BestOfBanker.sol) | [Bank](https://sepolia.basescan.org/address/0x5De581956fcCEAae90a0C4cf02E4bDDC7F1253BB), [BestOfBanker](https://sepolia.basescan.org/address/0x55100EF4168d21631EEa6f2b73D6303Bb008F554) |
+| **CCIP** | Cross-chain play. Start games from ETH Sepolia, execute on Base Sepolia. | [`DealOrNotGateway.sol`](packages/convergence/contracts/DealOrNotGateway.sol), [`DealOrNotBridge.sol`](packages/convergence/contracts/DealOrNotBridge.sol) | [Gateway (EtherScan)](https://sepolia.etherscan.io/address/0x366215E1F493f3420AbD5551c0618c2B28CBc18A), [Bridge (BaseScan)](https://sepolia.basescan.org/address/0xB233eFD1623f843151C97a1fB32f9115AaE6a875) |
 
-### CRE Workflows (4 total)
+### CRE Workflows (7 total)
 
 | Workflow | Trigger | What It Does |
 |----------|---------|--------------|
@@ -43,6 +45,9 @@ The full technical journey is in [`Whitepaper.md`](docs/Whitepaper.md).
 | **banker-ai** | `RoundComplete` | Computes EV-based offer, calls Gemini 2.5 Flash for personality message, writes offer + message to game contract |
 | **save-quote** | `BankerMessage` | Archives banker quote to BestOfBanker gallery contract |
 | **sponsor-jackpot** | `CaseOpenRequested` | Adds jackpot bonus from sponsor funds to player's game |
+| **agent-gameplay-orchestrator** | DealOrNotAgents events | Autonomous agent gameplay via Confidential HTTP |
+| **market-creator** | `GameCreated` (Agents) | Auto-creates prediction markets per agent game via `createMarketBatch()` |
+| **game-timer** | Cron `*/5 * * * *` | Expires stale games that have timed out |
 
 ## Deployed Contracts (Convergence)
 
@@ -166,12 +171,13 @@ bash scripts/play-game.sh keep <GID>
 
 ### Run the frontend
 
+Visit the live site at **[dealornot.vercel.app](https://dealornot.vercel.app)**, or run locally:
+
 ```bash
-cd prototype/frontend
-npm install
-npm run dev
-# Visit http://localhost:3000
-# Watch a game: http://localhost:3000/watch/8
+cd packages/convergence/dealornot
+bun install && bun run dev
+# Visit http://localhost:3001
+# Watch a game: http://localhost:3001/watch/8
 ```
 
 ## Project Structure
@@ -181,7 +187,7 @@ deal-or-not/
 ├── packages/convergence/       # Production package (active development)
 │   ├── contracts/              # 16 Solidity contracts (source of truth)
 │   ├── test/                   # Forge tests (244 tests, 13 suites)
-│   ├── workflows/              # 6 CRE TypeScript workflows
+│   ├── workflows/              # 7 CRE TypeScript workflows
 │   ├── scripts/                # Bash CLI (play-game, cre-simulate, e2e-full)
 │   ├── script/                 # Forge deploy scripts + env.sh
 │   └── dealornot/              # Next.js 16 frontend (standalone app)
@@ -207,7 +213,7 @@ We [built the first version at ETHDenver](https://devfolio.co/projects/deal-or-n
 - **Chainlink**: VRF v2.5 (fairness), CRE Confidential Compute (privacy), CRE HTTP + Gemini (AI Banker), Price Feeds (USD conversion), CCIP (cross-chain play)
 - **Google Gemini**: Gemini 2.5 Flash for AI Banker personality via CRE HTTP consensus
 - **Base**: Primary deployment chain (Base Sepolia)
-- **Scaffold-ETH 2**: Development framework and UI components
+- **Next.js 16 + React 19**: Standalone frontend with RainbowKit, wagmi v2, Tailwind CSS 4
 
 ## License
 

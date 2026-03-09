@@ -1,6 +1,8 @@
 # Deployment Guide: Deal or NOT
 
-All contracts deploy to Base Sepolia via Foundry. The Gateway (CCIP spoke) deploys to ETH Sepolia.
+All contracts deploy to **Base Sepolia** via Foundry. The Gateway (CCIP spoke) deploys to **ETH Sepolia**.
+
+Live at **[dealornot.vercel.app](https://dealornot.vercel.app)**.
 
 ## Prerequisites
 
@@ -10,111 +12,68 @@ All contracts deploy to Base Sepolia via Foundry. The Gateway (CCIP spoke) deplo
 
 ## Environment Setup
 
-Everything runs through `prototype/scripts/env.sh`, which reads keys from `prototype/.env` (gitignored) or falls back to `prototype/.env.example`.
+Everything runs through `packages/convergence/script/env.sh`, which reads keys from `.env` (gitignored) or `.env.example` (fallback).
 
 ```bash
 # From the repo root:
-source prototype/scripts/env.sh
+source packages/convergence/script/env.sh
+
+# Or from packages/convergence/:
+source script/env.sh
 
 # This exports: DEPLOYER_KEY, DEPLOYER_ADDR, PLAYER_KEY, PLAYER_ADDR,
 #               PRIVATE_KEY (alias for DEPLOYER_KEY, used by forge scripts),
-#               RPC_URL, CONTRACT, BEST_OF_BANKER, SPONSOR_JACKPOT, etc.
-```
-
-Before hackathon submission, move keys from `.env.example` to `.env` (gitignored) and strip keys from `.env.example` so they're not in the repo.
-
-For manual forge deploys, env.sh exports `PRIVATE_KEY` so forge scripts work directly:
-```bash
-source prototype/scripts/env.sh
-cd prototype/contracts
-forge script script/DeployDealOrNotAgents.s.sol:DeployDealOrNotAgents \
-  --rpc-url $RPC_URL --broadcast
-```
-
-Or use the deploy helper:
-```bash
-bash prototype/scripts/deploy.sh all        # Deploy + wire everything
-bash prototype/scripts/deploy.sh agents     # Just DealOrNotAgents
-bash prototype/scripts/deploy.sh wire       # Post-deploy authorizations
-bash prototype/scripts/deploy.sh verify     # Sourcify verification
-bash prototype/scripts/deploy.sh addresses  # Show all current addresses
+#               RPC_URL, GAME_CONTRACT, BANK_CONTRACT, AGENTS_CONTRACT, etc.
 ```
 
 ## Compile and Test
 
 ```bash
-cd prototype/contracts
+cd packages/convergence
 forge build    # Should compile with warnings only
-forge test     # 204 tests across 9 suites, all passing
-```
-
-The `chainlink-brownie-contracts` submodule should be at v1.3.0 (`5cb41fbc`) for CCIP support.
-If CCIP contracts fail to compile:
-```bash
-cd lib/chainlink-brownie-contracts
-git checkout 5cb41fbc   # v1.3.0 (has CCIP support)
-cd ../..
+forge test     # 244+ tests across 13 suites, all passing
 ```
 
 ## What to Deploy
 
-There are 8 deploy scripts. Not all contracts need redeploying every time.
+There are 4 deploy scripts in `packages/convergence/script/`:
 
 | Script | Deploys | When to Use |
 |--------|---------|-------------|
-| `DeployConfidential.s.sol` | DealOrNotConfidential (core game) | Rarely, already deployed |
-| `DeployBestOfBanker.s.sol` | BestOfBanker (AI quote gallery) | Rarely, already deployed |
-| `DeploySponsorJackpot.s.sol` | SponsorJackpot | Rarely, already deployed |
-| `DeployBridge.s.sol` | DealOrNotBridge (CCIP hub, Base Sepolia) | When CCIP changes |
-| `DeployGateway.s.sol` | DealOrNotGateway (CCIP spoke, ETH Sepolia) | When CCIP changes |
-| `DeployAgentInfrastructure.s.sol` | AgentStaking, SeasonalLeaderboard, PredictionMarket | When agent infra changes |
-| `DeployDealOrNotAgents.s.sol` | DealOrNotAgents + MockKeystoneForwarder | When agent game logic changes |
-| `DeploySharedPriceFeed.s.sol` | SharedPriceFeed | First deploy or price feed changes |
+| `Deploy.s.sol` | DealOrNotQuickPlay + Bank (core game) | Rarely, already deployed |
+| `DeployAgentInfra.s.sol` | DealOrNotAgents, AgentRegistry, AgentStaking, SeasonalLeaderboard, PredictionMarket, SharedPriceFeed | When agent infra changes |
+| `DeployCCIP.s.sol` | DealOrNotBridge (Base Sepolia) + DealOrNotGateway (ETH Sepolia) | When CCIP changes |
+| `DeployCCIPGasFunder.s.sol` | CCIP gas funding helper | When CCIP gas config changes |
 
 ## Deploy Commands
 
-### Agent Game (DealOrNotAgents)
+### Core Game (DealOrNotQuickPlay + Bank)
 
 ```bash
-cd prototype/contracts
+cd packages/convergence
+source script/env.sh
 
-# Loads PRIVATE_KEY from .env
-source .env 2>/dev/null
-
-forge script script/DeployDealOrNotAgents.s.sol:DeployDealOrNotAgents \
-  --rpc-url $RPC_URL \
-  --broadcast
+forge script script/Deploy.s.sol \
+  --rpc-url $RPC_URL --broadcast
 ```
 
-Outputs:
-- MockKeystoneForwarder address
-- DealOrNotAgents address
-
-### Agent Infrastructure (Staking, Leaderboard, Markets)
-
-Only needed if AgentStaking, SeasonalLeaderboard, or PredictionMarket code changed.
+### Agent Infrastructure
 
 ```bash
-forge script script/DeployAgentInfrastructure.s.sol:DeployAgentInfrastructure \
-  --rpc-url $RPC_URL \
-  --broadcast
+forge script script/DeployAgentInfra.s.sol \
+  --rpc-url $RPC_URL --broadcast
 ```
 
-Uses existing AgentRegistry at `0xf3B0d29416d3504c802bab4A799349746A37E788`.
-
-### SharedPriceFeed
+### CCIP Bridge + Gateway
 
 ```bash
-# Base Sepolia (default ETH/USD feed)
-forge script script/DeploySharedPriceFeed.s.sol \
-  --rpc-url $RPC_URL \
-  --broadcast
+# Bridge on Base Sepolia
+forge script script/DeployCCIP.s.sol \
+  --rpc-url $RPC_URL --broadcast
 
-# ETH Sepolia (different feed address)
-PRICE_FEED=0x694AA1769357215DE4FAC081bf1f309aDC325306 \
-forge script script/DeploySharedPriceFeed.s.sol \
-  --rpc-url $ETH_SEPOLIA_RPC \
-  --broadcast
+# Gateway on ETH Sepolia (update RPC)
+forge script script/DeployCCIP.s.sol \
+  --rpc-url $ETH_SEPOLIA_RPC --broadcast
 ```
 
 ## Post-Deploy Wiring
@@ -124,71 +83,53 @@ After deploying new contracts, they need to be authorized to talk to each other.
 ### After deploying DealOrNotAgents
 
 ```bash
-# 1. Add as VRF consumer at https://vrf.chain.link
-#    Subscription ID: 20136374336138753384898843390506225296052091906296406953567310616148092014984
+source script/env.sh
 
-# 2. Authorize in AgentRegistry
-cast send 0xf3B0d29416d3504c802bab4A799349746A37E788 \
-  "authorizeContract(address)" $NEW_AGENTS_ADDR \
-  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
+# 1. Add as VRF consumer at https://vrf.chain.link
+
+# 2. Authorize CRE Forwarder (so CRE workflows can write to the contract)
+cast send $AGENTS_CONTRACT \
+  "setCREForwarder(address)" $CRE_FORWARDER \
+  --private-key $DEPLOYER_KEY --rpc-url $RPC_URL
 
 # 3. Authorize in AgentStaking (so DealOrNotAgents can add rewards)
-cast send $STAKING_ADDR \
-  "setAuthorizedCaller(address,bool)" $NEW_AGENTS_ADDR true \
-  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
+cast send $AGENT_STAKING \
+  "setAuthorizedCaller(address,bool)" $AGENTS_CONTRACT true \
+  --private-key $DEPLOYER_KEY --rpc-url $RPC_URL
 
 # 4. Authorize in SeasonalLeaderboard
-cast send $LEADERBOARD_ADDR \
-  "authorizeRecorder(address)" $NEW_AGENTS_ADDR \
-  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
+cast send $SEASONAL_LEADERBOARD \
+  "authorizeRecorder(address)" $AGENTS_CONTRACT \
+  --private-key $DEPLOYER_KEY --rpc-url $RPC_URL
 ```
 
-### After deploying AgentStaking
+### After deploying PredictionMarket
 
 ```bash
-# Authorize DealOrNotAgents to add rewards
-cast send $NEW_STAKING_ADDR \
-  "setAuthorizedCaller(address,bool)" $AGENTS_ADDR true \
-  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
-```
-
-### After deploying SeasonalLeaderboard
-
-```bash
-# Authorize recorder + start first season
-cast send $NEW_LEADERBOARD_ADDR \
-  "authorizeRecorder(address)" $AGENTS_ADDR \
-  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
-
-cast send $NEW_LEADERBOARD_ADDR \
-  "startSeason()" \
-  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
+# Authorize CRE Forwarder for market-creator workflow
+cast send $PREDICTION_MARKET \
+  "authorizeResolver(address)" $CRE_FORWARDER \
+  --private-key $DEPLOYER_KEY --rpc-url $RPC_URL
 ```
 
 ## Update Frontend
 
-After deploying, update the addresses in `prototype/frontend/lib/chains.ts`:
+After deploying, update the addresses in `packages/convergence/dealornot/lib/config.ts`:
 
 ```typescript
-export const CHAIN_CONTRACTS = {
-  [baseSepolia.id]: {
-    dealOrNot: "0xd9D4A974021055c46fD834049e36c21D7EE48137",
-    // ... update any redeployed contract addresses here
-    dealOrNotAgents: "NEW_ADDRESS_HERE",
-    agentStaking: "NEW_ADDRESS_HERE",
-  },
-};
+export const CONTRACT_ADDRESS = "0x..."; // DealOrNotQuickPlay
 ```
 
-Then rebuild the frontend:
+And agent addresses in the relevant hooks. Then redeploy:
+
 ```bash
-cd prototype/frontend
-npm run build
+cd packages/convergence/dealornot
+npx vercel --prod
 ```
 
 ## Verify on Sourcify
 
-Sourcify verification is free (no API key needed) and works with Blockscout:
+Sourcify verification is free (no API key needed):
 
 ```bash
 forge verify-contract $CONTRACT_ADDR ContractName \
@@ -203,23 +144,23 @@ For contracts with constructor args, add `--constructor-args $(cast abi-encode "
 
 | Contract | Address | Status |
 |----------|---------|--------|
-| DealOrNotConfidential | [`0xd9D4A974021055c46fD834049e36c21D7EE48137`](https://sepolia.basescan.org/address/0xd9D4A974021055c46fD834049e36c21D7EE48137) | Active, core game |
-| BestOfBanker | [`0x05EdC924f92aBCbbB91737479948509dC7E23bF9`](https://sepolia.basescan.org/address/0x05EdC924f92aBCbbB91737479948509dC7E23bF9) | Active |
-| SponsorJackpot | [`0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95`](https://sepolia.basescan.org/address/0xc6b4Ba33f59816F1B47818EFf928e9a48F7ddC95) | Active |
-| DealOrNotBridge | [`0xcF3B0d1575b30B53d8Db4EDe30Ebb47D51a2650a`](https://sepolia.basescan.org/address/0xcF3B0d1575b30B53d8Db4EDe30Ebb47D51a2650a) | CCIP hub |
-| AgentRegistry | [`0xf3B0d29416d3504c802bab4A799349746A37E788`](https://base-sepolia.blockscout.com/address/0xf3B0d29416d3504c802bab4A799349746A37E788) | Active |
-| DealOrNotAgents | [`0x12e23ff7954c62ae18959c5fd4aed6b51ebcd627`](https://base-sepolia.blockscout.com/address/0x12e23ff7954c62ae18959c5fd4aed6b51ebcd627) | Redeployed Mar 8 (price validation, staleness, swap fix) |
-| MockKeystoneForwarder | [`0xf958dfa3167bea463a624dc03dcfa3b55e56043a`](https://base-sepolia.blockscout.com/address/0xf958dfa3167bea463a624dc03dcfa3b55e56043a) | For DealOrNotAgents |
-| AgentStaking | [`0xd46eba96e29e83952ec0ef74eed3c7eb1a4ba6b4`](https://base-sepolia.blockscout.com/address/0xd46eba96e29e83952ec0ef74eed3c7eb1a4ba6b4) | Redeployed Mar 8 (emergency withdraw, reward loss fix) |
-| SeasonalLeaderboard | [`0x13c3c750ed19c935567dcb54ee4e88ff6789001a`](https://base-sepolia.blockscout.com/address/0x13c3c750ed19c935567dcb54ee4e88ff6789001a) | Redeployed Mar 8 |
-| PredictionMarket | [`0x05408be7468d01852002156a1b380e3953a502ee`](https://base-sepolia.blockscout.com/address/0x05408be7468d01852002156a1b380e3953a502ee) | Redeployed Mar 8 |
-| SharedPriceFeed | [`0x91d8104e6e138607c00dd0bc132e1291a641c36d`](https://base-sepolia.blockscout.com/address/0x91d8104e6e138607c00dd0bc132e1291a641c36d) | New, deployed Mar 8 |
+| DealOrNotQuickPlay | [`0x46B6b547A4683ac5533CAce6aDc4d399b50424A7`](https://sepolia.basescan.org/address/0x46B6b547A4683ac5533CAce6aDc4d399b50424A7) | Active, core game |
+| Bank | [`0x5De581956fcCEAae90a0C4cf02E4bDDC7F1253BB`](https://sepolia.basescan.org/address/0x5De581956fcCEAae90a0C4cf02E4bDDC7F1253BB) | Active |
+| SponsorVault | [`0x14a26cb376d8e36c47261A46d6b203A7BaADaE53`](https://sepolia.basescan.org/address/0x14a26cb376d8e36c47261A46d6b203A7BaADaE53) | Active |
+| BestOfBanker | [`0x55100EF4168d21631EEa6f2b73D6303Bb008F554`](https://sepolia.basescan.org/address/0x55100EF4168d21631EEa6f2b73D6303Bb008F554) | Active |
+| DealOrNotBridge | [`0xB233eFD1623f843151C97a1fB32f9115AaE6a875`](https://sepolia.basescan.org/address/0xB233eFD1623f843151C97a1fB32f9115AaE6a875) | CCIP hub |
+| DealOrNotAgents | [`0xa04cF1072A33B3FF4aB6bb1E054e69e66BaD5430`](https://sepolia.basescan.org/address/0xa04cF1072A33B3FF4aB6bb1E054e69e66BaD5430) | Active |
+| AgentRegistry | [`0x2eDE9C65F4Ff33F4190aee798478bb579f248F52`](https://sepolia.basescan.org/address/0x2eDE9C65F4Ff33F4190aee798478bb579f248F52) | Active |
+| AgentStaking | [`0xaFb6D74eD5286158312163671E93fba8A6Fd058e`](https://sepolia.basescan.org/address/0xaFb6D74eD5286158312163671E93fba8A6Fd058e) | Active |
+| SeasonalLeaderboard | [`0x2C91eF4616f7D4386F27C237D77169395e9EfCE0`](https://sepolia.basescan.org/address/0x2C91eF4616f7D4386F27C237D77169395e9EfCE0) | Active |
+| PredictionMarket | [`0x1B995CC591Ec168df03339Fae74B0752Aa1259d8`](https://sepolia.basescan.org/address/0x1B995CC591Ec168df03339Fae74B0752Aa1259d8) | Active |
+| SharedPriceFeed | [`0x9AB27e309E677c0ec488E37E8F3B193958D2bBc7`](https://sepolia.basescan.org/address/0x9AB27e309E677c0ec488E37E8F3B193958D2bBc7) | Active |
 
 ### ETH Sepolia
 
 | Contract | Address |
 |----------|---------|
-| DealOrNotGateway | [`0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124`](https://sepolia.etherscan.io/address/0xaB2995091CCE608d1F3f18f36F8e6615aB2fc124) |
+| DealOrNotGateway | [`0x366215E1F493f3420AbD5551c0618c2B28CBc18A`](https://sepolia.etherscan.io/address/0x366215E1F493f3420AbD5551c0618c2B28CBc18A) |
 
 ### Chainlink Infrastructure (Base Sepolia)
 
@@ -232,32 +173,17 @@ For contracts with constructor args, add `--constructor-args $(cast abi-encode "
 ## Quick Verification
 
 ```bash
-# Check AgentRegistry has agents
-cast call 0xf3B0d29416d3504c802bab4A799349746A37E788 "nextAgentId()(uint256)" --rpc-url https://sepolia.base.org
+source packages/convergence/script/env.sh
 
-# Check DealOrNotAgents game count
-cast call 0x12e23ff7954c62ae18959c5fd4aed6b51ebcd627 "nextGameId()(uint256)" --rpc-url https://sepolia.base.org
+# Check bank is active
+cast call $BANK_CONTRACT "isActive()(bool)" --rpc-url $RPC_URL
 
-# Check core game is active
-cast call 0xd9D4A974021055c46fD834049e36c21D7EE48137 "nextGameId()(uint256)" --rpc-url https://sepolia.base.org
+# Check game count
+cast call $GAME_CONTRACT "nextGameId()(uint256)" --rpc-url $RPC_URL
+
+# Check BestOfBanker has AI quotes
+cast call $BEST_OF_BANKER "quoteCount()(uint256)" --rpc-url $RPC_URL
+
+# Check agent game count
+cast call $AGENTS_CONTRACT "nextGameId()(uint256)" --rpc-url $RPC_URL
 ```
-
-## Deployment Checklist (fix/pr15-audit-fixes)
-
-- [x] Forge build passes (204 tests, 0 failures)
-- [x] CCIP submodule fixed (v1.2.0 to v1.3.0)
-- [x] Deploy new DealOrNotAgents (`0x12e2...`) with price validation, staleness, swap flag fixes
-- [x] Deploy new AgentStaking (`0xd46e...`) with emergency withdraw, reward loss fixes
-- [x] Deploy new SeasonalLeaderboard (`0x13c3...`)
-- [x] Deploy new PredictionMarket (`0x0540...`)
-- [x] Deploy SharedPriceFeed (`0x91d8...`) with staleness + decimals validation
-- [ ] Add DealOrNotAgents as VRF consumer at https://vrf.chain.link
-- [x] Authorize DealOrNotAgents in AgentRegistry
-- [x] Authorize DealOrNotAgents in AgentStaking
-- [x] Authorize DealOrNotAgents in SeasonalLeaderboard
-- [x] Update `prototype/frontend/lib/chains.ts` with new addresses
-- [x] Frontend `npm run build` passes with new addresses
-- [ ] Verify contracts on Sourcify
-- [ ] Manual test: create agent game, verify price validation works
-- [ ] Manual test: frontend renders agent game state correctly
-- [ ] Move burner keys from `.env.example` to `.env` before submission

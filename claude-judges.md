@@ -32,7 +32,7 @@ The key insight: case values must be hidden from everyone (including the node op
 
 - **16 Solidity contracts** in `packages/convergence/contracts/` (core game, libraries, CCIP bridge, agent infra)
 - **244 forge tests** across 13 test suites
-- **6 CRE workflows** with TypeScript source (confidential-reveal, banker-ai, save-quote, sponsor-jackpot, agent-orchestrator, game-timer)
+- **7 CRE workflows** with TypeScript source (confidential-reveal, banker-ai, save-quote, sponsor-jackpot, agent-orchestrator, game-timer, market-creator)
 - **Contracts deployed and verified on Sourcify** — source readable on BaseScan/EthScan
 - **Standalone Next.js 16 frontend** (`packages/convergence/dealornot/`) with RainbowKit, spectator mode, ENS resolution, CCIP bridge UI
 - **Judge-ready CLI scripts** — `play-game.sh` and `cre-simulate.sh` walk through a full game end-to-end
