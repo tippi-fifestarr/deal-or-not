@@ -205,7 +205,7 @@ export default function AgentsPage() {
         ].map((feature) => (
           <GlassCard key={feature.title} className={`p-0 overflow-hidden border-2 ${feature.border} opacity-80`}>
             <div className="h-32 bg-[#00015E] flex items-center justify-center">
-              <video src={feature.video} muted loop playsInline autoPlay className="h-full object-contain opacity-60" />
+              <video src={feature.video} muted loop playsInline autoPlay preload="none" className="h-full object-contain opacity-60" />
             </div>
             <div className="p-6 text-center">
               <h4 className="font-bold text-lg mb-2">{feature.title}</h4>

@@ -402,6 +402,7 @@ function CrystalCard({
           muted
           loop
           playsInline
+          preload="none"
           className="w-full h-full object-contain scale-90 opacity-60 group-hover:opacity-100 group-hover:scale-100 transition-all duration-500"
           onMouseEnter={(e) => e.currentTarget.play()}
           onMouseLeave={(e) => {
