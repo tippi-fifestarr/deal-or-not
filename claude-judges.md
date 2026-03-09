@@ -30,11 +30,12 @@ The key insight: case values must be hidden from everyone (including the node op
 
 ## Code Quality
 
-- **14 Solidity contracts** in `packages/convergence/contracts/`
-- **47 forge tests** across 4 test suites (AgentRegistry, AgentStaking, Bank, DealOrNotAgents)
-- **5 CRE workflows** with TypeScript source (confidential-reveal, banker-ai, save-quote, sponsor-jackpot, game-timer)
-- **6 contracts deployed and verified on Sourcify** — source readable on BaseScan/EthScan
-- **Full Next.js frontend** with RainbowKit wallet connect, spectator mode, event log
+- **16 Solidity contracts** in `packages/convergence/contracts/` (core game, libraries, CCIP bridge, agent infra)
+- **244 forge tests** across 13 test suites
+- **6 CRE workflows** with TypeScript source (confidential-reveal, banker-ai, save-quote, sponsor-jackpot, agent-orchestrator, game-timer)
+- **Contracts deployed and verified on Sourcify** — source readable on BaseScan/EthScan
+- **Standalone Next.js 16 frontend** (`packages/convergence/dealornot/`) with RainbowKit, spectator mode, ENS resolution, CCIP bridge UI
+- **Judge-ready CLI scripts** — `play-game.sh` and `cre-simulate.sh` walk through a full game end-to-end
 
 ## Live Demo
 
@@ -45,11 +46,13 @@ The key insight: case values must be hidden from everyone (including the node op
 
 ## Repository Structure
 
-- `packages/convergence/` — Production contracts, frontend, CRE workflows, deploy scripts
-- `prototype/` — Battle-tested prototype (live Vercel deployment, 44+ games played)
-- `Whitepaper.md` — Technical deep dive on 4 architectural approaches and why CRE wins
-- `SUBMISSION.md` — Hackathon submission summary
+- `packages/convergence/` — Production contracts, frontend, CRE workflows, deploy scripts (**source of truth**)
+- `prototype/` — Battle-tested prototype (44+ games played, proof CRE works)
+- `legacy/` — ETHDenver archive (Fisher-Yates, ZK — documented why they failed)
+- `docs/Whitepaper.md` — Technical deep dive on 4 architectural approaches and why CRE wins
 - `README.md` — Project overview with Sourcify-verified contract links
+
+Built iteratively: legacy proved it was fun, prototype proved CRE works, convergence is production-grade.
 
 ## Deployed Contracts (Base Sepolia)
 
@@ -67,5 +70,6 @@ The key insight: case values must be hidden from everyone (including the node op
 1. **Real iteration** — Team tried commit-reveal, ZK proofs, Chainlink Functions, then CRE. Documented why each failed and why CRE is the right answer.
 2. **CRE as the killer feature** — Confidential HTTP fetches external entropy inside a TEE, computes case values privately, and writes results on-chain. No party can cheat.
 3. **AI Banker personality** — Gemini generates snarky, context-aware messages referencing actual game state. Runs through CRE so game data stays private.
-4. **Production-grade** — Verified contracts, 47 tests, cross-chain bridge, sponsor jackpot system, agent infrastructure for AI players.
+4. **Production-grade** — Verified contracts, 244 tests, cross-chain bridge, sponsor jackpot system, agent infrastructure for AI players.
 5. **Live and playable** — Not a prototype. Real games played with real wallets on Base Sepolia.
+6. **Judge-ready diagnostic scripts** — `test-vrf.sh`, `test-price-feed.sh`, and `test-ccip.sh` let judges verify each Chainlink integration independently (VRF coordinator status, price feed conversions + staleness, CCIP bridge wiring + costs). No game required.
