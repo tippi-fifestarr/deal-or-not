@@ -78,6 +78,15 @@ cleanup_configs() {
 }
 
 cd "$WORKFLOWS"
+
+# ── Auto-install workflow deps if missing ──
+for wf in confidential-reveal banker-ai save-quote sponsor-jackpot game-timer agent-gameplay-orchestrator; do
+  if [[ -d "$wf" && ! -d "$wf/node_modules" ]]; then
+    echo "Installing deps for $wf..."
+    (cd "$wf" && bun install --silent 2>/dev/null) || echo "  warn: bun install failed for $wf (try: cd workflows/$wf && bun install)"
+  fi
+done
+
 generate_configs
 trap cleanup_configs EXIT
 
