@@ -8,6 +8,8 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { cn } from "@/lib/glass";
 import { CHAIN_META } from "@/lib/chains";
 import { baseSepolia } from "wagmi/chains";
+import { useAccount } from "wagmi";
+import { useEnsName } from "@/hooks/useEnsName";
 
 const NAV_LINKS = [
   { href: "/play", label: "PLAY" },
@@ -58,14 +60,16 @@ function ChainBadge({
 function WalletTerminal({
   address,
   displayBalance,
+  displayName,
 }: {
   address: string;
   displayBalance?: string;
+  displayName?: string;
 }) {
   return (
     <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-black/40 border border-[#39ff14]/20">
       <span className="hex-addr cursor-blink">
-        {address.slice(0, 6)}...{address.slice(-4)}
+        {displayName ?? `${address.slice(0, 6)}...${address.slice(-4)}`}
       </span>
       {displayBalance && (
         <>
@@ -86,6 +90,8 @@ export default function Nav() {
   const pathname = usePathname();
   const chainId = useChainId();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { address } = useAccount();
+  const ensName = useEnsName(address);
 
   return (
     <nav className="sticky top-0 z-50 crt-overlay">
@@ -198,6 +204,7 @@ export default function Nav() {
                     <WalletTerminal
                       address={account.address}
                       displayBalance={account.displayBalance}
+                      displayName={ensName}
                     />
                   </button>
                 </div>
@@ -285,6 +292,7 @@ export default function Nav() {
                       <WalletTerminal
                         address={account.address}
                         displayBalance={account.displayBalance}
+                        displayName={ensName}
                       />
                     </button>
                   </div>

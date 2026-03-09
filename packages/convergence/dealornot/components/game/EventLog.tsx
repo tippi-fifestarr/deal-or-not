@@ -166,8 +166,8 @@ export default function EventLog({ gameId }: EventLogProps) {
                 color: def.color,
                 blockNumber: log.blockNumber ?? 0n,
               });
-            } catch (decodeErr) {
-              console.error(`Error decoding live ${def.name}:`, decodeErr);
+            } catch {
+              // Ignore — unrelated events from same contract hit this watcher
             }
           }
         },

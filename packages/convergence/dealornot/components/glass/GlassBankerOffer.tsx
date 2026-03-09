@@ -23,7 +23,7 @@ function BankerQuip({ quip }: { quip?: string }) {
       if (timerRef.current) clearTimeout(timerRef.current);
       return;
     }
-    timerRef.current = setTimeout(() => setShowFallback(true), 8000);
+    timerRef.current = setTimeout(() => setShowFallback(true), 9000);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [quip]);
 
@@ -38,7 +38,7 @@ function BankerQuip({ quip }: { quip?: string }) {
     >
       {text ? (
         <>
-          <p className="text-lg text-white/90 italic">"{text}"</p>
+          <p className="text-lg text-white/90 italic">&ldquo;{text}&rdquo;</p>
           <p className="text-xs text-white/50 mt-2">— The Banker {quip ? "(AI)" : ""}</p>
         </>
       ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount, useChainId, useWriteContract, useReadContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther, formatEther } from "viem";
 import { sepolia, baseSepolia } from "wagmi/chains";
@@ -40,7 +40,7 @@ const GATEWAY_ABI = [
 
 type BridgeState = "idle" | "estimating" | "confirming" | "bridging" | "success" | "error";
 
-export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number }) {
+export default function CrossChainJoin({ gameId: gameIdProp, onSuccess }: { gameId?: number; onSuccess?: (gameId: number) => void }) {
   const chainId = useChainId();
   const { address, isConnected } = useAccount();
   const [bridgeState, setBridgeState] = useState<BridgeState>("idle");
@@ -61,6 +61,14 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
     query: { enabled: isSpokeChain(chainId) && gameId !== undefined },
   });
 
+  // Fallback: if estimate hasn't loaded after 5s, use a safe default
+  const [useFallback, setUseFallback] = useState(false);
+  useEffect(() => {
+    if (costEstimate) { setUseFallback(false); return; }
+    const timer = setTimeout(() => setUseFallback(true), 5000);
+    return () => clearTimeout(timer);
+  }, [costEstimate]);
+
   const { writeContractAsync } = useWriteContract();
 
   // Wait for TX receipt before showing success
@@ -72,6 +80,7 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
   // Update bridge state based on TX receipt
   if (txConfirmed && bridgeState === "bridging") {
     setBridgeState("success");
+    if (onSuccess && gameId !== undefined) onSuccess(gameId);
   }
   if (txFailed && bridgeState === "bridging") {
     setBridgeState("error");
@@ -81,9 +90,11 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
   // Only render on spoke chains (ETH Sepolia)
   if (!isSpokeChain(chainId)) return null;
 
+  // ~0.001 ETH entry + ~0.003 ETH CCIP gas = ~0.004 ETH fallback (generous buffer)
+  const FALLBACK_TOTAL = parseEther("0.005");
   const entryFeeWei = costEstimate?.[0];
   const ccipFeeWei = costEstimate?.[1];
-  const totalWei = costEstimate?.[2];
+  const totalWei = costEstimate?.[2] ?? (useFallback ? FALLBACK_TOTAL : undefined);
 
   async function handleBridge() {
     if (!gatewayAddress || !totalWei || gameId === undefined) return;
@@ -128,12 +139,12 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
           <span className="broadcast-live">ACTIVE</span>
         </div>
         {gameIdProp !== undefined ? (
-          <span className="text-white/20 text-[0.6rem] font-mono">
+          <span className="text-white/40 text-[0.6rem] font-mono">
             GAME #{gameId}
           </span>
         ) : (
           <div className="flex items-center gap-1.5">
-            <span className="text-white/20 text-[0.6rem] font-mono">GAME #</span>
+            <span className="text-white/40 text-[0.6rem] font-mono">GAME #</span>
             <input
               type="number"
               placeholder="ID"
@@ -158,7 +169,7 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
               </div>
               <div>
                 <div className="text-xs font-bold text-[#a5b4fc]">ETH Sepolia</div>
-                <div className="text-[0.6rem] text-white/20 font-mono">{chainId}</div>
+                <div className="text-[0.6rem] text-white/40 font-mono">{chainId}</div>
               </div>
             </div>
           </div>
@@ -184,7 +195,7 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
               </div>
               <div>
                 <div className="text-xs font-bold text-[#4da3ff]">Base Sepolia</div>
-                <div className="text-[0.6rem] text-white/20 font-mono">{baseSepolia.id}</div>
+                <div className="text-[0.6rem] text-white/40 font-mono">{baseSepolia.id}</div>
               </div>
             </div>
           </div>
@@ -193,26 +204,26 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
         {/* Fee breakdown — terminal style */}
         <div className="mb-4 p-3 rounded-lg bg-black/40 border border-white/5 font-mono text-[0.65rem]">
           <div className="flex justify-between mb-1">
-            <span className="text-white/30">ENTRY_FEE</span>
+            <span className="text-white/50">ENTRY_FEE</span>
             <span className="terminal-text">
               {entryFeeWei ? `${Number(formatEther(entryFeeWei)).toFixed(6)} ETH` : "..."}
             </span>
           </div>
           <div className="flex justify-between mb-1">
-            <span className="text-white/30">CCIP_GAS</span>
+            <span className="text-white/50">CCIP_GAS</span>
             <span className="signal-text">
               {ccipFeeWei ? `${Number(formatEther(ccipFeeWei)).toFixed(6)} ETH` : "..."}
             </span>
           </div>
           <div className="h-[1px] bg-white/10 my-1.5" />
           <div className="flex justify-between font-bold">
-            <span className="text-white/50">TOTAL</span>
+            <span className="text-white/60">TOTAL</span>
             <span className="text-white">
               {totalWei ? `${Number(formatEther(totalWei)).toFixed(6)} ETH` : "---"}
             </span>
           </div>
-          <div className="text-right text-white/20 text-[0.55rem] mt-0.5">
-            ~ $0.25 + gas
+          <div className="text-right text-white/40 text-[0.55rem] mt-0.5">
+            {useFallback && !costEstimate ? "~ $0.25 + gas (estimated — RPC slow)" : "~ $0.25 + gas"}
           </div>
         </div>
 
@@ -228,7 +239,7 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
                   "border",
                   isConnected && totalWei && gameId !== undefined
                     ? "bg-[#00f0ff]/10 border-[#00f0ff]/40 text-[#00f0ff] hover:bg-[#00f0ff]/20 hover:border-[#00f0ff]/60"
-                    : "bg-white/5 border-white/10 text-white/20 cursor-not-allowed"
+                    : "bg-white/5 border-white/10 text-white/40 cursor-not-allowed"
                 )}
                 style={
                   isConnected && totalWei && gameId !== undefined
@@ -266,7 +277,7 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
               <div className="signal-text text-xs font-bold tracking-[0.1em] animate-pulse">
                 BRIDGING VIA CCIP...
               </div>
-              <div className="text-white/20 text-[0.6rem]">
+              <div className="text-white/40 text-[0.6rem]">
                 ~2 min for cross-chain confirmation
               </div>
               {txHash && (
@@ -331,7 +342,7 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
 
       {/* Bottom status bar */}
       <div className="relative flex items-center justify-between px-4 py-1.5 border-t border-white/5 bg-white/[0.02]">
-        <span className="text-[0.55rem] text-white/15 font-mono">
+        <span className="text-[0.55rem] text-white/30 font-mono">
           CHAINLINK CCIP v1.5
         </span>
         <div className="flex items-center gap-1.5">
@@ -340,7 +351,7 @@ export default function CrossChainJoin({ gameId: gameIdProp }: { gameId?: number
               <span key={i} className="bar" style={{ opacity: i <= 3 ? 1 : 0.2 }} />
             ))}
           </span>
-          <span className="text-[0.55rem] text-white/15 font-mono">
+          <span className="text-[0.55rem] text-white/30 font-mono">
             {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "NO WALLET"}
           </span>
         </div>

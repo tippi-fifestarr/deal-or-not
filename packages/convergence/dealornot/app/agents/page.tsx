@@ -91,6 +91,9 @@ export default function AgentsPage() {
         </GlassCard>
       </div>
 
+      {/* Watch Agent Games — primary action */}
+      <AgentGameWatch />
+
       {/* Controls */}
       <div className="flex flex-col md:flex-row gap-4 mb-8">
         <div className="flex-1">
@@ -193,9 +196,6 @@ export default function AgentsPage() {
         )}
       </div>
 
-      {/* Watch Agent Games */}
-      <AgentGameWatch />
-
       {/* Coming Soon Features */}
       <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
@@ -233,7 +233,7 @@ function AgentGameWatch() {
   };
 
   return (
-    <div className="mt-12">
+    <div className="mb-10">
       <div className="text-center mb-6">
         <p className="text-yellow-500/40 text-xs uppercase tracking-[0.3em] mb-2">Live from the Arena</p>
         <h2 className="text-3xl font-black uppercase tracking-wider">

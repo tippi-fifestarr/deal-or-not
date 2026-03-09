@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import { useAccount, usePublicClient, useWriteContract, useSwitchChain } from "wagmi";
 import {
   useGameState,
   useRemainingPool,
@@ -36,6 +36,9 @@ import {
 } from "@/components/glass";
 import { centsToUsd } from "@/lib/utils";
 import RotatingAd from "@/components/RotatingAd";
+import CrossChainJoin from "@/components/game/CrossChainJoin";
+import { CHAIN_ID } from "@/lib/config";
+import { isSpokeChain } from "@/lib/chains";
 
 const contractConfig = {
   address: CONTRACT_ADDRESS,
@@ -47,9 +50,11 @@ export default function PlayGame({ params }: { params: Promise<{ gameId: string 
   const router = useRouter();
   const gameId = BigInt(idStr);
 
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
+  const { switchChain } = useSwitchChain();
+  const onSpokeChain = chainId !== undefined && isSpokeChain(chainId);
 
   const { gameState, refetch } = useGameState(gameId);
   const { remainingValues } = useRemainingPool(gameId);
@@ -147,6 +152,45 @@ export default function PlayGame({ params }: { params: Promise<{ gameId: string 
       setTxPending(false);
     }
   };
+
+  // ── Cross-chain: on Sepolia spoke ──
+  if (onSpokeChain) {
+    return (
+      <main className="min-h-[80vh] flex items-center justify-center px-4">
+        <div className="max-w-lg w-full text-center space-y-8">
+          <div>
+            <p className="text-yellow-500/40 text-xs uppercase tracking-[0.3em] mb-3 mt-8 font-bold">
+              Cross-Chain Play
+            </p>
+            <h1 className="text-4xl font-black uppercase tracking-tight mb-3">
+              <span className="gold-text">Game #{idStr}</span>
+            </h1>
+            <p className="text-white/40 text-sm">
+              Join this game from ETH Sepolia via Chainlink CCIP.
+            </p>
+          </div>
+
+          <CrossChainJoin
+            gameId={Number(idStr)}
+            onSuccess={() => {
+              switchChain({ chainId: CHAIN_ID });
+            }}
+          />
+
+          <div className="text-center space-y-4">
+            <div className="text-white/30 text-sm">or switch to Base Sepolia to play directly</div>
+            <GlassButton
+              variant="regular"
+              size="md"
+              onClick={() => switchChain({ chainId: CHAIN_ID })}
+            >
+              Switch to Base Sepolia
+            </GlassButton>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   // ── Loading ──
   if (!gameState) {

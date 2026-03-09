@@ -327,7 +327,13 @@ export default function GameBoard() {
     if (chainId && isSpokeChain(chainId)) {
       return (
         <div className="max-w-lg mx-auto py-10 space-y-8">
-          <CrossChainJoin />
+          <CrossChainJoin
+            gameId={nextGameId !== undefined ? Number(nextGameId) : undefined}
+            onSuccess={(gid) => {
+              switchChain({ chainId: CHAIN_ID });
+              setGameId(BigInt(gid));
+            }}
+          />
 
           <div className="text-center space-y-4">
             <div className="text-white/30 text-sm">or switch to the home chain</div>
