@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import Link from "next/link";
 import GameBoard from "@/components/game/GameBoard";
 import BestOfBanker from "@/components/BestOfBanker";
@@ -388,6 +388,26 @@ function CrystalCard({
   closer: string;
   number: string;
 }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.play().catch(() => {});
+        } else {
+          el.pause();
+          el.currentTime = 0;
+        }
+      },
+      { threshold: 0.3 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="group relative overflow-hidden rounded-xl bg-[#00015E]/80 border border-[#1a1a6e]/60 hover:border-yellow-500/30 hover:scale-[1.03] transition-all duration-300">
       {/* Number badge */}
@@ -398,17 +418,13 @@ function CrystalCard({
       {/* Video container */}
       <div className="relative h-44 bg-[#00015E] flex items-center justify-center overflow-hidden">
         <video
+          ref={videoRef}
           src={video}
           muted
           loop
           playsInline
           preload="none"
           className="w-full h-full object-contain scale-90 opacity-60 group-hover:opacity-100 group-hover:scale-100 transition-all duration-500"
-          onMouseEnter={(e) => e.currentTarget.play()}
-          onMouseLeave={(e) => {
-            e.currentTarget.pause();
-            e.currentTarget.currentTime = 0;
-          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#00015E] via-transparent to-transparent pointer-events-none" />
       </div>

@@ -274,9 +274,19 @@
   /* Glitch text effect — use on headings for dystopian feel */
   .glitch-text {
     position: relative;
+    animation: glitch-pulse 5s ease-in-out infinite;
   }
   .glitch-text:hover {
     animation: glitch-color 0.3s ease-in-out;
+  }
+
+  /* Auto-glitch every 5 seconds: glitch for 6%, idle for 94% */
+  @keyframes glitch-pulse {
+    0%, 6%, 100% { text-shadow: none; }
+    1.5% { text-shadow: -2px 0 #ff00de, 2px 0 #00f0ff; transform: translateX(-2px); }
+    3% { text-shadow: 2px 0 #ff00de, -2px 0 #00f0ff; transform: translateX(2px); }
+    4.5% { text-shadow: -1px 0 #39ff14, 1px 0 #ff1744; transform: translateX(-1px); }
+    5.5% { transform: translateX(0); }
   }
 
   /* Terminal green text */

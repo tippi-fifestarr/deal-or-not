@@ -52,7 +52,7 @@ export default function WatchLobby() {
               <button
                 onClick={handleWatch}
                 disabled={!gameId}
-                className="gold-pulse px-8 py-4 text-lg font-black uppercase tracking-wider rounded-xl
+                className="gold-pulse px-6 py-4 text-lg font-black uppercase tracking-wider rounded-xl shrink-0
                            bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-700
                            text-yellow-950 hover:from-yellow-300 hover:to-yellow-600
                            transition-all duration-300 hover:scale-105 active:scale-95
