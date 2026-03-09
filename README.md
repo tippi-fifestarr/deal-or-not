@@ -2,6 +2,8 @@
 
 An on-chain game show powered by Chainlink. The name is the product: Deal Or Not = DON, running on the Chainlink DON (Decentralized Oracle Network). The Banker IS the DON.
 
+**Live at [dealornot.vercel.app](https://dealornot.vercel.app)** — no wallet required to spectate at [`/watch`](https://dealornot.vercel.app/watch).
+
 Convergence: A Chainlink Hackathon (Feb 6 - Mar 8, 2026). Built by Ryan & Tippi Fifestarr.
 
 ## The Vision
@@ -166,12 +168,13 @@ bash scripts/play-game.sh keep <GID>
 
 ### Run the frontend
 
+Visit the live site at **[dealornot.vercel.app](https://dealornot.vercel.app)**, or run locally:
+
 ```bash
-cd prototype/frontend
-npm install
-npm run dev
-# Visit http://localhost:3000
-# Watch a game: http://localhost:3000/watch/8
+cd packages/convergence/dealornot
+bun install && bun run dev
+# Visit http://localhost:3001
+# Watch a game: http://localhost:3001/watch/8
 ```
 
 ## Project Structure
