@@ -133,7 +133,7 @@ export default function Home() {
           <span className="neon-gold font-black">NOT</span>
         </h1>
 
-        <p className="text-white/20 text-xs mb-8 tracking-widest uppercase">
+        <p className="text-white/30 text-xs mb-8 tracking-widest uppercase">
           A Blockchain Game Show &middot; Season 1 &middot; Base Sepolia
         </p>
 
@@ -146,7 +146,7 @@ export default function Home() {
             The Banker is an AI running inside a cryptographic enclave.
             The game is on a blockchain.{" "}
             <span
-              className="text-white/20 italic border-b border-dotted border-white/20 cursor-help"
+              className="text-white/30 italic border-b border-dotted border-white/30 cursor-help"
               title="Chainlink VRF (verifiable random seed) · CRE Confidential Compute (case reveals in a secure enclave) · Confidential HTTP (Gemini 2.5 Flash AI Banker running inside CRE) · Chainlink Price Feeds (real-time ETH/USD oracle) · CCIP (cross-chain messaging between ETH Sepolia and Base Sepolia) · SponsorJackpot (CRE cron workflow for real ETH payouts) · BestOfBanker (on-chain quote gallery) · MockKeystoneForwarder (testnet CRE simulation)"
             >
               We are not making this up.
@@ -176,7 +176,7 @@ export default function Home() {
         </div>
 
         {/* Fake social proof */}
-        <div className="flex flex-wrap justify-center gap-6 text-white/20 text-xs uppercase tracking-wider">
+        <div className="flex flex-wrap justify-center gap-6 text-white/30 text-xs uppercase tracking-wider">
           <span>&ldquo;what am I looking at&rdquo; — a judge, probably</span>
           <span className="text-yellow-700/40">&#9670;</span>
           <span>AS SEEN ON THE BLOCKCHAIN</span>
@@ -208,7 +208,7 @@ export default function Home() {
                 It analyzes your remaining cases, calculates expected value, applies behavioral psychology,
                 and makes you an offer designed to make you quit.
               </p>
-              <p className="text-white/30 text-sm italic mb-6">
+              <p className="text-white/40 text-sm italic mb-6">
                 It has no feelings. It has no mercy. It has a 200ms response time and access to real-time price feeds.
                 The Banker sends his regards.
               </p>
@@ -234,11 +234,11 @@ export default function Home() {
       {/* ══ MEET THE AI AGENTS (like "Briefcase Models") ══ */}
       <section className="px-4 py-12 max-w-5xl mx-auto">
         <div className="text-center mb-10">
-          <p className="text-yellow-500/40 text-xs uppercase tracking-[0.3em] mb-2">Introducing Your Opponents</p>
+          <p className="text-yellow-500/60 text-xs uppercase tracking-[0.3em] mb-2">Introducing Your Opponents</p>
           <h2 className="text-3xl md:text-4xl font-black uppercase tracking-wider">
             <span className="gold-text">Meet the AI Agents</span>
           </h2>
-          <p className="text-white/30 text-sm mt-2">
+          <p className="text-white/40 text-sm mt-2">
             They play for keeps. They play for ETH. They play because they were programmed to.
           </p>
           <button
@@ -285,11 +285,11 @@ export default function Home() {
       <section className="px-4 py-16 spotlight">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <p className="text-yellow-500/40 text-xs uppercase tracking-[0.3em] mb-2">$47 Billion in Infrastructure</p>
+            <p className="text-yellow-500/60 text-xs uppercase tracking-[0.3em] mb-2">$47 Billion in Infrastructure</p>
             <h2 className="text-3xl md:text-4xl font-black uppercase tracking-wider mb-3">
               <span className="gold-text">What Powers This Absurdity</span>
             </h2>
-            <p className="text-white/30 text-sm max-w-xl mx-auto">
+            <p className="text-white/40 text-sm max-w-xl mx-auto">
               We assembled trillion-dollar levels of cryptographic security
               so you could play a game show for fifty cents.{" "}
               <span
@@ -312,14 +312,14 @@ export default function Home() {
       {/* ══ THE STAGE (GameBoard) ══ */}
       <section ref={gameRef} className="px-4 py-12 spotlight">
         <div className="max-w-4xl mx-auto mb-8 text-center">
-          <p className="text-yellow-500/40 text-xs uppercase tracking-[0.3em] mb-2">Live from Base Sepolia</p>
+          <p className="text-yellow-500/60 text-xs uppercase tracking-[0.3em] mb-2">Live from Base Sepolia</p>
           <h2 className="text-4xl md:text-5xl font-black uppercase mb-2">
             <span className="gold-text">Step Up to the Stage</span>
           </h2>
-          <p className="text-white/30 text-sm">
+          <p className="text-white/40 text-sm">
             5 cases. 4 rounds. 1 Banker who doesn&apos;t care about your feelings.
             <br />
-            <span className="text-white/20 italic">This is real. This is on-chain. There is no going back.</span>
+            <span className="text-white/30 italic">This is real. This is on-chain. There is no going back.</span>
           </p>
         </div>
         <GameBoard />
@@ -329,11 +329,11 @@ export default function Home() {
       <section className="px-4 py-16 halftone-bg">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <p className="text-yellow-500/40 text-xs uppercase tracking-[0.3em] mb-2">3 CRE Workflows. 1 Confidential Runtime.</p>
+            <p className="text-yellow-500/60 text-xs uppercase tracking-[0.3em] mb-2">3 CRE Workflows. 1 Confidential Runtime.</p>
             <h2 className="text-3xl md:text-4xl font-black uppercase tracking-wider mb-3">
               <span className="gold-text">CRE FTW</span>
             </h2>
-            <p className="text-white/30 text-sm max-w-xl mx-auto">
+            <p className="text-white/40 text-sm max-w-xl mx-auto">
               Every secret in this game is computed inside a Chainlink CRE enclave.
               Case values, banker offers, jackpot checks — all confidential, all verifiable, all absurd.
             </p>
@@ -361,7 +361,7 @@ export default function Home() {
 
       {/* ══ FINE PRINT ══ */}
       <section className="px-4 py-12 text-center border-t border-white/5">
-        <p className="text-white/15 text-xs max-w-2xl mx-auto leading-relaxed">
+        <p className="text-white/25 text-xs max-w-2xl mx-auto leading-relaxed">
           Deal or NOT is a hackathon project for the Chainlink Convergence Hackathon 2026.
           It is a game show on a blockchain. It uses Chainlink VRF for randomness, CRE for confidential compute,
           and Price Feeds for USD conversion. The Banker is a Gemini 2.5 Flash model.
@@ -415,8 +415,8 @@ function CrystalCard({
       {/* Content */}
       <div className="p-5">
         <h3 className="text-xs font-black text-yellow-500/80 uppercase tracking-wider mb-2">{label}</h3>
-        <p className="text-sm text-white/50 leading-relaxed mb-3">{copy}</p>
-        <p className="text-xs text-white/25 italic">&ldquo;{closer}&rdquo;</p>
+        <p className="text-sm text-white/60 leading-relaxed mb-3">{copy}</p>
+        <p className="text-xs text-white/35 italic">&ldquo;{closer}&rdquo;</p>
       </div>
     </div>
   );
