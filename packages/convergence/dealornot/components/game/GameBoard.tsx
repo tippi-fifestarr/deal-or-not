@@ -28,11 +28,13 @@ import BankerOffer from "./BankerOffer";
 import FinalDecision from "./FinalDecision";
 import GameOver from "./GameOver";
 import VideoWait from "./VideoWait";
+import VideoPlayer from "./VideoPlayer";
 import JackpotDisplay from "./JackpotDisplay";
 import BankerMessageBubble from "./BankerMessageBubble";
 import EventLog from "./EventLog";
 import { useBankerMessage } from "@/hooks/useBankerMessage";
 import { centsToUsd } from "@/lib/utils";
+import { DEAL_VIDEOS, NO_DEAL_VIDEOS, getRandomVideo } from "@/lib/videos";
 import {
   GlassBriefcase,
   GlassBriefcaseGrid,
@@ -69,6 +71,8 @@ export default function GameBoard() {
   const [spectatorMode, setSpectatorMode] = useState(false);
   const [showBankerOfferModal, setShowBankerOfferModal] = useState(false);
   const [bankerOfferDismissed, setBankerOfferDismissed] = useState(false);
+  const [currentVideo, setCurrentVideo] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
   const { gameState, refetch } = useGameState(gameId);
   const { nextGameId } = useNextGameId();
@@ -208,14 +212,32 @@ export default function GameBoard() {
 
   const handleAcceptDeal = async () => {
     if (gameId === undefined) return;
-    setShowBankerOfferModal(false);
-    try { await sendTx("acceptDeal", [gameId]); } catch {}
+    const dealVideo = getRandomVideo(DEAL_VIDEOS);
+    if (dealVideo) {
+      setShowBankerOfferModal(false);
+      setCurrentVideo(dealVideo);
+      setPendingAction(() => async () => {
+        try { await sendTx("acceptDeal", [gameId]); } catch {}
+      });
+    } else {
+      setShowBankerOfferModal(false);
+      try { await sendTx("acceptDeal", [gameId]); } catch {}
+    }
   };
 
   const handleRejectDeal = async () => {
     if (gameId === undefined) return;
-    setShowBankerOfferModal(false);
-    try { await sendTx("rejectDeal", [gameId]); } catch {}
+    const noDealVideo = getRandomVideo(NO_DEAL_VIDEOS);
+    if (noDealVideo) {
+      setShowBankerOfferModal(false);
+      setCurrentVideo(noDealVideo);
+      setPendingAction(() => async () => {
+        try { await sendTx("rejectDeal", [gameId]); } catch {}
+      });
+    } else {
+      setShowBankerOfferModal(false);
+      try { await sendTx("rejectDeal", [gameId]); } catch {}
+    }
   };
 
   const handleKeepCase = async () => {
@@ -253,6 +275,14 @@ export default function GameBoard() {
       setError(parseContractError(e));
     } finally {
       setTxPending(false);
+    }
+  };
+
+  const handleVideoEnd = () => {
+    setCurrentVideo(null);
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
     }
   };
 
@@ -698,6 +728,15 @@ export default function GameBoard() {
         <p className="text-amber-400 text-sm text-center animate-pulse">
           Transaction pending...
         </p>
+      )}
+
+      {/* Video Player for DEAL/NO-DEAL moments */}
+      {currentVideo && (
+        <VideoPlayer
+          videoUrl={currentVideo}
+          onEnded={handleVideoEnd}
+          showSkipButton={true}
+        />
       )}
     </div>
   );
