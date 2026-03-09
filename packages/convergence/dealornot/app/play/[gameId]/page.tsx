@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAccount, usePublicClient, useWriteContract, useSwitchChain } from "wagmi";
@@ -36,6 +36,8 @@ import {
 } from "@/components/glass";
 import { centsToUsd } from "@/lib/utils";
 import RotatingAd from "@/components/RotatingAd";
+import { BANKER_CALL_VIDEOS, DEAL_VIDEOS, NO_DEAL_VIDEOS, getRandomVideo } from "@/lib/videos";
+import VideoPlayer from "@/components/game/VideoPlayer";
 import CrossChainJoin from "@/components/game/CrossChainJoin";
 import { CHAIN_ID } from "@/lib/config";
 import { isSpokeChain } from "@/lib/chains";
@@ -71,12 +73,22 @@ export default function PlayGame({ params }: { params: Promise<{ gameId: string 
   const [error, setError] = useState<string | null>(null);
   const [showBankerOfferModal, setShowBankerOfferModal] = useState(false);
   const [bankerOfferDismissed, setBankerOfferDismissed] = useState(false);
+  const [activeVideo, setActiveVideo] = useState<string | null>(null);
+  const prevPhaseRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    if (gameState?.phase === Phase.BankerOffer) {
+    const phase = gameState?.phase;
+    if (phase === Phase.BankerOffer) {
       setShowBankerOfferModal(true);
       setBankerOfferDismissed(false);
+      // Play banker call video on transition into this phase
+      if (prevPhaseRef.current !== undefined && prevPhaseRef.current !== Phase.BankerOffer) {
+        setActiveVideo(getRandomVideo(BANKER_CALL_VIDEOS));
+      }
+    } else {
+      if (activeVideo && !activeVideo.includes("deal")) setActiveVideo(null);
     }
+    prevPhaseRef.current = phase;
   }, [gameState?.phase]);
 
   const eliminatedValues = new Set<number>();
@@ -125,10 +137,12 @@ export default function PlayGame({ params }: { params: Promise<{ gameId: string 
   };
   const handleAcceptDeal = () => {
     setShowBankerOfferModal(false);
+    setActiveVideo(getRandomVideo(DEAL_VIDEOS));
     sendTx("acceptDeal", [gameId]);
   };
   const handleRejectDeal = () => {
     setShowBankerOfferModal(false);
+    setActiveVideo(getRandomVideo(NO_DEAL_VIDEOS));
     sendTx("rejectDeal", [gameId]);
   };
   const handleKeepCase = () => sendTx("keepCase", [gameId]);
@@ -431,6 +445,15 @@ export default function PlayGame({ params }: { params: Promise<{ gameId: string 
             <p className="text-amber-400 text-sm text-center animate-pulse">
               Transaction pending...
             </p>
+          )}
+
+          {/* Video overlay for banker call / deal / no-deal */}
+          {activeVideo && (
+            <VideoPlayer
+              videoUrl={activeVideo}
+              onEnded={() => setActiveVideo(null)}
+              showSkipButton={true}
+            />
           )}
         </div>
 
