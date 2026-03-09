@@ -23,6 +23,7 @@ interface GlassBriefcaseProps {
   disabled?: boolean;
   onClick?: () => void;
   className?: string;
+  ownerLabel?: string; // Override "YOUR CASE" / "YOU" badge (e.g. "AGENT'S CASE")
 }
 
 export function GlassBriefcase({
@@ -33,6 +34,7 @@ export function GlassBriefcase({
   disabled = false,
   onClick,
   className,
+  ownerLabel,
 }: GlassBriefcaseProps) {
   const [isFlipping, setIsFlipping] = useState(false);
 
@@ -82,7 +84,7 @@ export function GlassBriefcase({
 
       {/* Status indicator */}
       <div className="text-sm font-medium text-white/70">
-        {playerCase && "YOUR CASE"}
+        {playerCase && (ownerLabel ?? "YOUR CASE")}
         {!playerCase && !opened && "UNOPENED"}
         {!playerCase && opened && value === null && "REVEALING..."}
       </div>
@@ -132,7 +134,7 @@ export function GlassBriefcase({
         <div className="absolute -top-1 -right-1 w-8 h-8">
           <div className="absolute inset-0 bg-blue-400 rounded-full animate-ping opacity-75" />
           <div className="relative w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-            YOU
+            {ownerLabel ? "🤖" : "YOU"}
           </div>
         </div>
       )}
