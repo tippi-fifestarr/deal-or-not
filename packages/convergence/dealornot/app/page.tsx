@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import GameBoard from "@/components/game/GameBoard";
 import BestOfBanker from "@/components/BestOfBanker";
@@ -87,6 +88,7 @@ const TICKER_ITEMS = [
 ];
 
 export default function Home() {
+  const router = useRouter();
   const gameRef = useRef<HTMLDivElement>(null);
   const { agents } = useAllAgents();
   const { useMockData, toggleMockData } = useMockDataToggle();
@@ -156,7 +158,7 @@ export default function Home() {
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
           <button
-            onClick={scrollToGame}
+            onClick={() => router.push('/play')}
             className="gold-pulse px-12 py-4 text-xl font-black uppercase tracking-wider rounded-xl
                        bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-700
                        text-yellow-950 hover:from-yellow-300 hover:to-yellow-600
