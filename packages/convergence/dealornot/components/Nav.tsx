@@ -10,6 +10,8 @@ import { CHAIN_META } from "@/lib/chains";
 import { baseSepolia } from "wagmi/chains";
 import { useAccount } from "wagmi";
 import { useEnsName } from "@/hooks/useEnsName";
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import { useChainContext } from "@/contexts/ChainContext";
 
 const NAV_LINKS = [
   { href: "/play", label: "PLAY" },
@@ -44,13 +46,20 @@ function LiveIndicator() {
 function ChainBadge({
   chainId,
   chainName,
+  isAptos,
 }: {
-  chainId: number;
+  chainId?: number;
   chainName: string;
+  isAptos?: boolean;
 }) {
   const isBase = chainId === baseSepolia.id;
+  const badgeClass = isAptos
+    ? "chain-badge-aptos"
+    : isBase
+      ? "chain-badge-base"
+      : "chain-badge-eth";
   return (
-    <span className={cn("chain-badge", isBase ? "chain-badge-base" : "chain-badge-eth")}>
+    <span className={cn("chain-badge", badgeClass)} style={isAptos ? { borderColor: "rgba(0,210,190,0.4)", color: "#00d2be", background: "rgba(0,210,190,0.1)" } : undefined}>
       <SignalBars strength={4} />
       {chainName}
     </span>
@@ -83,6 +92,47 @@ function WalletTerminal({
         </>
       )}
     </div>
+  );
+}
+
+function AptosWalletButton() {
+  const { connect, disconnect, connected, account, wallet, wallets } = useWallet();
+  const { isAptos, setPreferAptos } = useChainContext();
+
+  if (connected && account) {
+    const addr = account.address.toString();
+    const short = `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+    return (
+      <div className="flex items-center gap-2">
+        {isAptos && <ChainBadge chainName="Aptos" isAptos />}
+        <button
+          onClick={() => { disconnect(); setPreferAptos(false); }}
+          className="flex items-center gap-2 px-2 py-1 rounded-md bg-black/40 border border-[#00d2be]/20 hover:border-[#00d2be]/40 transition-all"
+        >
+          <span className="hex-addr text-[#00d2be]">{short}</span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => {
+        if (wallets && wallets.length > 0) {
+          connect(wallets[0].name);
+          setPreferAptos(true);
+        }
+      }}
+      className={cn(
+        "px-3 py-1.5 text-xs font-bold tracking-[0.08em] rounded-md",
+        "border border-[#00d2be]/30 bg-[#00d2be]/10",
+        "text-[#00d2be] hover:bg-[#00d2be]/20 hover:border-[#00d2be]/50",
+        "transition-all duration-200"
+      )}
+      style={{ textShadow: "0 0 8px rgba(0,210,190,0.3)" }}
+    >
+      APT
+    </button>
   );
 }
 
@@ -211,6 +261,9 @@ export default function Nav() {
               );
             }}
           </ConnectButton.Custom>
+          <div className="border-l border-white/10 pl-2 ml-1">
+            <AptosWalletButton />
+          </div>
           <a
             href="https://github.com/rdobbeck/deal-or-not"
             target="_blank"

@@ -12,6 +12,9 @@ import { isSpokeChain } from "@/lib/chains";
 import CrossChainJoin from "@/components/game/CrossChainJoin";
 import { useMyGames } from "@/hooks/useMyGames";
 import { PHASE_NAMES } from "@/types/game";
+import { useChainContext } from "@/contexts/ChainContext";
+import { useAptosEntryFee, useAptosGameWrite, octasToApt } from "@/hooks/aptos/useAptosGame";
+import { APTOS_PHASE_NAMES } from "@/lib/aptos/config";
 
 export default function PlayLobby() {
   const router = useRouter();
@@ -25,6 +28,11 @@ export default function PlayLobby() {
   const { writeContractAsync } = useWriteContract();
   const isWrongChain = isConnected && chainId !== CHAIN_ID;
   const { games: myGames } = useMyGames();
+
+  // Aptos
+  const { isAptos, isConnected: chainConnected } = useChainContext();
+  const aptosFee = useAptosEntryFee();
+  const { createGame: aptosCreateGame, isPending: aptosTxPending } = useAptosGameWrite();
 
   const [joinInput, setJoinInput] = useState("");
   const [txPending, setTxPending] = useState(false);
@@ -63,6 +71,81 @@ export default function PlayLobby() {
   const handleJoinGame = () => {
     if (joinInput) router.push(`/play/${joinInput}`);
   };
+
+  const handleAptosCreateGame = async () => {
+    setError(null);
+    setTxPending(true);
+    try {
+      await aptosCreateGame();
+      // Aptos games use a different ID scheme — navigate to aptos game page
+      // For now, show success and let user find game via polling
+      router.push("/play/aptos-latest");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("rejected")) {
+        setError("Transaction rejected");
+      } else {
+        setError(msg.slice(0, 150) || "Transaction failed");
+      }
+    } finally {
+      setTxPending(false);
+    }
+  };
+
+  // Aptos connected — show Aptos play UI
+  if (isAptos) {
+    const entryFeeApt = aptosFee ? octasToApt(aptosFee.baseOctas) : "...";
+    return (
+      <main className="min-h-[80vh] flex items-center justify-center px-4">
+        <div className="max-w-lg w-full text-center space-y-8">
+          <div>
+            <p className="text-[#00d2be]/40 text-xs uppercase tracking-[0.3em] mb-3 mt-8 font-bold">
+              Aptos Testnet
+            </p>
+            <h1 className="text-5xl md:text-6xl font-black uppercase tracking-tight mb-3">
+              <span className="gold-text">Play</span>
+            </h1>
+          </div>
+
+          <GlassCard className="p-8 space-y-6 gold-glow">
+            <div className="space-y-2">
+              <p className="text-white/60 text-sm uppercase tracking-wider font-bold">Entry Fee</p>
+              <div className="flex items-baseline justify-center gap-2">
+                <span className="text-4xl font-black text-yellow-400">$0.25</span>
+                <span className="text-white/30 text-sm">({entryFeeApt} APT)</span>
+              </div>
+              <p className="text-white/20 text-xs">
+                Converted via Chainlink Price Feed on Aptos
+              </p>
+            </div>
+
+            <button
+              onClick={handleAptosCreateGame}
+              disabled={txPending || aptosTxPending || !aptosFee}
+              className="gold-pulse w-full py-5 text-xl font-black uppercase tracking-wider rounded-xl
+                         bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-700
+                         text-yellow-950 hover:from-yellow-300 hover:to-yellow-600
+                         transition-all duration-300 hover:scale-105 active:scale-95
+                         shadow-[0_0_30px_rgba(255,215,0,0.3)]
+                         disabled:opacity-50 disabled:hover:scale-100"
+            >
+              {txPending || aptosTxPending ? "Creating Game..." : "New Game on Aptos"}
+            </button>
+
+            {error && (
+              <p className="text-red-400 text-sm bg-red-900/20 border border-red-700/30 rounded-xl p-3">
+                {error}
+              </p>
+            )}
+          </GlassCard>
+
+          <p className="text-white/20 text-xs italic">
+            &ldquo;5 cases. 4 rounds. 1 AI Banker with 0 feelings.&rdquo;
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   if (!isConnected) {
     return (
