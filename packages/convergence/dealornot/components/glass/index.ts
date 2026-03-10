@@ -9,6 +9,7 @@ export { GlassContainer, GlassCard } from "./GlassContainer";
 export { GlassButton, GlassIconButton } from "./GlassButton";
 export { GlassBriefcase, GlassBriefcaseGrid } from "./GlassBriefcase";
 export { GlassBankerOffer } from "./GlassBankerOffer";
+export { GlassConnectModal } from "./GlassConnectModal";
 export { GlassGameStatus, GlassExpectedValue } from "./GlassGameStatus";
 export {
   GlassFloatingActionBar,

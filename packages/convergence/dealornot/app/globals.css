@@ -410,4 +410,10 @@
     background: rgba(98, 126, 234, 0.1);
     text-shadow: 0 0 8px rgba(98, 126, 234, 0.3);
   }
+  .chain-badge-aptos {
+    color: #00d2be;
+    border-color: rgba(0, 210, 190, 0.4);
+    background: rgba(0, 210, 190, 0.1);
+    text-shadow: 0 0 8px rgba(0, 210, 190, 0.3);
+  }
 }
