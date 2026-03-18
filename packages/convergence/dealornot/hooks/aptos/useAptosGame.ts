@@ -120,6 +120,30 @@ export function useAptosEntryFee() {
   return fee;
 }
 
+export function useAptosNextGameId() {
+  const [nextGameId, setNextGameId] = useState<number | null>(null);
+
+  const fetchNextGameId = useCallback(async () => {
+    try {
+      const result = await aptos.view({
+        payload: {
+          function: `${APTOS_MODULE_ADDRESS}::deal_or_not_quickplay::get_next_game_id`,
+          functionArguments: [APTOS_MODULE_ADDRESS],
+        },
+      });
+      setNextGameId(Number(result[0]));
+    } catch {
+      setNextGameId(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNextGameId();
+  }, [fetchNextGameId]);
+
+  return { nextGameId, refetch: fetchNextGameId };
+}
+
 // ── Write Hooks ──
 
 export function useAptosGameWrite() {
@@ -139,9 +163,10 @@ export function useAptosGameWrite() {
           functionArguments: args.map(String),
         },
       });
-      // Wait for transaction
-      await aptos.waitForTransaction({ transactionHash: response.hash });
-      return response.hash;
+      // Wait for transaction — wallet adapter may return hash as string or object
+      const hash = typeof response === 'string' ? response : response.hash;
+      await aptos.waitForTransaction({ transactionHash: hash });
+      return hash;
     } finally {
       setIsPending(false);
     }
@@ -167,9 +192,13 @@ export function useAptosGameWrite() {
     return submitTx("reject_deal", [APTOS_MODULE_ADDRESS, gameId]);
   }, [submitTx]);
 
+  // NOTE: keep_case and swap_case are #[randomness] entry functions callable
+  // ONLY by the resolver (not the player). The player's wallet will get
+  // E_NOT_RESOLVER (302) if they try to call these directly.
+  // TODO: Add request_keep/request_swap player-callable functions to the contract
+  // that set an on-chain flag. The resolver then polls and executes.
+  // For now, these are placeholder stubs that will fail at runtime.
   const keepCase = useCallback(async (gameId: number) => {
-    // Note: keep_case is a #[randomness] function, called by resolver
-    // Player calls request_keep_case, resolver calls keep_case
     return submitTx("keep_case", [APTOS_MODULE_ADDRESS, gameId]);
   }, [submitTx]);
 

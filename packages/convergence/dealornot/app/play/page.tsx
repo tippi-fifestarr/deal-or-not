@@ -13,7 +13,7 @@ import CrossChainJoin from "@/components/game/CrossChainJoin";
 import { useMyGames } from "@/hooks/useMyGames";
 import { PHASE_NAMES } from "@/types/game";
 import { useChainContext } from "@/contexts/ChainContext";
-import { useAptosEntryFee, useAptosGameWrite, octasToApt } from "@/hooks/aptos/useAptosGame";
+import { useAptosEntryFee, useAptosGameWrite, useAptosNextGameId, octasToApt } from "@/hooks/aptos/useAptosGame";
 import { APTOS_PHASE_NAMES } from "@/lib/aptos/config";
 
 export default function PlayLobby() {
@@ -32,6 +32,7 @@ export default function PlayLobby() {
   // Aptos
   const { isAptos, isConnected: chainConnected } = useChainContext();
   const aptosFee = useAptosEntryFee();
+  const { nextGameId: aptosNextGameId } = useAptosNextGameId();
   const { createGame: aptosCreateGame, isPending: aptosTxPending } = useAptosGameWrite();
 
   const [joinInput, setJoinInput] = useState("");
@@ -76,10 +77,10 @@ export default function PlayLobby() {
     setError(null);
     setTxPending(true);
     try {
+      // Read next game ID before creation so we know where to navigate
+      const gameIdToNavigate = aptosNextGameId ?? 0;
       await aptosCreateGame();
-      // Aptos games use a different ID scheme — navigate to aptos game page
-      // For now, show success and let user find game via polling
-      router.push("/play/aptos-latest");
+      router.push(`/play/${gameIdToNavigate}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("rejected")) {

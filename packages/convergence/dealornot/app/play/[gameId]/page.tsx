@@ -42,6 +42,7 @@ import CrossChainJoin from "@/components/game/CrossChainJoin";
 import { CHAIN_ID } from "@/lib/config";
 import { isSpokeChain } from "@/lib/chains";
 import { useChainContext } from "@/contexts/ChainContext";
+import { useWallet as useAptosWallet } from "@aptos-labs/wallet-adapter-react";
 import { useAptosGameState, useAptosGameWrite, octasToApt } from "@/hooks/aptos/useAptosGame";
 import { APTOS_PHASES, APTOS_PHASE_NAMES } from "@/lib/aptos/config";
 
@@ -63,6 +64,7 @@ export default function PlayGame({ params }: { params: Promise<{ gameId: string 
 
   // Aptos
   const { isAptos } = useChainContext();
+  const { account: aptosAccount } = useAptosWallet();
   const aptosGameId = isAptos ? Number(idStr) : undefined;
   const { gameState: aptosGameState, refetch: aptosRefetch } = useAptosGameState(aptosGameId);
   const aptosWrite = useAptosGameWrite();
@@ -220,7 +222,7 @@ export default function PlayGame({ params }: { params: Promise<{ gameId: string 
     const ag = aptosGameState;
     const aptosPhase = ag.phase;
     const phaseName = APTOS_PHASE_NAMES[aptosPhase] ?? `Phase ${aptosPhase}`;
-    const isAptosPlayer = true; // On Aptos, the connected wallet is always the player for their game
+    const isAptosPlayer = aptosAccount?.address?.toString().toLowerCase() === ag.player.toLowerCase();
 
     const aptosEliminatedValues = new Set<number>();
     for (let i = 0; i < 5; i++) {
