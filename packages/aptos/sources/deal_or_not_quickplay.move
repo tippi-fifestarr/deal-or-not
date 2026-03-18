@@ -539,6 +539,11 @@ module deal_or_not::deal_or_not_quickplay {
         banker_algorithm::calculate_offer(&pool, (game.current_round as u64))
     }
 
+    #[view]
+    public fun get_next_game_id(game_store_addr: address): u64 acquires GameStore {
+        borrow_global<GameStore>(game_store_addr).next_game_id
+    }
+
     // ════════════════════════════════════════════════════════
     //                  ADMIN
     // ════════════════════════════════════════════════════════
@@ -667,5 +672,275 @@ module deal_or_not::deal_or_not_quickplay {
 
         game.final_payout = player_value;
         game.phase = PHASE_GAME_OVER;
+    }
+
+    // ════════════════════════════════════════════════════════
+    //                  TESTS
+    // ════════════════════════════════════════════════════════
+
+    #[test_only]
+    use aptos_framework::aptos_coin::{Self, AptosCoin};
+    #[test_only]
+    use aptos_framework::coin;
+    #[test_only]
+    use aptos_framework::account;
+
+    #[test_only]
+    /// Set up a full test environment: framework, accounts, price feed, bank, quickplay.
+    /// Owner=@deal_or_not (deployer), Resolver=@0xBEEF, Player=@0x123.
+    fun setup_test_env(
+        owner: &signer,
+        resolver: &signer,
+        player: &signer,
+        framework: &signer,
+    ) {
+        // Initialize framework modules
+        timestamp::set_time_has_started_for_testing(framework);
+        randomness::initialize_for_testing(framework);
+        let (burn_cap, mint_cap) = aptos_coin::initialize_for_test(framework);
+
+        // Create accounts
+        account::create_account_for_test(signer::address_of(owner));
+        account::create_account_for_test(signer::address_of(resolver));
+        account::create_account_for_test(signer::address_of(player));
+
+        // Fund player with 1 APT (for entry fees)
+        coin::register<AptosCoin>(player);
+        let player_coins = coin::mint<AptosCoin>(100_000_000, &mint_cap);
+        coin::deposit(signer::address_of(player), player_coins);
+
+        // Initialize price feed at $8.50/APT
+        price_feed_helper::initialize(owner, 850_000_000);
+
+        // Initialize bank (price feed at owner addr)
+        deal_or_not::bank::initialize(owner, signer::address_of(owner));
+
+        // Sweeten bank with 10 APT (covers max payouts)
+        coin::register<AptosCoin>(owner);
+        let bank_coins = coin::mint<AptosCoin>(1_000_000_000, &mint_cap);
+        coin::deposit(signer::address_of(owner), bank_coins);
+        deal_or_not::bank::sweeten(owner, signer::address_of(owner), 1_000_000_000);
+
+        // Initialize quickplay
+        initialize(
+            owner,
+            signer::address_of(resolver),
+            signer::address_of(owner),
+            signer::address_of(owner),
+        );
+
+        // Cleanup capabilities
+        coin::destroy_burn_cap(burn_cap);
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    // ── Basic game creation ──
+
+    #[test(owner = @deal_or_not, resolver = @0xBEEF, player = @0x123, framework = @aptos_framework)]
+    fun test_create_game(
+        owner: &signer, resolver: &signer, player: &signer, framework: &signer,
+    ) acquires GameStore {
+        setup_test_env(owner, resolver, player, framework);
+        create_game(player, @deal_or_not);
+
+        let store = borrow_global<GameStore>(@deal_or_not);
+        let game = smart_table::borrow(&store.games, 0);
+        assert!(game.player == @0x123, 0);
+        assert!(game.phase == PHASE_CREATED, 1);
+        assert!(game.player_case == 255, 2); // sentinel: not yet picked
+        assert!(store.next_game_id == 1, 3);
+    }
+
+    #[test(owner = @deal_or_not, resolver = @0xBEEF, player = @0x123, framework = @aptos_framework)]
+    fun test_get_next_game_id(
+        owner: &signer, resolver: &signer, player: &signer, framework: &signer,
+    ) acquires GameStore {
+        setup_test_env(owner, resolver, player, framework);
+        assert!(get_next_game_id(@deal_or_not) == 0, 0);
+        create_game(player, @deal_or_not);
+        assert!(get_next_game_id(@deal_or_not) == 1, 1);
+    }
+
+    // ── Pick case ──
+
+    #[test(owner = @deal_or_not, resolver = @0xBEEF, player = @0x123, framework = @aptos_framework)]
+    fun test_pick_case(
+        owner: &signer, resolver: &signer, player: &signer, framework: &signer,
+    ) acquires GameStore {
+        setup_test_env(owner, resolver, player, framework);
+        create_game(player, @deal_or_not);
+        pick_case(player, @deal_or_not, 0, 2);
+
+        let store = borrow_global<GameStore>(@deal_or_not);
+        let game = smart_table::borrow(&store.games, 0);
+        assert!(game.phase == PHASE_ROUND, 0);
+        assert!(game.player_case == 2, 1);
+    }
+
+    #[test(owner = @deal_or_not, resolver = @0xBEEF, player = @0x123, framework = @aptos_framework)]
+    #[expected_failure(abort_code = E_WRONG_PHASE)]
+    fun test_pick_case_wrong_phase(
+        owner: &signer, resolver: &signer, player: &signer, framework: &signer,
+    ) acquires GameStore {
+        setup_test_env(owner, resolver, player, framework);
+        create_game(player, @deal_or_not);
+        pick_case(player, @deal_or_not, 0, 2);
+        // Already in Round phase — picking again should fail
+        pick_case(player, @deal_or_not, 0, 3);
+    }
+
+    // ── Open case ──
+
+    #[test(owner = @deal_or_not, resolver = @0xBEEF, player = @0x123, framework = @aptos_framework)]
+    fun test_open_case(
+        owner: &signer, resolver: &signer, player: &signer, framework: &signer,
+    ) acquires GameStore {
+        setup_test_env(owner, resolver, player, framework);
+        create_game(player, @deal_or_not);
+        pick_case(player, @deal_or_not, 0, 2);
+        open_case(player, @deal_or_not, 0, 0);
+
+        let store = borrow_global<GameStore>(@deal_or_not);
+        let game = smart_table::borrow(&store.games, 0);
+        assert!(game.phase == PHASE_WAITING_FOR_REVEAL, 0);
+        assert!(game.pending_case_index == 0, 1);
+    }
+
+    #[test(owner = @deal_or_not, resolver = @0xBEEF, player = @0x123, framework = @aptos_framework)]
+    #[expected_failure(abort_code = E_CANNOT_OPEN_OWN_CASE)]
+    fun test_open_own_case_fails(
+        owner: &signer, resolver: &signer, player: &signer, framework: &signer,
+    ) acquires GameStore {
+        setup_test_env(owner, resolver, player, framework);
+        create_game(player, @deal_or_not);
+        pick_case(player, @deal_or_not, 0, 2);
+        open_case(player, @deal_or_not, 0, 2); // can't open your own case
+    }
+
+    // ── Reveal case (two-TX randomness) ──
+
+    #[test(owner = @deal_or_not, resolver = @0xBEEF, player = @0x123, framework = @aptos_framework)]
+    fun test_reveal_case(
+        owner: &signer, resolver: &signer, player: &signer, framework: &signer,
+    ) acquires GameStore {
+        setup_test_env(owner, resolver, player, framework);
+        create_game(player, @deal_or_not);
+        pick_case(player, @deal_or_not, 0, 2);
+        open_case(player, @deal_or_not, 0, 0);
+
+        // Resolver calls reveal_case (uses native randomness)
+        reveal_case(resolver, @deal_or_not, 0);
+
+        let store = borrow_global<GameStore>(@deal_or_not);
+        let game = smart_table::borrow(&store.games, 0);
+        // 3 non-player cases remain (1, 3, 4) → AwaitingOffer
+        assert!(game.phase == PHASE_AWAITING_OFFER, 0);
+        assert!(*vector::borrow(&game.opened, 0) == true, 1);
+        // Value must be one of [1, 5, 10, 50, 100]
+        let val = *vector::borrow(&game.case_values, 0);
+        assert!(val == 1 || val == 5 || val == 10 || val == 50 || val == 100, 2);
+    }
+
+    // ── Banker offer ──
+
+    #[test(owner = @deal_or_not, resolver = @0xBEEF, player = @0x123, framework = @aptos_framework)]
+    fun test_set_banker_offer(
+        owner: &signer, resolver: &signer, player: &signer, framework: &signer,
+    ) acquires GameStore {
+        setup_test_env(owner, resolver, player, framework);
+        create_game(player, @deal_or_not);
+        pick_case(player, @deal_or_not, 0, 2);
+        open_case(player, @deal_or_not, 0, 0);
+        reveal_case(resolver, @deal_or_not, 0);
+        set_banker_offer(resolver, @deal_or_not, 0, 42);
+
+        let store = borrow_global<GameStore>(@deal_or_not);
+        let game = smart_table::borrow(&store.games, 0);
+        assert!(game.phase == PHASE_BANKER_OFFER, 0);
+        assert!(game.banker_offer == 42, 1);
+    }
+
+    // ── Full game: accept deal ──
+
+    #[test(owner = @deal_or_not, resolver = @0xBEEF, player = @0x123, framework = @aptos_framework)]
+    fun test_full_game_accept_deal(
+        owner: &signer, resolver: &signer, player: &signer, framework: &signer,
+    ) acquires GameStore {
+        setup_test_env(owner, resolver, player, framework);
+        create_game(player, @deal_or_not);
+        pick_case(player, @deal_or_not, 0, 2);
+        open_case(player, @deal_or_not, 0, 0);
+        reveal_case(resolver, @deal_or_not, 0);
+        set_banker_offer(resolver, @deal_or_not, 0, 42);
+
+        // Player takes the deal
+        accept_deal(player, @deal_or_not, 0);
+
+        let store = borrow_global<GameStore>(@deal_or_not);
+        let game = smart_table::borrow(&store.games, 0);
+        assert!(game.phase == PHASE_GAME_OVER, 0);
+        assert!(game.final_payout == 42, 1);
+    }
+
+    // ── Full game: reject all offers, keep case ──
+
+    #[test(owner = @deal_or_not, resolver = @0xBEEF, player = @0x123, framework = @aptos_framework)]
+    fun test_full_game_keep_case(
+        owner: &signer, resolver: &signer, player: &signer, framework: &signer,
+    ) acquires GameStore {
+        setup_test_env(owner, resolver, player, framework);
+        create_game(player, @deal_or_not);
+        pick_case(player, @deal_or_not, 0, 2); // player picks case #2
+
+        // Round 1: open case 0
+        open_case(player, @deal_or_not, 0, 0);
+        reveal_case(resolver, @deal_or_not, 0);
+        set_banker_offer(resolver, @deal_or_not, 0, 30);
+        reject_deal(player, @deal_or_not, 0);
+
+        // Round 2: open case 1
+        open_case(player, @deal_or_not, 0, 1);
+        reveal_case(resolver, @deal_or_not, 0);
+        set_banker_offer(resolver, @deal_or_not, 0, 40);
+        reject_deal(player, @deal_or_not, 0);
+
+        // Round 3: open case 3 — last non-player case besides 4
+        open_case(player, @deal_or_not, 0, 3);
+        reveal_case(resolver, @deal_or_not, 0);
+
+        // Should now be in FinalRound (only case 4 + player case 2 remain)
+        let store = borrow_global<GameStore>(@deal_or_not);
+        let game = smart_table::borrow(&store.games, 0);
+        assert!(game.phase == PHASE_FINAL_ROUND, 0);
+
+        // Player keeps their case — resolver executes with randomness
+        keep_case(resolver, @deal_or_not, 0);
+
+        let store2 = borrow_global<GameStore>(@deal_or_not);
+        let game2 = smart_table::borrow(&store2.games, 0);
+        assert!(game2.phase == PHASE_GAME_OVER, 1);
+        assert!(game2.final_payout > 0, 2);
+    }
+
+    // ── Expire game ──
+
+    #[test(owner = @deal_or_not, resolver = @0xBEEF, player = @0x123, framework = @aptos_framework)]
+    fun test_expire_game(
+        owner: &signer, resolver: &signer, player: &signer, framework: &signer,
+    ) acquires GameStore {
+        setup_test_env(owner, resolver, player, framework);
+        // Advance time so created_at > 0 (expire_game requires created_at > 0)
+        timestamp::fast_forward_seconds(1);
+        create_game(player, @deal_or_not);
+
+        // Advance time past the 10-minute timeout
+        timestamp::fast_forward_seconds(601);
+
+        expire_game(resolver, @deal_or_not, 0);
+
+        let store = borrow_global<GameStore>(@deal_or_not);
+        let game = smart_table::borrow(&store.games, 0);
+        assert!(game.phase == PHASE_GAME_OVER, 0);
+        assert!(game.final_payout == 0, 1); // No payout for expired game
     }
 }
