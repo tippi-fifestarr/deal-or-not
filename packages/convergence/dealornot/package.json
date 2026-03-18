@@ -13,6 +13,9 @@
   },
   "dependencies": {
     "@apollo/client": "^4.1.6",
+    "@aptos-labs/ts-sdk": "^5.2.1",
+    "@aptos-labs/wallet-adapter-core": "^8.5.0",
+    "@aptos-labs/wallet-adapter-react": "^8.3.1",
     "@rainbow-me/rainbowkit": "^2.2.10",
     "@tailwindcss/postcss": "^4.2.1",
     "@tanstack/react-query": "^5.90.21",

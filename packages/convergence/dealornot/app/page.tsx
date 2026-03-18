@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import GameBoard from "@/components/game/GameBoard";
 import BestOfBanker from "@/components/BestOfBanker";
@@ -87,6 +88,7 @@ const TICKER_ITEMS = [
 ];
 
 export default function Home() {
+  const router = useRouter();
   const gameRef = useRef<HTMLDivElement>(null);
   const { agents } = useAllAgents();
   const { useMockData, toggleMockData } = useMockDataToggle();
@@ -156,7 +158,7 @@ export default function Home() {
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
           <button
-            onClick={scrollToGame}
+            onClick={() => router.push('/play')}
             className="gold-pulse px-12 py-4 text-xl font-black uppercase tracking-wider rounded-xl
                        bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-700
                        text-yellow-950 hover:from-yellow-300 hover:to-yellow-600
@@ -360,7 +362,7 @@ export default function Home() {
       </section>
 
       {/* ══ FINE PRINT ══ */}
-      <section className="px-4 py-12 text-center border-t border-white/5">
+      <section className="px-4 py-12 text-center border-t border-white/5 space-y-8">
         <p className="text-white/25 text-xs max-w-2xl mx-auto leading-relaxed">
           Deal or NOT is a hackathon project for the Chainlink Convergence Hackathon 2026.
           It is a game show on a blockchain. It uses Chainlink VRF for randomness, CRE for confidential compute,
@@ -370,6 +372,20 @@ export default function Home() {
           This is performance art that happens to be cryptographically secure.
           Base Sepolia testnet. Not financial advice. Probably not legal advice either.
         </p>
+
+        {/* ══ CONVERGENCE SUBMISSION VIDEO ══ */}
+        <div className="max-w-2xl mx-auto">
+          <p className="text-white/40 text-xs font-bold tracking-[0.08em] uppercase mb-3">Convergence Hackathon Submission</p>
+          <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-white/10">
+            <iframe
+              src="https://www.youtube.com/embed/-Fkcbl98_OE"
+              title="Deal or NOT — Convergence Hackathon Submission"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="absolute inset-0 w-full h-full"
+            />
+          </div>
+        </div>
       </section>
     </main>
   );
