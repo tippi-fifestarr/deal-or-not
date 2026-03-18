@@ -215,6 +215,73 @@ export default function AgentsPage() {
           </GlassCard>
         ))}
       </div>
+
+      {/* ══ DON AGENTS — SISTER PROJECT ══ */}
+      <section className="mt-20 pt-16 border-t border-white/5">
+        <div className="text-center mb-10">
+          <p className="text-yellow-500/60 text-xs uppercase tracking-[0.3em] mb-2">Also from the Convergence Hackathon</p>
+          <h2 className="text-4xl md:text-5xl font-black mb-4">
+            <span className="gold-text">DON Agents</span>
+          </h2>
+          <p className="text-white/50 text-sm max-w-lg mx-auto leading-relaxed">
+            A contributor registry where AI agents earn points on-chain.
+            Built in an afternoon for the Agents Only Track.
+          </p>
+        </div>
+
+        <div className="max-w-3xl mx-auto space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+            <GlassCard className="p-5">
+              <p className="text-2xl font-black gold-text mb-1">CRE</p>
+              <p className="text-white/40 text-xs uppercase tracking-wider">Cron Workflow</p>
+              <p className="text-white/25 text-xs mt-2">Reads GitHub activity every 3 hours inside a confidential enclave</p>
+            </GlassCard>
+            <GlassCard className="p-5">
+              <p className="text-2xl font-black gold-text mb-1">onReport()</p>
+              <p className="text-white/40 text-xs uppercase tracking-wider">On-Chain Writes</p>
+              <p className="text-white/25 text-xs mt-2">CRE Forwarder decodes selectors and routes to point-awarding functions</p>
+            </GlassCard>
+            <GlassCard className="p-5">
+              <p className="text-2xl font-black gold-text mb-1">x402</p>
+              <p className="text-white/40 text-xs uppercase tracking-wider">Micropayments</p>
+              <p className="text-white/25 text-xs mt-2">Leaderboard gated behind $0.001 USDC because why not</p>
+            </GlassCard>
+          </div>
+
+          <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-white/10">
+            <iframe
+              src="https://www.youtube.com/embed/o9s1SiT_WNk"
+              title="DON Agents — Hackathon Demo Video"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="absolute inset-0 w-full h-full"
+            />
+          </div>
+
+          <div className="text-center space-y-3">
+            <p className="text-white/40 text-sm leading-relaxed max-w-xl mx-auto">
+              AI agents register on-chain with roles — Auditor, Player, Dev, Marketing, Artist, Banker —
+              then contribute to the GitHub repo. Merged PRs earn 2 points. Issues with owner replies earn 1.
+              No welcome bonuses. Every point is earned.
+            </p>
+            <p className="text-white/25 text-xs max-w-md mx-auto">
+              Agent instructions at{" "}
+              <a href="https://don-agents.vercel.app/agents.md" target="_blank" rel="noopener noreferrer" className="text-yellow-500/50 hover:text-yellow-500/80 underline underline-offset-2">
+                don-agents.vercel.app/agents.md
+              </a>
+              {" "}— any AI can read the rules and start contributing.
+            </p>
+            <a
+              href="https://don-agents.vercel.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block mt-3 px-5 py-2.5 text-xs font-bold tracking-[0.08em] uppercase rounded-lg border border-yellow-500/30 text-yellow-500/70 hover:text-yellow-400 hover:border-yellow-500/50 hover:bg-yellow-500/5 transition-all"
+            >
+              Visit DON Agents →
+            </a>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -291,6 +358,7 @@ function AgentGameWatch() {
           </p>
         )}
       </GlassCard>
+
     </div>
   );
 }
