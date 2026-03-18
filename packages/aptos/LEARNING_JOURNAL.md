@@ -412,3 +412,171 @@ LLM agents don't browse docs like humans. The pattern is:
 This means **any discoverable resource that only lives in the nav/homepage is invisible to LLM agents**. The llms.txt link IS in the nav — but I went through 15+ page fetches before discovering it, because I never loaded the homepage.
 
 The fix is redundancy: put discovery links in `<head>` meta tags, in page footers, and in `/.well-known/` — places that are visible regardless of how you arrive at the page.
+
+---
+
+## Phase 9: What We Shipped vs What Actually Works
+
+*Added after critical review of the initial port. This section is written FOR the Aptos team — each bug maps to a docs or DX gap that should be fixed.*
+
+The original commit shipped 8,595 lines across 35 files. The commit message said "41 tests passing, all modules compile." The LEARNING_JOURNAL ended on a celebratory note. But when a second AI agent reviewed the work critically, it found five problems that would prevent anyone from actually playing a game.
+
+### Bug 1: The "41/41 Tests" Illusion → Aptos Testing Docs Gap
+
+All 41 tests pass. But they're almost entirely library/helper tests (`game_math`, `banker_algorithm`, `price_feed_helper`). The **core game module `deal_or_not_quickplay` had 0 tests**. Zero.
+
+The porting agent's excuse (from Phase 6): "randomness mocking needs deeper test infrastructure." But this was wrong. `randomness::initialize_for_testing()` works perfectly. After a reviewer pointed this out, we added 11 game flow tests — including full create→pick→open→reveal→offer→accept and full-game-through-keep-case — and they all pass on the first try.
+
+**Why this matters for Aptos docs:** The randomness testing section doesn't prominently show `initialize_for_testing()` as the standard pattern. An AI agent (and likely a human dev) gives up on testing randomness functions because the path isn't clear. The porting agent read the randomness guide, correctly implemented the two-TX pattern in the contracts, but assumed testing would be hard — and never tried.
+
+**Recommendation 9:** Add a "Testing Randomness" section to the Aptos testing guide with a complete example:
+```move
+#[test(framework = @aptos_framework)]
+fun test_my_randomness_function(framework: &signer) {
+    randomness::initialize_for_testing(framework);
+    // Now #[randomness] entry functions work in tests
+    my_randomness_function();
+}
+```
+
+### Bug 2: The keep/swap Caller Bug → Two-TX Pattern Under-Documented
+
+`keep_case()` and `swap_case()` are `#[randomness] entry fun` callable **only by the resolver** (the contract asserts `signer::address_of(resolver) == store.resolver`). But the frontend hooks (`useAptosGame.ts:170-178`) have the **player's wallet** calling them via `signAndSubmitTransaction`. This would fail with `E_NOT_RESOLVER` (error 302) at runtime.
+
+Nobody caught this because:
+- No integration tests existed
+- No testnet deployment existed
+- The TypeScript compiled fine (type system can't catch smart contract access control)
+
+**Root cause for Aptos docs:** The two-TX randomness pattern (TX1: player commits intent → TX2: resolver executes with randomness) is mentioned in the docs but has no complete example showing the full application flow. The porting agent designed the contracts correctly but forgot that the frontend still needs to know who calls what.
+
+**Recommendation 10:** The randomness guide needs a "Full Application Pattern" section showing: contract with resolver, off-chain resolver service, frontend that signals intent + waits for resolution. The current docs show the contract side only.
+
+### Bug 3: The `/play/aptos-latest` 404 → No Event Indexing Guidance
+
+After creating a game, the frontend navigates to `/play/aptos-latest` — a route that doesn't exist. On EVM, you get the game ID from the transaction receipt (event logs). On Aptos, the porting agent didn't know how to get the game ID back from a transaction, so it hardcoded a placeholder route.
+
+**Fix:** Added a `get_next_game_id` view function to the contract, and a `useAptosNextGameId` hook that reads it before creating the game.
+
+**Recommendation for Aptos docs:** The events/indexing guide should have a "Migrating from EVM Events" section showing Aptos equivalent patterns (view functions for reading state, event handles for subscriptions, indexer for history).
+
+### Bug 4: Hardcoded `isAptosPlayer = true`
+
+Line 223 of the game page: `const isAptosPlayer = true;` — any viewer sees player controls. Should compare the connected wallet address to the game's player address.
+
+**Fix:** `const isAptosPlayer = aptosAccount?.address?.toString().toLowerCase() === ag.player.toLowerCase();`
+
+This one is just a bug, not a docs issue. But it illustrates a pattern: when porting quickly, identity checks get stubbed out. EVM's `useAccount()` + `address.toLowerCase()` pattern is so natural that the Aptos equivalent (`useWallet()` + `account?.address`) gets deferred.
+
+### Bug 5: The Missing Resolver → Aptos Has No Automation Service
+
+Games get stuck at `WaitingForReveal` forever because no resolver service was built. On EVM, Chainlink CRE triggers on events automatically. On Aptos, there's nothing equivalent.
+
+The original journal buried this as a "What Would Change in Production" item, as if it were a nice-to-have. **It's not a nice-to-have — it's the reason the game doesn't work.** Without a resolver, the two-TX randomness pattern is just a contract that gets stuck.
+
+**Fix:** Built `aptos-resolver.sh` — a polling state machine that watches game state and executes resolver actions. Also built `play-aptos.sh` (game CLI) and `aptos-e2e.sh` (full end-to-end test).
+
+**This is the #1 integration blocker for any app using two-TX randomness.** The docs say "use the two-TX pattern for security" but don't address "...and you need to build your own automation to execute TX2."
+
+**Recommendation 11:** Prominently document the resolver requirement alongside the two-TX pattern. Provide a reference resolver implementation (even a simple Node.js polling script). Don't let developers discover this requirement at runtime.
+
+### Meta-Lesson: The Bugs ARE the Documentation
+
+An AI agent is a perfect proxy for "developer who skims your docs and builds something." When Claude ported Deal-or-Not:
+
+| Where docs were clear | Result |
+|---|---|
+| Move syntax, basic `#[test]` | Correct implementation |
+| APT transfers, coin module | Correct implementation |
+| Wallet adapter setup | Correct implementation |
+
+| Where docs were sparse/missing | Result |
+|---|---|
+| Randomness testing (`initialize_for_testing`) | 0 tests for core module |
+| Two-TX full application pattern | Caller bug in frontend |
+| Event reading / game ID discovery | Hardcoded 404 route |
+| Automation / resolver requirement | Missing resolver service |
+
+**The bugs in this port are a map of the gaps in Aptos documentation.** Every place the port went wrong is a place where the docs either didn't exist or didn't explain the concept clearly enough for an AI (or a skimming human) to get right.
+
+### Lesson for AI-Assisted Porting
+
+"Compilation + unit tests for pure functions" creates a compelling "it works!" narrative. TypeScript builds clean. Move compiles. 41/41 tests pass. The commit message writes itself.
+
+But the integration layer — **can a user actually play a game?** — was never tested. A single end-to-end test, even a manual one via CLI scripts, would have caught all five issues above.
+
+---
+
+## Phase 10: Resolver Pattern, Automation & Integration Architecture
+
+### Why Aptos Needs a Resolver Pattern Guide
+
+The two-TX randomness pattern is Aptos's answer to the commit-reveal problem: TX1 commits the player's intent, TX2 (from a separate authorized signer) generates randomness and executes. This prevents undergasing attacks and selective abort.
+
+But it creates a dependency on an off-chain service to submit TX2. On EVM, this is handled by infrastructure services:
+
+| Service | EVM (Chainlink) | Aptos | Gap? |
+|---------|-----------------|-------|------|
+| Randomness | VRF (callback-based) | Native `#[randomness]` (two-TX) | Different pattern |
+| Event triggers | CRE workflows | Nothing | **Yes** |
+| Scheduled TX | Chainlink Automation | Nothing (Greg: "supposed to be November") | **Yes** |
+| Keeper service | Chainlink Keepers | Nothing | **Yes** |
+| Confidential compute | CRE enclaves | Nothing | **Yes** |
+
+### Resolver Architecture
+
+The resolver is a polling state machine:
+
+```
+┌──────────┐   poll every 3s   ┌──────────────────┐
+│  Start   │ ────────────────→ │  Read game phase  │
+└──────────┘                   └────────┬─────────┘
+                                        │
+              ┌─────────────────────────┼──────────────────┐
+              ▼                         ▼                  ▼
+     WaitingForReveal          AwaitingOffer          FinalRound
+              │                         │                  │
+     reveal_case()             calc + set_offer()    keep/swap_case()
+     (randomness)              (no randomness)       (randomness)
+              │                         │                  │
+              └─────────────────────────┼──────────────────┘
+                                        ▼
+                                    GameOver → exit
+```
+
+Key design decisions:
+- **Phase deduplication**: Track `PREV_PHASE` to avoid re-executing actions (same pattern as EVM's `cre-simulate.sh support`)
+- **FinalRound handling**: Player's keep/swap choice must be communicated to the resolver. Options:
+  - (a) CLI flag: `aptos-resolver.sh <GID> --keep` (current implementation)
+  - (b) On-chain flag: Add `request_keep`/`request_swap` entry functions that set a `player_final_choice` field, resolver polls for it
+  - (c) Off-chain signal: HTTP endpoint, file watch, etc.
+  Option (b) is the production path — the on-chain flag is verifiable and doesn't require a separate communication channel.
+
+### Three Production Paths
+
+**1. Script Resolver (what we built)**
+- Bash script polling every 3 seconds
+- Centralized trust: resolver key holder
+- Good for: demos, testing, single-player games
+- Bad for: production (single point of failure, key management)
+
+**2. CCIP Hybrid (future)**
+- EVM CRE workflow detects Aptos events → sends CCIP message → Aptos receives and executes
+- Decentralized trust: CRE enclave
+- Requires: CCIP Aptos support (in development), Aptos message receiver contracts
+- Good for: production, multi-chain apps
+- Bad for: latency (~2-5 min CCIP finality)
+
+**3. Aptos Native Automation (aspirational)**
+- On-chain scheduled transactions or keeper service
+- Fully decentralized, on-chain trust
+- Status: Doesn't exist. Greg Nazario (Aptos DevRel): "scheduled transactions were supposed to be done in November [2025]... it's March [2026]."
+- Good for: everything, if it existed
+
+### Recommendations for Aptos
+
+**Recommendation 12:** Document the two-TX randomness + resolver as a first-class application pattern. The current docs show the contract side only — they need to show the full stack including the off-chain resolver.
+
+**Recommendation 13:** Aptos needs a keeper/automation service. Any app with async operations (games, auctions, DeFi liquidations, scheduled payments) needs something to execute TX2. This is a real ecosystem gap. Chainlink Automation exists on EVM for exactly this reason.
+
+**Recommendation 14:** Consider providing a reference resolver SDK — a simple TypeScript library that polls Aptos view functions and submits transactions. Developers shouldn't have to build this from scratch for every app that uses two-TX randomness.
