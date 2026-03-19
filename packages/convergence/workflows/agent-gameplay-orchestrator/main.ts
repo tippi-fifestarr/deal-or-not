@@ -127,6 +127,7 @@ type DecisionResponse = {
 // ── Helpers ──
 
 const NUM_CASES = 5;
+const CASE_VALUES_CENTS = [1, 5, 10, 50, 100];
 
 function expectedValue(values: number[]): number {
   if (values.length === 0) return 0;
@@ -226,15 +227,22 @@ function handleAgentTurn(
   }
 
   // 3. Compute remaining values for EV calculation
-  const remainingValues: number[] = [];
+  // NOTE: unrevealed case values are 0 on-chain (hidden until game over).
+  // We reconstruct remaining values from the known set minus revealed ones.
+  const revealedValues: number[] = [];
   for (let i = 0; i < NUM_CASES; i++) {
-    if (!opened[i] && i !== playerCase) {
-      remainingValues.push(caseValues[i]);
+    if (opened[i] && caseValues[i] > 0) {
+      revealedValues.push(caseValues[i]);
     }
   }
-  if (playerCase >= 0 && playerCase < NUM_CASES && !opened[playerCase]) {
-    remainingValues.push(caseValues[playerCase]);
-  }
+  const remainingValues = CASE_VALUES_CENTS.filter(v => {
+    const idx = revealedValues.indexOf(v);
+    if (idx !== -1) {
+      revealedValues.splice(idx, 1); // remove one instance
+      return false;
+    }
+    return true;
+  });
 
   const ev = expectedValue(remainingValues);
 
